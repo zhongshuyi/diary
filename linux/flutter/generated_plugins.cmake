@@ -3,9 +3,8 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
-  dynamic_color
   file_selector_linux
-  flutter_secure_storage_linux
+  isar_community_flutter_libs
   url_launcher_linux
 )
 

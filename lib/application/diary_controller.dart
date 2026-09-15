@@ -1,0 +1,86 @@
+import 'package:flutter/foundation.dart';
+
+import 'package:diary/data/diary_repository.dart';
+import 'package:diary/domain/diary_entry.dart';
+
+/// Application-layer state and use cases for the diary feature.
+///
+/// Pages depend on this controller through callbacks exposed by the shell;
+/// persistence stays behind [DiaryRepository]. This keeps widgets free from
+/// storage details and makes the same flows usable with Isar or an in-memory
+/// repository in tests.
+class DiaryController extends ChangeNotifier {
+  DiaryController({required DiaryRepository repository})
+    : _repository = repository;
+
+  final DiaryRepository _repository;
+
+  List<DiaryEntry> _entries = const [];
+  List<DiaryEntry> _trash = const [];
+  bool _isLoading = true;
+  Object? _error;
+
+  List<DiaryEntry> get entries => _entries;
+  List<DiaryEntry> get trash => _trash;
+  bool get isLoading => _isLoading;
+  Object? get error => _error;
+
+  List<String> get categories {
+    final result = <String>{
+      '生活',
+      '灵感',
+      '心绪',
+      ..._entries.map((entry) => entry.category),
+    };
+    return result.toList(growable: false);
+  }
+
+  Future<void> initialize() => refresh();
+
+  Future<void> refresh() async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+    try {
+      final all = await _repository.load(includeTrash: true);
+      _entries = List.unmodifiable(all.where((entry) => !entry.isInTrash));
+      _trash = List.unmodifiable(all.where((entry) => entry.isInTrash));
+    } catch (error) {
+      _error = error;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> save(DiaryEntry entry) async {
+    await _repository.save(entry);
+    await refresh();
+  }
+
+  Future<void> toggleFavorite(DiaryEntry entry) async {
+    await save(
+      entry.copyWith(isFavorite: !entry.isFavorite, updatedAt: DateTime.now()),
+    );
+  }
+
+  Future<void> moveToTrash(DiaryEntry entry) async {
+    await _repository.moveToTrash(entry.id);
+    await refresh();
+  }
+
+  Future<void> restore(DiaryEntry entry) async {
+    await _repository.restore(entry.id);
+    await refresh();
+  }
+
+  Future<void> deletePermanently(DiaryEntry entry) async {
+    await _repository.deletePermanently(entry.id);
+    await refresh();
+  }
+
+  Future<void> replaceAll(List<DiaryEntry> entries) async {
+    await _repository.replaceAll(entries);
+    await refresh();
+  }
+}

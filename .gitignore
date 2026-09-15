@@ -31,6 +31,17 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
+/android/build/
+/android/.gradle/
+/android/.kotlin/
+/libisar.dll
+/libisar.dylib
+**/ephemeral/
+/android/app/.cxx/
+/android/app/.externalNativeBuild/
+/android/app/outputs/
+/android/app/intermediates/
+/android/app/.transforms/
 /coverage/
 
 # Symbolication related

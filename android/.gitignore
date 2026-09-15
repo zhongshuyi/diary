@@ -12,3 +12,8 @@ GeneratedPluginRegistrant.java
 key.properties
 **/*.keystore
 **/*.jks
+
+# Keep the Gradle wrapper in version control for reproducible Android builds.
+!gradle-wrapper.jar
+!/gradlew
+!/gradlew.bat
