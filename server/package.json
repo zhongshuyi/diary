@@ -1,0 +1,12 @@
+{
+  "name": "diary-sync-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-first sync service for the Diary clients",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.mjs",
+    "dev": "node --watch src/server.mjs",
+    "test": "node --test"
+  }
+}

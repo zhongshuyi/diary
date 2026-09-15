@@ -1,60 +1,36 @@
-# My Diary
+# 此刻 · Diary Workspace
 
-一个以隐私和长期记录为核心的 Flutter 日记应用。UI 采用温暖纸张、深墨绿和陶土色的编辑感设计，手机与 Windows 桌面端使用不同的应用壳层和交互逻辑，共享同一套本地日记数据与业务用例。
+这是一个本地优先的日记应用工作区，包含两个独立客户端和一个同步服务：
 
-## 当前能力
+- `mobile/`：Flutter 手机端，面向单手操作、快速碎碎念和离线记录。
+- `desktop/`：Electron Windows 桌面端，面向键盘、宽屏、多栏浏览和持续编辑。
+- `server/`：Node.js 同步服务，提供版本化增量同步 API。
+- `docs/`：跨端数据格式、同步协议和架构约定。
 
-- 时间线、搜索、分类筛选和收藏
-- 首页快速记录：手机端打开后可直接写下一条碎碎念，同一天支持多次独立记录
-- 纯文本、Markdown 预览、Quill 富文本三种编辑方式
-- 图片/文件附件入口、单篇分享、JSON 全量备份
-- 日历视图、媒体库、情绪洞察、回收站恢复与永久删除
-- 主题模式、全局阅读字号、默认编辑器和字数显示均可持久化
-- 可选系统生物识别/设备解锁，应用切回前台时重新验证
-- 原生端使用 Isar Community 3.3.2 存储，带唯一 ID、时间、分类和回收站索引
-- Web 端使用同一仓储接口切换到 SharedPreferences，规避 Isar 3.x schema 的 JavaScript 64 位常量限制
-- Windows 端使用独立的桌面工作区：侧边导航、今日快速记录面板、分栏编辑器、键盘快捷键和 Flutter 自绘无标题栏
+桌面端的记录器支持直接把文字粘贴到正文，把剪贴板中的图片/视频或资源管理器中的媒体文件粘贴、拖入编辑器；媒体会先复制到 Electron 的应用数据目录，再写入日记，避免原文件移动后预览失效。标题是可选的，不写标题时桌面端会用正文首行作为列表摘要。
 
-## 工程结构
-
-```text
-lib/
-├─ app/             应用主题、路由常量、手机壳层与 Windows 桌面壳层
-├─ application/     日记与设置用例、页面状态控制器
-├─ domain/          DiaryEntry、DiarySettings 领域模型与演示数据
-├─ data/            日记仓储、Isar 模型、设置存储与平台实现
-├─ pages/           按功能拆分的页面：主页、日历、媒体、洞察、编辑、详情、分享、回收站、设置
-└─ widgets/         导航、媒体预览、日记卡片、页面标题等可复用组件
-```
-
-页面不直接依赖数据库；所有持久化操作通过 `DiaryRepository`，原生端默认使用 Isar Community，测试可以注入内存仓储。
-
-## 依赖策略
-
-依赖已按当前 Flutter 3.41.2 / Dart 3.11.0 环境验证。`isar_community` 用于原生端的大量日记数据；没有实际使用的参考项目依赖不会为了“堆包”而加入。`local_auth` 用于可选隐私锁。`flutter_quill`、`share_plus` 和 `file_picker` 已选择当前依赖树可解析且测试通过的版本；Pub 显示的更高版本需要 Dart 3.12 或会与现有 Windows 依赖冲突，待升级 Flutter 后再升级。
-
-## 参考 moodiary 后的取舍
-
-已加入：媒体库、持久化偏好、主题与字号、系统隐私锁、回收站、日历、洞察和本地备份。这些功能与“离线优先、长期记录”目标直接相关。
-
-暂不默认加入：AI 助手、地图轨迹、WebDAV/MinIO 云同步、录音/视频播放器和涂鸦实验室。它们会引入网络、定位、权限或较重的原生依赖，并扩大日记隐私边界；后续可以作为独立可选模块接入，而不是让核心日记启动依赖它们。
-
-## 开发
+## 本地开发
 
 ```powershell
+# 手机端
+cd mobile
 flutter pub get
-dart run build_runner build
-flutter test -j 1
-flutter run
+flutter test
+
+# 桌面端（先启动同步服务更完整）
+cd ..\server
+npm start
+
+# 另开终端
+cd ..\desktop
+npm install
+npm start
 ```
 
-Windows 桌面端：
+Flutter 工程的原有说明和平台配置保留在 [`mobile/README.md`](mobile/README.md)。
 
-```powershell
-flutter run -d windows
-flutter build windows --release
-```
+## 目录边界
 
-Release 产物位于 `build/windows/x64/runner/Release/diary.exe`。Windows 顶栏提供主题图标、窗口拖动、最小化、最大化/还原和关闭；常用快捷键为 `Ctrl + N` 新建日记、`Ctrl + K` 聚焦搜索、`Ctrl + Enter` 保存编辑中的日记、`Esc` 返回。手机端继续使用底部导航和首页快速记录入口。
+两端不共享页面壳层，只共享稳定的数据格式和同步协议。这样手机端可以持续优化“打开即写”，桌面端可以独立发展为真正的桌面工作台，不会再被移动端的页面入口和交互逻辑牵制。
 
-Isar 生成文件位于 `lib/data/isar_diary_record.g.dart`，修改 `@collection` 模型后重新运行生成命令。
+详细约定见 [`docs/architecture.md`](docs/architecture.md) 和 [`docs/sync-contract.md`](docs/sync-contract.md)。

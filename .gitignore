@@ -1,56 +1,39 @@
-# Miscellaneous
-*.class
-*.log
-*.pyc
-*.swp
+# Workspace-level generated files
 .DS_Store
-.atom/
-.build/
-.buildlog/
-.history
-.svn/
-.swiftpm/
-migrate_working_dir/
+*.log
 
-# IntelliJ related
-*.iml
-*.ipr
-*.iws
+# Flutter mobile app
+mobile/.dart_tool/
+mobile/.flutter-plugins-dependencies
+mobile/.pub-cache/
+mobile/.pub/
+mobile/build/
+mobile/coverage/
+mobile/libisar.dll
+mobile/libisar.dylib
+mobile/**/ephemeral/
+mobile/android/.gradle/
+mobile/android/build/
+mobile/android/app/.cxx/
+mobile/android/app/.externalNativeBuild/
+mobile/android/app/outputs/
+mobile/android/app/intermediates/
+mobile/ios/Flutter/.last_build_id
+
+# Electron desktop app
+desktop/node_modules/
+desktop/dist/
+desktop/out/
+desktop/.electron-gyp/
+
+# Sync server
+server/node_modules/
+server/dist/
+server/data/*.json
+server/.env
+server/.env.*
+!server/.env.example
+
+# Local editor state
 .idea/
-
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
-
-# Flutter/Dart/Pub related
-**/doc/api/
-**/ios/Flutter/.last_build_id
-.dart_tool/
-.flutter-plugins-dependencies
-.pub-cache/
-.pub/
-/build/
-/android/build/
-/android/.gradle/
-/android/.kotlin/
-/libisar.dll
-/libisar.dylib
-**/ephemeral/
-/android/app/.cxx/
-/android/app/.externalNativeBuild/
-/android/app/outputs/
-/android/app/intermediates/
-/android/app/.transforms/
-/coverage/
-
-# Symbolication related
-app.*.symbols
-
-# Obfuscation related
-app.*.map.json
-
-# Android Studio will place build artifacts here
-/android/app/debug
-/android/app/profile
-/android/app/release
+.vscode/
