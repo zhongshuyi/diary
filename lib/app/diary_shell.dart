@@ -1,26 +1,78 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:diary/app/app_routes.dart';
 import 'package:diary/app/app_theme.dart';
+import 'package:diary/app/desktop_diary_shell.dart';
+import 'package:diary/app/mobile_diary_shell.dart';
+import 'package:diary/application/diary_controller.dart';
 import 'package:diary/application/diary_lock_coordinator.dart';
+import 'package:diary/application/settings_controller.dart';
 import 'package:diary/data/diary_repository.dart';
 import 'package:diary/domain/diary_entry.dart';
-import 'package:diary/application/diary_controller.dart';
-import 'package:diary/application/settings_controller.dart';
-import 'package:diary/pages/calendar/calendar_page.dart';
+import 'package:diary/domain/diary_settings.dart';
 import 'package:diary/pages/entry/entry_detail_page.dart';
 import 'package:diary/pages/entry/entry_editor_page.dart';
-import 'package:diary/pages/home/home_page.dart';
-import 'package:diary/pages/insights/insights_page.dart';
-import 'package:diary/pages/media/media_page.dart';
-import 'package:diary/pages/profile/profile_page.dart';
 import 'package:diary/pages/recycle/recycle_page.dart';
-import 'package:diary/pages/share/share_page.dart';
 import 'package:diary/pages/settings/about_page.dart';
 import 'package:diary/pages/settings/backup_page.dart';
 import 'package:diary/pages/settings/category_page.dart';
 import 'package:diary/pages/settings/settings_page.dart';
-import 'package:diary/widgets/diary_navigation.dart';
+import 'package:diary/pages/share/share_page.dart';
+
+bool diaryUsesDesktopShell(BuildContext context) {
+  final mobilePlatform =
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS ||
+      defaultTargetPlatform == TargetPlatform.fuchsia;
+  return defaultTargetPlatform == TargetPlatform.windows ||
+      (!mobilePlatform && MediaQuery.sizeOf(context).width >= 900);
+}
+
+/// Callbacks shared by the two platform shells. The shells own different
+/// navigation and interaction state, while this object keeps data operations
+/// in one place.
+class DiaryShellActions {
+  const DiaryShellActions({
+    required this.openEditor,
+    required this.openEntry,
+    required this.toggleFavorite,
+    required this.openShare,
+    required this.moveToTrash,
+    required this.saveQuickCapture,
+    required this.openRecycle,
+    required this.openSettings,
+    required this.openCategories,
+    required this.openBackup,
+    required this.openAbout,
+    required this.toggleTheme,
+    required this.saveEntry,
+    required this.beginExternalActivity,
+    required this.endExternalActivity,
+    required this.replaceEntries,
+    required this.restoreEntry,
+    required this.deleteEntryPermanently,
+  });
+
+  final Future<void> Function([DiaryEntry? entry]) openEditor;
+  final Future<void> Function(DiaryEntry entry) openEntry;
+  final Future<void> Function(DiaryEntry entry) toggleFavorite;
+  final Future<void> Function(DiaryEntry entry) openShare;
+  final Future<void> Function(DiaryEntry entry) moveToTrash;
+  final Future<void> Function(String content) saveQuickCapture;
+  final Future<void> Function() openRecycle;
+  final Future<void> Function() openSettings;
+  final Future<void> Function() openCategories;
+  final Future<void> Function() openBackup;
+  final Future<void> Function() openAbout;
+  final Future<void> Function() toggleTheme;
+  final Future<void> Function(DiaryEntry entry) saveEntry;
+  final VoidCallback beginExternalActivity;
+  final VoidCallback endExternalActivity;
+  final Future<void> Function(List<DiaryEntry> entries) replaceEntries;
+  final Future<void> Function(DiaryEntry entry) restoreEntry;
+  final Future<void> Function(DiaryEntry entry) deleteEntryPermanently;
+}
 
 class DiaryShell extends StatefulWidget {
   const DiaryShell({
@@ -40,7 +92,6 @@ class DiaryShell extends StatefulWidget {
 
 class _DiaryShellState extends State<DiaryShell> {
   late final DiaryController _controller;
-  int _selectedIndex = 0;
 
   List<DiaryEntry> get _entries => _controller.entries;
   List<DiaryEntry> get _trash => _controller.trash;
@@ -68,73 +119,83 @@ class _DiaryShellState extends State<DiaryShell> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = DiaryThemeColors.of(context);
     if (_controller.isLoading && _entries.isEmpty && _trash.isEmpty) {
       return const _LoadingView();
     }
     if (_controller.error != null && _entries.isEmpty && _trash.isEmpty) {
       return _ErrorView(onRetry: _controller.refresh);
     }
-    final page = IndexedStack(
-      index: _selectedIndex,
-      children: [
-        HomePage(
-          entries: _entries,
-          onOpenEditor: () => _openEditor(),
-          onOpenEntry: _openEntry,
-          onToggleFavorite: _toggleFavorite,
-          onShare: _openShare,
-          onDelete: _moveToTrash,
-        ),
-        CalendarPage(entries: _entries, onOpenEntry: _openEntry),
-        MediaPage(entries: _entries, onOpenEntry: _openEntry),
-        InsightsPage(entries: _entries),
-        ProfilePage(
-          entryCount: _entries.length,
-          trashCount: _trash.length,
-          onOpenRecycle: _openRecycle,
-          onOpenSettings: _openSettings,
-          onOpenCategories: _openCategories,
-          onOpenBackup: _openBackup,
-          onOpenAbout: _openAbout,
-        ),
-      ],
-    );
-    return Scaffold(
-      backgroundColor: colors.paper,
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final desktop = constraints.maxWidth >= 900;
-          return Row(
-            children: [
-              if (desktop)
-                DiarySideNavigation(
-                  selectedIndex: _selectedIndex,
-                  onSelected: _selectPage,
-                  onNewEntry: () => _openEditor(),
-                ),
-              Expanded(child: page),
-            ],
+
+    return LayoutBuilder(
+      builder: (context, _) {
+        final desktop = diaryUsesDesktopShell(context);
+        final actions = DiaryShellActions(
+          openEditor: _openEditor,
+          openEntry: _openEntry,
+          toggleFavorite: _toggleFavorite,
+          openShare: _openShare,
+          moveToTrash: _moveToTrash,
+          saveQuickCapture: _saveQuickCapture,
+          openRecycle: _openRecycle,
+          openSettings: _openSettings,
+          openCategories: _openCategories,
+          openBackup: _openBackup,
+          openAbout: _openAbout,
+          toggleTheme: _toggleTheme,
+          saveEntry: (entry) => _controller.save(entry),
+          beginExternalActivity: widget.lockCoordinator.beginExternalActivity,
+          endExternalActivity: widget.lockCoordinator.endExternalActivity,
+          replaceEntries: (entries) => _controller.replaceAll(entries),
+          restoreEntry: _restoreFromRecycle,
+          deleteEntryPermanently: _deleteFromRecycle,
+        );
+        if (desktop) {
+          return DesktopDiaryShell(
+            entries: _entries,
+            trash: _trash,
+            categories: _categories,
+            settingsController: widget.settingsController,
+            actions: actions,
           );
-        },
-      ),
-      bottomNavigationBar: MediaQuery.sizeOf(context).width < 900
-          ? DiaryBottomNavigation(
-              selectedIndex: _selectedIndex,
-              onSelected: _selectPage,
-            )
-          : null,
+        }
+        return MobileDiaryShell(
+          entries: _entries,
+          trash: _trash,
+          actions: actions,
+        );
+      },
     );
   }
 
-  void _selectPage(int index) => setState(() => _selectedIndex = index);
+  Future<void> _saveQuickCapture(String content) async {
+    final now = DateTime.now();
+    final timeLabel = diaryTimeLabel(now);
+    await _controller.save(
+      DiaryEntry(
+        id: now.microsecondsSinceEpoch.toString(),
+        createdAt: now,
+        updatedAt: now,
+        title: '$timeLabel 的一个念头',
+        content: content,
+        contentText: content,
+        category: '生活',
+      ),
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('已记下，今天又多了一个瞬间')));
+  }
 
   Future<void> _openEditor([DiaryEntry? entry]) async {
+    final desktop = diaryUsesDesktopShell(context);
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         settings: const RouteSettings(name: AppRoutes.entryEditor),
         builder: (_) => EntryEditorPage(
           entry: entry,
+          desktopLayout: desktop,
+          onToggleTheme: desktop ? _toggleTheme : null,
           categories: _categories,
           defaultEditorType:
               entry?.editorType ??
@@ -254,6 +315,14 @@ class _DiaryShellState extends State<DiaryShell> {
         builder: (_) => const AboutPage(),
       ),
     );
+  }
+
+  Future<void> _toggleTheme() async {
+    final current = widget.settingsController.settings.themeMode;
+    final next = current == DiaryThemeMode.dark
+        ? DiaryThemeMode.light
+        : DiaryThemeMode.dark;
+    await widget.settingsController.setThemeMode(next);
   }
 }
 

@@ -25,9 +25,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   project.set_dart_entrypoint_arguments(std::move(command_line_arguments));
 
   FlutterWindow window(project);
-  Win32Window::Point origin(10, 10);
-  Win32Window::Size size(1280, 720);
-  if (!window.Create(L"diary", origin, size)) {
+  // Give the desktop layout enough room for the navigation, timeline, and
+  // always-visible quick capture panel on first launch.
+  Win32Window::Point origin(40, 40);
+  Win32Window::Size size(1360, 860);
+  if (!window.Create(L"此刻 · diary", origin, size)) {
     return EXIT_FAILURE;
   }
   window.SetQuitOnClose(true);

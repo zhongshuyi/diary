@@ -1,11 +1,23 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:diary/domain/diary_entry.dart';
 import 'package:diary/main.dart';
 import 'package:diary/pages/entry/entry_detail_page.dart';
+import 'package:diary/widgets/diary_navigation.dart';
+
+Future<void> _runAsWindows(Future<void> Function() body) async {
+  debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+  try {
+    await body();
+  } finally {
+    // Reset before the test framework verifies its global invariants.
+    debugDefaultTargetPlatformOverride = null;
+  }
+}
 
 void main() {
   testWidgets('shows the diary timeline and primary action', (tester) async {
@@ -16,6 +28,33 @@ void main() {
     expect(find.text('今天，写给自己'), findsOneWidget);
     expect(find.text('写一篇'), findsOneWidget);
     expect(find.text('最近的日记'), findsOneWidget);
+  });
+
+  testWidgets('uses the mobile shell without desktop window chrome', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+
+    expect(find.byType(DiaryBottomNavigation), findsOneWidget);
+    expect(find.byKey(const Key('desktop-window-bar')), findsNothing);
+  });
+
+  testWidgets('keeps the desktop shell when its window is narrow', (
+    tester,
+  ) async {
+    await _runAsWindows(() async {
+      tester.view.physicalSize = const Size(1120, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(const MyApp());
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('desktop-window-bar')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
   });
 
   testWidgets('can create and save a diary entry', (tester) async {
@@ -40,6 +79,93 @@ void main() {
     expect(find.text('给未来的自己'), findsOneWidget);
     expect(find.text('今天也有好好生活。'), findsOneWidget);
   });
+
+  testWidgets('can capture a text fragment without opening the editor', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const Key('quick-capture-field')),
+      '路边的树影很好看。',
+    );
+    await tester.tap(find.text('记下'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('路边的树影很好看。'), findsOneWidget);
+  });
+
+  testWidgets('uses the desktop writing workspace on a wide window', (
+    tester,
+  ) async {
+    await _runAsWindows(() async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(const MyApp());
+      await tester.pumpAndSettle();
+
+      expect(find.text('新建日记  Ctrl + N'), findsOneWidget);
+      expect(find.textContaining('TODAY /'), findsOneWidget);
+      expect(find.text('一条就是一个瞬间'), findsOneWidget);
+      expect(find.byKey(const Key('desktop-window-bar')), findsOneWidget);
+      expect(find.byTooltip('切换到深色模式'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  testWidgets('opens the desktop editor with metadata beside the canvas', (
+    tester,
+  ) async {
+    await _runAsWindows(() async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(const MyApp());
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('新建日记  Ctrl + N'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('这篇日记'), findsOneWidget);
+      expect(find.text('Ctrl + Enter 保存 · Esc 返回'), findsOneWidget);
+      expect(find.text('添加附件'), findsOneWidget);
+      expect(find.byKey(const Key('desktop-window-bar')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  testWidgets(
+    'opens desktop settings from the app area and returns to the workspace',
+    (tester) async {
+      await _runAsWindows(() async {
+        tester.view.physicalSize = const Size(1440, 900);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(const MyApp());
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('应用设置'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('偏好设置'), findsNWidgets(2));
+        await tester.drag(find.byType(Scrollable).first, const Offset(0, -600));
+        await tester.pumpAndSettle();
+        expect(find.text('应用工具'), findsOneWidget);
+        expect(find.byTooltip('返回'), findsOneWidget);
+
+        await tester.tap(find.byTooltip('返回'));
+        await tester.pumpAndSettle();
+        expect(find.text('最近的日记'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    },
+  );
 
   testWidgets('filters entries with the search field', (tester) async {
     await tester.pumpWidget(const MyApp());

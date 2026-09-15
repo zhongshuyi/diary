@@ -12,6 +12,7 @@ class ProfilePage extends StatelessWidget {
     required this.onOpenCategories,
     required this.onOpenBackup,
     required this.onOpenAbout,
+    this.desktopLayout = false,
     super.key,
   });
 
@@ -22,6 +23,7 @@ class ProfilePage extends StatelessWidget {
   final VoidCallback onOpenCategories;
   final VoidCallback onOpenBackup;
   final VoidCallback onOpenAbout;
+  final bool desktopLayout;
 
   @override
   Widget build(BuildContext context) {
@@ -114,36 +116,38 @@ class ProfilePage extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 25),
-              Text('管理', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 9),
-              _ProfileTile(
-                icon: Icons.tune_outlined,
-                title: '偏好设置',
-                subtitle: '主题、启动页与阅读体验',
-                onTap: onOpenSettings,
-              ),
-              _ProfileTile(
-                icon: Icons.sell_outlined,
-                title: '分类与标签',
-                subtitle: '整理你常写下的主题',
-                onTap: onOpenCategories,
-              ),
-              _ProfileTile(
-                icon: Icons.import_export_outlined,
-                title: '备份与恢复',
-                subtitle: '用 JSON 保存或迁移你的日记',
-                onTap: onOpenBackup,
-              ),
-              const SizedBox(height: 25),
-              Text('关于', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 9),
-              _ProfileTile(
-                icon: Icons.auto_awesome_outlined,
-                title: '关于此刻',
-                subtitle: '版本、设计理念与隐私说明',
-                onTap: onOpenAbout,
-              ),
+              if (!desktopLayout) ...[
+                const SizedBox(height: 25),
+                Text('管理', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 9),
+                _ProfileTile(
+                  icon: Icons.tune_outlined,
+                  title: '偏好设置',
+                  subtitle: '主题、启动页与阅读体验',
+                  onTap: onOpenSettings,
+                ),
+                _ProfileTile(
+                  icon: Icons.sell_outlined,
+                  title: '分类与标签',
+                  subtitle: '整理你常写下的主题',
+                  onTap: onOpenCategories,
+                ),
+                _ProfileTile(
+                  icon: Icons.import_export_outlined,
+                  title: '备份与恢复',
+                  subtitle: '用 JSON 保存或迁移你的日记',
+                  onTap: onOpenBackup,
+                ),
+                const SizedBox(height: 25),
+                Text('关于', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 9),
+                _ProfileTile(
+                  icon: Icons.auto_awesome_outlined,
+                  title: '关于此刻',
+                  subtitle: '版本、设计理念与隐私说明',
+                  onTap: onOpenAbout,
+                ),
+              ],
             ],
           ),
         ),

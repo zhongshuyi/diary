@@ -8,9 +8,18 @@ import 'package:diary/domain/diary_entry.dart';
 import 'package:diary/domain/diary_settings.dart';
 
 class SettingsPage extends StatelessWidget {
-  const SettingsPage({required this.controller, super.key});
+  const SettingsPage({
+    required this.controller,
+    this.onOpenCategories,
+    this.onOpenBackup,
+    this.onOpenAbout,
+    super.key,
+  });
 
   final SettingsController controller;
+  final VoidCallback? onOpenCategories;
+  final VoidCallback? onOpenBackup;
+  final VoidCallback? onOpenAbout;
 
   @override
   Widget build(BuildContext context) {
@@ -122,6 +131,49 @@ class SettingsPage extends StatelessWidget {
                   ),
                 ],
               ),
+              if (onOpenCategories != null ||
+                  onOpenBackup != null ||
+                  onOpenAbout != null) ...[
+                const SizedBox(height: 12),
+                _Section(
+                  title: '应用工具',
+                  children: [
+                    if (onOpenCategories != null)
+                      _SettingsTile(
+                        leading: const Icon(Icons.sell_outlined),
+                        title: const Text('分类与标签'),
+                        subtitle: const Text('整理你常写下的主题'),
+                        trailing: Icon(
+                          Icons.chevron_right,
+                          color: colors.mutedInk,
+                        ),
+                        onTap: onOpenCategories,
+                      ),
+                    if (onOpenBackup != null)
+                      _SettingsTile(
+                        leading: const Icon(Icons.import_export_outlined),
+                        title: const Text('备份与恢复'),
+                        subtitle: const Text('用 JSON 保存或迁移你的日记'),
+                        trailing: Icon(
+                          Icons.chevron_right,
+                          color: colors.mutedInk,
+                        ),
+                        onTap: onOpenBackup,
+                      ),
+                    if (onOpenAbout != null)
+                      _SettingsTile(
+                        leading: const Icon(Icons.auto_awesome_outlined),
+                        title: const Text('关于此刻'),
+                        subtitle: const Text('版本、设计理念与隐私说明'),
+                        trailing: Icon(
+                          Icons.chevron_right,
+                          color: colors.mutedInk,
+                        ),
+                        onTap: onOpenAbout,
+                      ),
+                  ],
+                ),
+              ],
             ],
           ),
         );

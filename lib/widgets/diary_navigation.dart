@@ -7,12 +7,16 @@ class DiarySideNavigation extends StatelessWidget {
     required this.selectedIndex,
     required this.onSelected,
     required this.onNewEntry,
+    required this.onOpenSettings,
+    this.settingsSelected = false,
     super.key,
   });
 
   final int selectedIndex;
   final ValueChanged<int> onSelected;
   final VoidCallback onNewEntry;
+  final VoidCallback onOpenSettings;
+  final bool settingsSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -81,10 +85,17 @@ class DiarySideNavigation extends StatelessWidget {
           DiaryNavigationItem(
             icon: Icons.person_outline,
             label: '我的',
-            selected: selectedIndex == 4,
+            selected: selectedIndex == 4 && !settingsSelected,
             onTap: () => onSelected(4),
           ),
           const Spacer(),
+          DiaryNavigationItem(
+            icon: Icons.settings_outlined,
+            label: '应用设置',
+            selected: settingsSelected,
+            onTap: onOpenSettings,
+          ),
+          const SizedBox(height: 10),
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
@@ -124,16 +135,18 @@ class DiaryNavigationItem extends StatelessWidget {
         onTap: onTap,
         dense: true,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        tileColor: selected ? colors.ink : Colors.transparent,
+        tileColor: selected ? colors.terracotta : Colors.transparent,
+        selectedColor: colors.terracotta,
+        hoverColor: selected ? colors.terracotta : colors.terracottaSoft,
         leading: Icon(
           icon,
           size: 19,
-          color: selected ? colors.surface : colors.mutedInk,
+          color: selected ? colors.onHero : colors.mutedInk,
         ),
         title: Text(
           label,
           style: TextStyle(
-            color: selected ? colors.surface : colors.ink,
+            color: selected ? colors.onHero : colors.ink,
             fontSize: 13,
             fontWeight: FontWeight.w700,
           ),

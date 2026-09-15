@@ -55,6 +55,13 @@ class Win32Window {
   // Return a RECT representing the bounds of the current client area.
   RECT GetClientArea();
 
+  // Commands used by the Flutter-rendered desktop title bar.
+  void Minimize();
+  bool ToggleMaximize();
+  bool IsMaximized() const;
+  void BeginDrag();
+  void Close();
+
  protected:
   // Processes and route salient window messages for mouse handling,
   // size change and DPI. Delegates handling of these to member overloads that

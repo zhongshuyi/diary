@@ -26,6 +26,11 @@ constexpr const wchar_t kGetPreferredBrightnessRegKey[] =
   L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize";
 constexpr const wchar_t kGetPreferredBrightnessRegValue[] = L"AppsUseLightTheme";
 
+// The Flutter title bar replaces the native caption while these styles keep
+// the normal Windows resize, minimize, maximize, and system-menu behavior.
+constexpr DWORD kBorderlessWindowStyle =
+    WS_POPUP | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU;
+
 // The number of Win32Window objects that currently exist.
 static int g_active_window_count = 0;
 
@@ -135,7 +140,7 @@ bool Win32Window::Create(const std::wstring& title,
   double scale_factor = dpi / 96.0;
 
   HWND window = CreateWindow(
-      window_class, title.c_str(), WS_OVERLAPPEDWINDOW,
+      window_class, title.c_str(), kBorderlessWindowStyle,
       Scale(origin.x, scale_factor), Scale(origin.y, scale_factor),
       Scale(size.width, scale_factor), Scale(size.height, scale_factor),
       nullptr, nullptr, GetModuleHandle(nullptr), this);
@@ -179,6 +184,13 @@ Win32Window::MessageHandler(HWND hwnd,
                             WPARAM const wparam,
                             LPARAM const lparam) noexcept {
   switch (message) {
+    case WM_GETMINMAXINFO: {
+      auto min_max_info = reinterpret_cast<MINMAXINFO*>(lparam);
+      min_max_info->ptMinTrackSize.x = 1080;
+      min_max_info->ptMinTrackSize.y = 720;
+      return 0;
+    }
+
     case WM_DESTROY:
       window_handle_ = nullptr;
       Destroy();
@@ -253,6 +265,37 @@ RECT Win32Window::GetClientArea() {
   RECT frame;
   GetClientRect(window_handle_, &frame);
   return frame;
+}
+
+void Win32Window::Minimize() {
+  if (window_handle_ != nullptr) {
+    ShowWindow(window_handle_, SW_MINIMIZE);
+  }
+}
+
+bool Win32Window::ToggleMaximize() {
+  if (window_handle_ == nullptr) {
+    return false;
+  }
+  ShowWindow(window_handle_, IsMaximized() ? SW_RESTORE : SW_MAXIMIZE);
+  return IsMaximized();
+}
+
+bool Win32Window::IsMaximized() const {
+  return window_handle_ != nullptr && IsZoomed(window_handle_) != 0;
+}
+
+void Win32Window::BeginDrag() {
+  if (window_handle_ != nullptr) {
+    ReleaseCapture();
+    SendMessage(window_handle_, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+  }
+}
+
+void Win32Window::Close() {
+  if (window_handle_ != nullptr) {
+    PostMessage(window_handle_, WM_CLOSE, 0, 0);
+  }
 }
 
 HWND Win32Window::GetHandle() {

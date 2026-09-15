@@ -12,6 +12,8 @@ class HomePage extends StatefulWidget {
     required this.onToggleFavorite,
     required this.onShare,
     required this.onDelete,
+    required this.onQuickCapture,
+    this.desktopLayout = false,
     super.key,
   });
 
@@ -21,20 +23,37 @@ class HomePage extends StatefulWidget {
   final ValueChanged<DiaryEntry> onToggleFavorite;
   final ValueChanged<DiaryEntry> onShare;
   final ValueChanged<DiaryEntry> onDelete;
+  final Future<void> Function(String content) onQuickCapture;
+  final bool desktopLayout;
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  HomePageState createState() => HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class HomePageState extends State<HomePage> {
   final _searchController = TextEditingController();
+  final _quickController = TextEditingController();
+  final _searchFocusNode = FocusNode();
+  final _quickFocusNode = FocusNode();
   String _query = '';
   String _category = '全部';
   bool _onlyFavorites = false;
+  bool _quickSaving = false;
+
+  void focusSearch() {
+    _searchFocusNode.requestFocus();
+    _searchController.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: _searchController.text.length,
+    );
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _quickController.dispose();
+    _searchFocusNode.dispose();
+    _quickFocusNode.dispose();
     super.dispose();
   }
 
@@ -57,18 +76,41 @@ class _HomePageState extends State<HomePage> {
       '全部',
       ...widget.entries.map((entry) => entry.category),
     }.toList(growable: false);
+    final desktop =
+        widget.desktopLayout || MediaQuery.sizeOf(context).width >= 900;
+    if (desktop) {
+      return _buildDesktop(context, entries, categories);
+    }
+    return _buildMobile(context, entries, categories, colors);
+  }
+
+  Widget _buildMobile(
+    BuildContext context,
+    List<DiaryEntry> entries,
+    List<String> categories,
+    DiaryThemeColors colors,
+  ) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 28, 20, 110),
+      padding: const EdgeInsets.fromLTRB(16, 22, 16, 110),
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 980),
+          constraints: const BoxConstraints(maxWidth: 720),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _Header(onOpenEditor: widget.onOpenEditor),
-              const SizedBox(height: 25),
+              const SizedBox(height: 16),
+              _QuickCaptureBar(
+                controller: _quickController,
+                focusNode: _quickFocusNode,
+                saving: _quickSaving,
+                compact: false,
+                onSubmit: _submitQuickCapture,
+                onOpenEditor: widget.onOpenEditor,
+              ),
+              const SizedBox(height: 16),
               _WritingPrompt(onOpenEditor: widget.onOpenEditor),
-              const SizedBox(height: 28),
+              const SizedBox(height: 24),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -105,6 +147,7 @@ class _HomePageState extends State<HomePage> {
               TextField(
                 key: const Key('diary-search-field'),
                 controller: _searchController,
+                focusNode: _searchFocusNode,
                 onChanged: (value) => setState(() => _query = value),
                 decoration: const InputDecoration(
                   hintText: '搜索标题、正文、分类或标签',
@@ -152,6 +195,162 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Widget _buildDesktop(
+    BuildContext context,
+    List<DiaryEntry> entries,
+    List<String> categories,
+  ) {
+    final colors = DiaryThemeColors.of(context);
+    final today = DateTime.now();
+    final todayEntries = widget.entries
+        .where(
+          (entry) =>
+              entry.createdAt.year == today.year &&
+              entry.createdAt.month == today.month &&
+              entry.createdAt.day == today.day,
+        )
+        .toList(growable: false);
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(34, 30, 34, 36),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1220),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: _Header(onOpenEditor: widget.onOpenEditor)),
+                  const SizedBox(width: 24),
+                  OutlinedButton.icon(
+                    onPressed: widget.onOpenEditor,
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('新建日记  Ctrl + N'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 30),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '最近的日记',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.headlineSmall,
+                                  ),
+                                  const SizedBox(height: 5),
+                                  Text(
+                                    '${widget.entries.length} 个被你认真生活过的瞬间',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodyMedium,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: () => setState(
+                                () => _onlyFavorites = !_onlyFavorites,
+                              ),
+                              tooltip: '只看收藏',
+                              icon: Icon(
+                                _onlyFavorites
+                                    ? Icons.bookmark
+                                    : Icons.bookmark_border,
+                                color: _onlyFavorites
+                                    ? colors.terracotta
+                                    : colors.mutedInk,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        TextField(
+                          key: const Key('diary-search-field'),
+                          controller: _searchController,
+                          focusNode: _searchFocusNode,
+                          onChanged: (value) => setState(() => _query = value),
+                          decoration: const InputDecoration(
+                            hintText: '搜索标题、正文、分类或标签（Ctrl + K）',
+                            prefixIcon: Icon(Icons.search),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        _CategoryFilters(
+                          categories: categories,
+                          selected: _category,
+                          onSelected: (category) =>
+                              setState(() => _category = category),
+                        ),
+                        const SizedBox(height: 18),
+                        if (entries.isEmpty)
+                          _EmptyState(
+                            query: _query,
+                            onOpenEditor: widget.onOpenEditor,
+                          )
+                        else
+                          ..._buildEntryGroups(context, entries),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 26),
+                  SizedBox(
+                    width: 300,
+                    child: _DesktopQuickPanel(
+                      todayEntries: todayEntries,
+                      controller: _quickController,
+                      focusNode: _quickFocusNode,
+                      saving: _quickSaving,
+                      onSubmit: _submitQuickCapture,
+                      onOpenEditor: widget.onOpenEditor,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _submitQuickCapture() async {
+    final content = _quickController.text.trim();
+    if (content.isEmpty || _quickSaving) {
+      _quickFocusNode.requestFocus();
+      return;
+    }
+    setState(() => _quickSaving = true);
+    try {
+      await widget.onQuickCapture(content);
+      if (mounted) {
+        _quickController.clear();
+        _quickFocusNode.unfocus();
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('暂时没记下来，请再试一次')));
+      }
+    } finally {
+      if (mounted) setState(() => _quickSaving = false);
+    }
+  }
+
   List<Widget> _buildEntryGroups(
     BuildContext context,
     List<DiaryEntry> entries,
@@ -182,6 +381,220 @@ class _HomePageState extends State<HomePage> {
       );
     }
     return result;
+  }
+}
+
+class _CategoryFilters extends StatelessWidget {
+  const _CategoryFilters({
+    required this.categories,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final List<String> categories;
+  final String selected;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: categories.map((category) {
+          final isSelected = category == selected;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ChoiceChip(
+              label: Text(category),
+              selected: isSelected,
+              onSelected: (_) => onSelected(category),
+              selectedColor: colors.hero,
+              labelStyle: TextStyle(
+                color: isSelected ? colors.onHero : colors.ink,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+              side: BorderSide(color: isSelected ? colors.hero : colors.line),
+              backgroundColor: colors.surface,
+              showCheckmark: false,
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+class _QuickCaptureBar extends StatelessWidget {
+  const _QuickCaptureBar({
+    required this.controller,
+    required this.focusNode,
+    required this.saving,
+    required this.compact,
+    required this.onSubmit,
+    required this.onOpenEditor,
+  });
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final bool saving;
+  final bool compact;
+  final VoidCallback onSubmit;
+  final VoidCallback onOpenEditor;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.fromLTRB(15, compact ? 16 : 13, 12, 12),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: colors.line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.bolt_outlined, size: 18, color: colors.terracotta),
+              const SizedBox(width: 7),
+              Text('快速记一句', style: Theme.of(context).textTheme.titleMedium),
+              const Spacer(),
+              Text(
+                compact ? '一条就是一个瞬间' : '不用标题，想到就记',
+                style: Theme.of(context).textTheme.labelSmall,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            key: const Key('quick-capture-field'),
+            controller: controller,
+            focusNode: focusNode,
+            minLines: compact ? 4 : 1,
+            maxLines: compact ? 8 : 4,
+            textInputAction: TextInputAction.newline,
+            decoration: const InputDecoration(
+              filled: false,
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              contentPadding: EdgeInsets.symmetric(vertical: 4),
+              hintText: '此刻想到什么？先写下来……',
+            ),
+          ),
+          Row(
+            children: [
+              IconButton(
+                onPressed: onOpenEditor,
+                tooltip: '添加图片或打开完整编辑器',
+                icon: Icon(
+                  Icons.add_photo_alternate_outlined,
+                  color: colors.mutedInk,
+                ),
+              ),
+              const Spacer(),
+              FilledButton.icon(
+                onPressed: saving ? null : onSubmit,
+                icon: saving
+                    ? const SizedBox(
+                        width: 15,
+                        height: 15,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.arrow_upward, size: 17),
+                label: Text(saving ? '保存中' : '记下'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DesktopQuickPanel extends StatelessWidget {
+  const _DesktopQuickPanel({
+    required this.todayEntries,
+    required this.controller,
+    required this.focusNode,
+    required this.saving,
+    required this.onSubmit,
+    required this.onOpenEditor,
+  });
+
+  final List<DiaryEntry> todayEntries;
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final bool saving;
+  final VoidCallback onSubmit;
+  final VoidCallback onOpenEditor;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
+    final today = DateTime.now();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
+          decoration: BoxDecoration(
+            color: colors.hero,
+            borderRadius: BorderRadius.circular(22),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'TODAY / ${today.month}.${today.day}',
+                style: Theme.of(
+                  context,
+                ).textTheme.labelSmall?.copyWith(color: colors.butter),
+              ),
+              const SizedBox(height: 11),
+              Text(
+                todayEntries.isEmpty
+                    ? '今天还没有留下文字'
+                    : '今天已经记下 ${todayEntries.length} 个瞬间',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(color: colors.onHero),
+              ),
+              const SizedBox(height: 7),
+              Text(
+                '不必等到晚上，任何时刻都值得被留下。',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: colors.onHero.withValues(alpha: .72),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        _QuickCaptureBar(
+          controller: controller,
+          focusNode: focusNode,
+          saving: saving,
+          compact: true,
+          onSubmit: onSubmit,
+          onOpenEditor: onOpenEditor,
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: onOpenEditor,
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size.fromHeight(46),
+          ),
+          icon: const Icon(Icons.edit_note_outlined, size: 18),
+          label: const Text('打开完整编辑器 · 图片 / 标签 / 情绪'),
+        ),
+      ],
+    );
   }
 }
 
