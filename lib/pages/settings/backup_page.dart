@@ -30,10 +30,11 @@ class _BackupPageState extends State<BackupPage> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
     return Scaffold(
-      backgroundColor: DiaryPalette.paper,
+      backgroundColor: colors.paper,
       appBar: AppBar(
-        backgroundColor: DiaryPalette.paper,
+        backgroundColor: colors.paper,
         surfaceTintColor: Colors.transparent,
         title: const Text('备份与恢复'),
       ),
@@ -44,7 +45,7 @@ class _BackupPageState extends State<BackupPage> {
             'KEEP YOUR PAGES SAFE',
             style: Theme.of(
               context,
-            ).textTheme.labelSmall?.copyWith(color: DiaryPalette.terracotta),
+            ).textTheme.labelSmall?.copyWith(color: colors.terracotta),
           ),
           const SizedBox(height: 9),
           Text('备份与恢复', style: Theme.of(context).textTheme.displaySmall),
@@ -73,11 +74,7 @@ class _BackupPageState extends State<BackupPage> {
               padding: const EdgeInsets.all(18),
               child: Row(
                 children: [
-                  const Icon(
-                    Icons.shield_outlined,
-                    color: DiaryPalette.sage,
-                    size: 25,
-                  ),
+                  Icon(Icons.shield_outlined, color: colors.sage, size: 25),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
@@ -169,17 +166,18 @@ class _BackupAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
     return Card(
       child: ListTile(
         onTap: onTap,
         contentPadding: const EdgeInsets.symmetric(horizontal: 17, vertical: 7),
         leading: CircleAvatar(
-          backgroundColor: DiaryPalette.terracottaSoft,
-          child: Icon(icon, color: DiaryPalette.terracotta),
+          backgroundColor: colors.terracottaSoft,
+          child: Icon(icon, color: colors.terracotta),
         ),
         title: Text(title),
         subtitle: Text(subtitle),
-        trailing: const Icon(Icons.chevron_right, color: DiaryPalette.mutedInk),
+        trailing: Icon(Icons.chevron_right, color: colors.mutedInk),
       ),
     );
   }

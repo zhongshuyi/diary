@@ -25,6 +25,7 @@ class ProfilePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 28, 20, 110),
       child: Center(
@@ -43,7 +44,7 @@ class ProfilePage extends StatelessWidget {
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: DiaryPalette.ink,
+                  color: colors.hero,
                   borderRadius: BorderRadius.circular(24),
                 ),
                 child: Row(
@@ -52,13 +53,13 @@ class ProfilePage extends StatelessWidget {
                       width: 58,
                       height: 58,
                       decoration: BoxDecoration(
-                        color: DiaryPalette.butter,
+                        color: colors.butter,
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.person_outline,
                         size: 29,
-                        color: DiaryPalette.ink,
+                        color: colors.ink,
                       ),
                     ),
                     const SizedBox(width: 15),
@@ -69,25 +70,20 @@ class ProfilePage extends StatelessWidget {
                           Text(
                             '写给自己的日记',
                             style: Theme.of(context).textTheme.titleLarge
-                                ?.copyWith(color: DiaryPalette.surface),
+                                ?.copyWith(color: colors.onHero),
                           ),
                           const SizedBox(height: 5),
                           Text(
                             '离线保存 · 只有你能看见',
                             style: Theme.of(context).textTheme.bodyMedium
                                 ?.copyWith(
-                                  color: DiaryPalette.surface.withValues(
-                                    alpha: .68,
-                                  ),
+                                  color: colors.onHero.withValues(alpha: .68),
                                 ),
                           ),
                         ],
                       ),
                     ),
-                    const Icon(
-                      Icons.verified_user_outlined,
-                      color: DiaryPalette.sage,
-                    ),
+                    Icon(Icons.verified_user_outlined, color: colors.sage),
                   ],
                 ),
               ),
@@ -105,7 +101,7 @@ class ProfilePage extends StatelessWidget {
                     child: _CountCard(
                       number: '$entryCount',
                       label: '篇日记',
-                      tint: DiaryPalette.sage,
+                      tint: colors.sage,
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -113,7 +109,7 @@ class ProfilePage extends StatelessWidget {
                     child: _CountCard(
                       number: '$trashCount',
                       label: '待处理',
-                      tint: DiaryPalette.terracottaSoft,
+                      tint: colors.terracottaSoft,
                     ),
                   ),
                 ],
@@ -201,23 +197,30 @@ class _ProfileTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
     return Card(
+      clipBehavior: Clip.antiAlias,
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
         onTap: onTap,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        tileColor: Colors.transparent,
+        splashColor: colors.terracotta.withValues(alpha: .12),
+        hoverColor: colors.terracotta.withValues(alpha: .06),
+        focusColor: colors.terracotta.withValues(alpha: .08),
         leading: Container(
           width: 38,
           height: 38,
           decoration: BoxDecoration(
-            color: DiaryPalette.paper,
+            color: colors.paper,
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Icon(icon, color: DiaryPalette.terracotta, size: 20),
+          child: Icon(icon, color: colors.terracotta, size: 20),
         ),
         title: Text(title),
         subtitle: Text(subtitle),
-        trailing: const Icon(Icons.chevron_right, color: DiaryPalette.mutedInk),
+        trailing: Icon(Icons.chevron_right, color: colors.mutedInk),
       ),
     );
   }

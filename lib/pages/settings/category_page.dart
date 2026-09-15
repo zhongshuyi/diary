@@ -22,10 +22,11 @@ class _CategoryPageState extends State<CategoryPage> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
     return Scaffold(
-      backgroundColor: DiaryPalette.paper,
+      backgroundColor: colors.paper,
       appBar: AppBar(
-        backgroundColor: DiaryPalette.paper,
+        backgroundColor: colors.paper,
         surfaceTintColor: Colors.transparent,
         title: const Text('分类与标签'),
         actions: [
@@ -43,7 +44,7 @@ class _CategoryPageState extends State<CategoryPage> {
             'NAME YOUR CHAPTERS',
             style: Theme.of(
               context,
-            ).textTheme.labelSmall?.copyWith(color: DiaryPalette.terracotta),
+            ).textTheme.labelSmall?.copyWith(color: colors.terracotta),
           ),
           const SizedBox(height: 9),
           Text('分类与标签', style: Theme.of(context).textTheme.displaySmall),
@@ -57,21 +58,21 @@ class _CategoryPageState extends State<CategoryPage> {
                   ListTile(
                     leading: CircleAvatar(
                       radius: 17,
-                      backgroundColor: _colorFor(_categories.indexOf(category)),
-                      child: const Icon(
+                      backgroundColor: _colorFor(
+                        _categories.indexOf(category),
+                        colors,
+                      ),
+                      child: Icon(
                         Icons.folder_open_outlined,
                         size: 17,
-                        color: DiaryPalette.ink,
+                        color: colors.ink,
                       ),
                     ),
                     title: Text(category),
                     subtitle: Text('用于整理日记与回顾'),
                     trailing: IconButton(
                       onPressed: () => _renameCategory(category),
-                      icon: const Icon(
-                        Icons.edit_outlined,
-                        color: DiaryPalette.mutedInk,
-                      ),
+                      icon: Icon(Icons.edit_outlined, color: colors.mutedInk),
                     ),
                   ),
                 if (_categories.isEmpty)
@@ -134,9 +135,9 @@ class _CategoryPageState extends State<CategoryPage> {
   }
 }
 
-Color _colorFor(int index) => [
-  DiaryPalette.sage,
-  DiaryPalette.butter,
-  DiaryPalette.terracottaSoft,
-  DiaryPalette.lavender,
+Color _colorFor(int index, DiaryThemeColors colors) => [
+  colors.sage,
+  colors.butter,
+  colors.terracottaSoft,
+  colors.lavender,
 ][index % 4];

@@ -84,10 +84,11 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
     return Scaffold(
-      backgroundColor: DiaryPalette.paper,
+      backgroundColor: colors.paper,
       appBar: AppBar(
-        backgroundColor: DiaryPalette.paper,
+        backgroundColor: colors.paper,
         surfaceTintColor: Colors.transparent,
         title: Text(widget.entry == null ? '写下此刻' : '编辑日记'),
         leading: IconButton(
@@ -233,9 +234,9 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
             ),
             Container(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 14),
-              decoration: const BoxDecoration(
-                color: DiaryPalette.surface,
-                border: Border(top: BorderSide(color: DiaryPalette.line)),
+              decoration: BoxDecoration(
+                color: colors.onHero,
+                border: Border(top: BorderSide(color: colors.line)),
               ),
               child: Center(
                 child: ConstrainedBox(
@@ -245,12 +246,12 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
                     child: FilledButton.icon(
                       onPressed: _saving ? null : _save,
                       icon: _saving
-                          ? const SizedBox(
+                          ? SizedBox(
                               width: 17,
                               height: 17,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: DiaryPalette.surface,
+                                color: colors.onHero,
                               ),
                             )
                           : const Icon(Icons.check, size: 18),
@@ -267,17 +268,18 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
   }
 
   Widget _editorChoice(DiaryEditorType type) {
+    final colors = DiaryThemeColors.of(context);
     final selected = _editorType == type;
     return ChoiceChip(
       label: Text(type.label),
       selected: selected,
       onSelected: (_) => setState(() => _editorType = type),
       showCheckmark: false,
-      selectedColor: DiaryPalette.ink,
-      backgroundColor: DiaryPalette.surface,
-      side: BorderSide(color: selected ? DiaryPalette.ink : DiaryPalette.line),
+      selectedColor: colors.hero,
+      backgroundColor: colors.surface,
+      side: BorderSide(color: selected ? colors.hero : colors.line),
       labelStyle: TextStyle(
-        color: selected ? DiaryPalette.surface : DiaryPalette.ink,
+        color: selected ? colors.onHero : colors.ink,
         fontSize: 12,
         fontWeight: FontWeight.w700,
       ),
@@ -285,48 +287,51 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
   }
 
   Widget _categoryChoice(String category) {
+    final colors = DiaryThemeColors.of(context);
     final selected = _category == category;
     return ChoiceChip(
       label: Text(category),
       selected: selected,
       onSelected: (_) => setState(() => _category = category),
       showCheckmark: false,
-      selectedColor: DiaryPalette.ink,
-      backgroundColor: DiaryPalette.surface,
-      side: BorderSide(color: selected ? DiaryPalette.ink : DiaryPalette.line),
+      selectedColor: colors.hero,
+      backgroundColor: colors.surface,
+      side: BorderSide(color: selected ? colors.hero : colors.line),
       labelStyle: TextStyle(
-        color: selected ? DiaryPalette.surface : DiaryPalette.ink,
+        color: selected ? colors.onHero : colors.ink,
         fontSize: 12,
       ),
     );
   }
 
   Widget _moodChoice(String mood) {
+    final colors = DiaryThemeColors.of(context);
     final selected = _selectedMood == mood;
     return ChoiceChip(
       label: Text(mood),
       selected: selected,
       onSelected: (_) => setState(() => _selectedMood = mood),
       showCheckmark: false,
-      selectedColor: DiaryPalette.ink,
-      backgroundColor: DiaryPalette.surface,
-      side: BorderSide(color: selected ? DiaryPalette.ink : DiaryPalette.line),
+      selectedColor: colors.hero,
+      backgroundColor: colors.surface,
+      side: BorderSide(color: selected ? colors.hero : colors.line),
       labelStyle: TextStyle(
-        color: selected ? DiaryPalette.surface : DiaryPalette.ink,
+        color: selected ? colors.onHero : colors.ink,
         fontSize: 12,
       ),
     );
   }
 
   Widget _editorBody(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
     switch (_editorType) {
       case DiaryEditorType.richText:
         return Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: DiaryPalette.surface,
+            color: colors.surface,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: DiaryPalette.line),
+            border: Border.all(color: colors.line),
           ),
           child: Column(
             children: [

@@ -94,6 +94,7 @@ class _FallbackContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -104,13 +105,13 @@ class _FallbackContent extends StatelessWidget {
               '富文本内容已按纯文本安全显示',
               style: Theme.of(
                 context,
-              ).textTheme.labelSmall?.copyWith(color: DiaryPalette.terracotta),
+              ).textTheme.labelSmall?.copyWith(color: colors.terracotta),
             ),
             const SizedBox(height: 10),
             Text(
               text,
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: DiaryPalette.ink,
+                color: colors.ink,
                 height: 1.8,
                 fontSize: 16,
               ),

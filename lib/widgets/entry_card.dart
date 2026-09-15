@@ -21,6 +21,7 @@ class DiaryEntryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
     final tint = Color(entry.colorValue);
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -54,10 +55,7 @@ class DiaryEntryCard extends StatelessWidget {
                   ),
                   PopupMenuButton<String>(
                     padding: EdgeInsets.zero,
-                    icon: const Icon(
-                      Icons.more_horiz,
-                      color: DiaryPalette.mutedInk,
-                    ),
+                    icon: Icon(Icons.more_horiz, color: colors.mutedInk),
                     onSelected: (value) {
                       if (value == 'favorite') onFavorite?.call();
                       if (value == 'share') onShare?.call();
@@ -102,20 +100,20 @@ class DiaryEntryCard extends StatelessWidget {
                   ),
                   const Spacer(),
                   if (entry.hasMedia)
-                    const Padding(
+                    Padding(
                       padding: EdgeInsets.only(right: 10),
                       child: Icon(
                         Icons.attach_file,
                         size: 15,
-                        color: DiaryPalette.mutedInk,
+                        color: colors.mutedInk,
                       ),
                     ),
                   Icon(
                     entry.isFavorite ? Icons.bookmark : Icons.bookmark_border,
                     size: 17,
                     color: entry.isFavorite
-                        ? DiaryPalette.terracotta
-                        : DiaryPalette.mutedInk,
+                        ? colors.terracotta
+                        : colors.mutedInk,
                   ),
                 ],
               ),
@@ -127,7 +125,7 @@ class DiaryEntryCard extends StatelessWidget {
                   children: entry.tags.take(4).map((tag) {
                     return DecoratedBox(
                       decoration: BoxDecoration(
-                        color: DiaryPalette.paper,
+                        color: colors.paper,
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Padding(

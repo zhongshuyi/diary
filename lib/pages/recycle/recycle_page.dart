@@ -17,10 +17,11 @@ class RecyclePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
     return Scaffold(
-      backgroundColor: DiaryPalette.paper,
+      backgroundColor: colors.paper,
       appBar: AppBar(
-        backgroundColor: DiaryPalette.paper,
+        backgroundColor: colors.paper,
         surfaceTintColor: Colors.transparent,
         title: const Text('回收站'),
       ),
@@ -34,9 +35,9 @@ class RecyclePage extends StatelessWidget {
               children: [
                 Text(
                   'A QUIET CORNER',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: DiaryPalette.terracotta,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.labelSmall?.copyWith(color: colors.terracotta),
                 ),
                 const SizedBox(height: 9),
                 Text('回收站', style: Theme.of(context).textTheme.displaySmall),
@@ -102,12 +103,13 @@ class _RecycleTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
     return Card(
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
-        leading: const CircleAvatar(
-          backgroundColor: DiaryPalette.terracottaSoft,
-          child: Icon(Icons.delete_outline, color: DiaryPalette.terracotta),
+        leading: CircleAvatar(
+          backgroundColor: colors.terracottaSoft,
+          child: Icon(Icons.delete_outline, color: colors.terracotta),
         ),
         title: Text(entry.title.isEmpty ? '无题' : entry.title),
         subtitle: Text('移入回收站 · ${diaryDateLabel(entry.updatedAt)}'),
@@ -121,7 +123,7 @@ class _RecycleTile extends StatelessWidget {
             IconButton(
               onPressed: onDelete,
               tooltip: '永久删除',
-              color: DiaryPalette.terracotta,
+              color: colors.terracotta,
               icon: const Icon(Icons.delete_forever_outlined),
             ),
           ],
@@ -136,16 +138,17 @@ class _RecycleEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
     return Card(
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 52, horizontal: 22),
         child: Center(
           child: Column(
             children: [
-              const Icon(
+              Icon(
                 Icons.delete_sweep_outlined,
                 size: 38,
-                color: DiaryPalette.mutedInk,
+                color: colors.mutedInk,
               ),
               const SizedBox(height: 12),
               Text(

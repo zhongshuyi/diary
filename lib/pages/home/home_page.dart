@@ -51,6 +51,7 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
     final entries = _filteredEntries;
     final categories = <String>{
       '全部',
@@ -94,8 +95,8 @@ class _HomePageState extends State<HomePage> {
                     icon: Icon(
                       _onlyFavorites ? Icons.bookmark : Icons.bookmark_border,
                       color: _onlyFavorites
-                          ? DiaryPalette.terracotta
-                          : DiaryPalette.mutedInk,
+                          ? colors.terracotta
+                          : colors.mutedInk,
                     ),
                   ),
                 ],
@@ -123,20 +124,16 @@ class _HomePageState extends State<HomePage> {
                         label: Text(category),
                         selected: selected,
                         onSelected: (_) => setState(() => _category = category),
-                        selectedColor: DiaryPalette.ink,
+                        selectedColor: colors.hero,
                         labelStyle: TextStyle(
-                          color: selected
-                              ? DiaryPalette.surface
-                              : DiaryPalette.ink,
+                          color: selected ? colors.onHero : colors.ink,
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
                         ),
                         side: BorderSide(
-                          color: selected
-                              ? DiaryPalette.ink
-                              : DiaryPalette.line,
+                          color: selected ? colors.hero : colors.line,
                         ),
-                        backgroundColor: DiaryPalette.surface,
+                        backgroundColor: colors.surface,
                         showCheckmark: false,
                       ),
                     );
@@ -195,19 +192,17 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
     return Row(
       children: [
         Container(
           width: 42,
           height: 42,
           decoration: BoxDecoration(
-            color: DiaryPalette.ink,
+            color: colors.hero,
             borderRadius: BorderRadius.circular(14),
           ),
-          child: const Icon(
-            Icons.auto_stories_outlined,
-            color: DiaryPalette.surface,
-          ),
+          child: Icon(Icons.auto_stories_outlined, color: colors.onHero),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -216,9 +211,9 @@ class _Header extends StatelessWidget {
             children: [
               Text(
                 'MY / DIARY',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: DiaryPalette.terracotta,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.labelSmall?.copyWith(color: colors.terracotta),
               ),
               const SizedBox(height: 3),
               Text('把今天留给自己', style: Theme.of(context).textTheme.titleLarge),
@@ -228,10 +223,7 @@ class _Header extends StatelessWidget {
         IconButton(
           onPressed: onOpenEditor,
           tooltip: '写一篇',
-          icon: const Icon(
-            Icons.add_circle_outline,
-            color: DiaryPalette.terracotta,
-          ),
+          icon: Icon(Icons.add_circle_outline, color: colors.terracotta),
         ),
       ],
     );
@@ -245,11 +237,12 @@ class _WritingPrompt extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(22, 22, 18, 19),
       decoration: BoxDecoration(
-        color: DiaryPalette.ink,
+        color: colors.hero,
         borderRadius: BorderRadius.circular(24),
       ),
       child: Row(
@@ -262,20 +255,20 @@ class _WritingPrompt extends StatelessWidget {
                   'TODAY, FOR YOURSELF',
                   style: Theme.of(
                     context,
-                  ).textTheme.labelSmall?.copyWith(color: DiaryPalette.butter),
+                  ).textTheme.labelSmall?.copyWith(color: colors.butter),
                 ),
                 const SizedBox(height: 11),
                 Text(
                   '今天，写给自己',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: DiaryPalette.surface,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.headlineSmall?.copyWith(color: colors.onHero),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   '不需要完整，也不需要漂亮。想到什么，就写下什么。',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: DiaryPalette.surface.withValues(alpha: .72),
+                    color: colors.onHero.withValues(alpha: .72),
                   ),
                 ),
               ],
@@ -285,8 +278,8 @@ class _WritingPrompt extends StatelessWidget {
           FilledButton(
             onPressed: onOpenEditor,
             style: FilledButton.styleFrom(
-              backgroundColor: DiaryPalette.butter,
-              foregroundColor: DiaryPalette.ink,
+              backgroundColor: colors.butter,
+              foregroundColor: colors.hero,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
             ),
             child: const Text('写一篇'),
@@ -328,17 +321,18 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
-        color: DiaryPalette.surface,
+        color: colors.surface,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: DiaryPalette.line),
+        border: Border.all(color: colors.line),
       ),
       child: Column(
         children: [
-          const Icon(Icons.edit_note, size: 36, color: DiaryPalette.terracotta),
+          Icon(Icons.edit_note, size: 36, color: colors.terracotta),
           const SizedBox(height: 10),
           Text(
             query.isEmpty ? '还没有符合筛选的日记' : '没有找到“$query”',

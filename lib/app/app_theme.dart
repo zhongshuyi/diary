@@ -28,6 +28,120 @@ abstract final class DiaryPalette {
   static const lavender = Color(0xFFE6E1EF);
 }
 
+@immutable
+class DiaryThemeColors extends ThemeExtension<DiaryThemeColors> {
+  const DiaryThemeColors({
+    required this.paper,
+    required this.surface,
+    required this.ink,
+    required this.hero,
+    required this.onHero,
+    required this.mutedInk,
+    required this.line,
+    required this.terracotta,
+    required this.terracottaSoft,
+    required this.sage,
+    required this.butter,
+    required this.lavender,
+  });
+
+  static const light = DiaryThemeColors(
+    paper: DiaryPalette.paper,
+    surface: DiaryPalette.surface,
+    ink: DiaryPalette.ink,
+    hero: DiaryPalette.ink,
+    onHero: DiaryPalette.surface,
+    mutedInk: DiaryPalette.mutedInk,
+    line: DiaryPalette.line,
+    terracotta: DiaryPalette.terracotta,
+    terracottaSoft: DiaryPalette.terracottaSoft,
+    sage: DiaryPalette.sage,
+    butter: DiaryPalette.butter,
+    lavender: DiaryPalette.lavender,
+  );
+
+  static const dark = DiaryThemeColors(
+    paper: Color(0xFF1A1917),
+    surface: Color(0xFF2D2B27),
+    ink: Color(0xFFF7F3EC),
+    hero: Color(0xFF11100F),
+    onHero: Color(0xFFF7F3EC),
+    mutedInk: Color(0xFFB8B1A7),
+    line: Color(0xFF4A4741),
+    terracotta: Color(0xFFE89578),
+    terracottaSoft: Color(0xFF5A332A),
+    sage: Color(0xFF32422F),
+    butter: Color(0xFF5A4A25),
+    lavender: Color(0xFF413B50),
+  );
+
+  final Color paper;
+  final Color surface;
+  final Color ink;
+  final Color hero;
+  final Color onHero;
+  final Color mutedInk;
+  final Color line;
+  final Color terracotta;
+  final Color terracottaSoft;
+  final Color sage;
+  final Color butter;
+  final Color lavender;
+
+  static DiaryThemeColors of(BuildContext context) =>
+      Theme.of(context).extension<DiaryThemeColors>() ?? light;
+
+  @override
+  DiaryThemeColors copyWith({
+    Color? paper,
+    Color? surface,
+    Color? ink,
+    Color? hero,
+    Color? onHero,
+    Color? mutedInk,
+    Color? line,
+    Color? terracotta,
+    Color? terracottaSoft,
+    Color? sage,
+    Color? butter,
+    Color? lavender,
+  }) {
+    return DiaryThemeColors(
+      paper: paper ?? this.paper,
+      surface: surface ?? this.surface,
+      ink: ink ?? this.ink,
+      hero: hero ?? this.hero,
+      onHero: onHero ?? this.onHero,
+      mutedInk: mutedInk ?? this.mutedInk,
+      line: line ?? this.line,
+      terracotta: terracotta ?? this.terracotta,
+      terracottaSoft: terracottaSoft ?? this.terracottaSoft,
+      sage: sage ?? this.sage,
+      butter: butter ?? this.butter,
+      lavender: lavender ?? this.lavender,
+    );
+  }
+
+  @override
+  DiaryThemeColors lerp(ThemeExtension<DiaryThemeColors>? other, double t) {
+    if (other is! DiaryThemeColors) return this;
+    return DiaryThemeColors(
+      paper: Color.lerp(paper, other.paper, t)!,
+      surface: Color.lerp(surface, other.surface, t)!,
+      ink: Color.lerp(ink, other.ink, t)!,
+      hero: Color.lerp(hero, other.hero, t)!,
+      onHero: Color.lerp(onHero, other.onHero, t)!,
+      mutedInk: Color.lerp(mutedInk, other.mutedInk, t)!,
+      line: Color.lerp(line, other.line, t)!,
+      terracotta: Color.lerp(terracotta, other.terracotta, t)!,
+      terracottaSoft: Color.lerp(terracottaSoft, other.terracottaSoft, t)!,
+      sage: Color.lerp(sage, other.sage, t)!,
+      butter: Color.lerp(butter, other.butter, t)!,
+      lavender: Color.lerp(lavender, other.lavender, t)!,
+    );
+  }
+}
+
 abstract final class DiaryTheme {
   static ThemeData get light {
     final scheme = ColorScheme.fromSeed(
@@ -125,6 +239,12 @@ abstract final class DiaryTheme {
           borderRadius: BorderRadius.circular(22),
           side: const BorderSide(color: DiaryPalette.line),
         ),
+        clipBehavior: Clip.antiAlias,
+      ),
+      listTileTheme: ListTileThemeData(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        minVerticalPadding: 8,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
       dividerTheme: const DividerThemeData(color: DiaryPalette.line, space: 1),
       snackBarTheme: SnackBarThemeData(
@@ -133,46 +253,91 @@ abstract final class DiaryTheme {
         contentTextStyle: const TextStyle(color: DiaryPalette.surface),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
+      extensions: const [DiaryThemeColors.light],
     );
   }
 
   static ThemeData get dark {
+    final colors = DiaryThemeColors.dark;
     final scheme = ColorScheme.fromSeed(
       seedColor: DiaryPalette.terracotta,
       brightness: Brightness.dark,
-      surface: const Color(0xFF24231F),
+      surface: colors.surface,
     );
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
       colorScheme: scheme.copyWith(
-        primary: const Color(0xFFE89578),
-        onPrimary: const Color(0xFF2A1710),
-        secondary: const Color(0xFFB5CDAF),
-        onSecondary: const Color(0xFF172016),
-        surface: const Color(0xFF2D2B27),
-        onSurface: const Color(0xFFF7F3EC),
+        primary: colors.terracotta,
+        onPrimary: colors.hero,
+        secondary: colors.sage,
+        onSecondary: colors.onHero,
+        surface: colors.surface,
+        onSurface: colors.ink,
       ),
-      scaffoldBackgroundColor: const Color(0xFF1A1917),
+      scaffoldBackgroundColor: colors.paper,
       fontFamily: 'Aptos',
-      textTheme: light.textTheme.apply(
-        bodyColor: const Color(0xFFEDE7DD),
-        displayColor: const Color(0xFFF7F3EC),
+      textTheme: TextTheme(
+        displaySmall: TextStyle(
+          color: colors.ink,
+          fontFamily: 'Georgia',
+          fontSize: 36,
+          fontWeight: FontWeight.w700,
+          height: 1.08,
+        ),
+        headlineSmall: TextStyle(
+          color: colors.ink,
+          fontFamily: 'Georgia',
+          fontSize: 24,
+          fontWeight: FontWeight.w700,
+        ),
+        titleLarge: TextStyle(
+          color: colors.ink,
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
+        ),
+        titleMedium: TextStyle(
+          color: colors.ink,
+          fontSize: 15,
+          fontWeight: FontWeight.w700,
+        ),
+        bodyLarge: TextStyle(
+          color: colors.mutedInk,
+          fontSize: 15,
+          height: 1.55,
+        ),
+        bodyMedium: TextStyle(
+          color: colors.mutedInk,
+          fontSize: 13,
+          height: 1.5,
+        ),
+        labelLarge: TextStyle(
+          color: colors.ink,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          letterSpacing: .2,
+        ),
+        labelSmall: TextStyle(
+          color: colors.mutedInk,
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1.1,
+        ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: const Color(0xFF2D2B27),
+        fillColor: colors.surface,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Color(0xFF4A4741)),
+          borderSide: BorderSide(color: colors.line),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Color(0xFF4A4741)),
+          borderSide: BorderSide(color: colors.line),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Color(0xFFE89578), width: 1.5),
+          borderSide: BorderSide(color: colors.terracotta, width: 1.5),
         ),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
@@ -180,21 +345,28 @@ abstract final class DiaryTheme {
         ),
       ),
       cardTheme: CardThemeData(
-        color: const Color(0xFF2D2B27),
+        color: colors.surface,
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(22),
-          side: const BorderSide(color: Color(0xFF4A4741)),
+          side: BorderSide(color: colors.line),
         ),
+        clipBehavior: Clip.antiAlias,
       ),
-      dividerTheme: const DividerThemeData(color: Color(0xFF4A4741), space: 1),
+      listTileTheme: ListTileThemeData(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        minVerticalPadding: 8,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+      dividerTheme: DividerThemeData(color: colors.line, space: 1),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
-        backgroundColor: const Color(0xFFF7F3EC),
-        contentTextStyle: const TextStyle(color: DiaryPalette.ink),
+        backgroundColor: colors.onHero,
+        contentTextStyle: TextStyle(color: colors.hero),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
+      extensions: const [DiaryThemeColors.dark],
     );
   }
 }

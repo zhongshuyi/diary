@@ -77,9 +77,9 @@ class _MediaPageState extends State<MediaPage> {
                 scrollDirection: Axis.horizontal,
                 child: Row(
                   children: [
-                    _filterChip('全部', null),
+                    _filterChip(context, '全部', null),
                     for (final kind in DiaryMediaKind.values)
-                      _filterChip(diaryMediaKindLabel(kind), kind),
+                      _filterChip(context, diaryMediaKindLabel(kind), kind),
                   ],
                 ),
               ),
@@ -117,7 +117,8 @@ class _MediaPageState extends State<MediaPage> {
     );
   }
 
-  Widget _filterChip(String label, DiaryMediaKind? kind) {
+  Widget _filterChip(BuildContext context, String label, DiaryMediaKind? kind) {
+    final colors = DiaryThemeColors.of(context);
     final selected = _filter == kind;
     return Padding(
       padding: const EdgeInsets.only(right: 8),
@@ -126,13 +127,11 @@ class _MediaPageState extends State<MediaPage> {
         selected: selected,
         onSelected: (_) => setState(() => _filter = kind),
         showCheckmark: false,
-        selectedColor: DiaryPalette.ink,
-        backgroundColor: DiaryPalette.surface,
-        side: BorderSide(
-          color: selected ? DiaryPalette.ink : DiaryPalette.line,
-        ),
+        selectedColor: colors.hero,
+        backgroundColor: colors.surface,
+        side: BorderSide(color: selected ? colors.hero : colors.line),
         labelStyle: TextStyle(
-          color: selected ? DiaryPalette.surface : DiaryPalette.ink,
+          color: selected ? colors.onHero : colors.ink,
           fontWeight: FontWeight.w700,
           fontSize: 12,
         ),
@@ -160,6 +159,7 @@ class _MediaSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
     final imageCount = items
         .where((item) => item.kind == DiaryMediaKind.image)
         .length;
@@ -176,7 +176,7 @@ class _MediaSummary extends StatelessWidget {
             icon: Icons.image_outlined,
             count: imageCount,
             label: '图片',
-            tint: DiaryPalette.sage,
+            tint: colors.sage,
           ),
         ),
         const SizedBox(width: 8),
@@ -185,7 +185,7 @@ class _MediaSummary extends StatelessWidget {
             icon: Icons.graphic_eq,
             count: audioCount,
             label: '声音',
-            tint: DiaryPalette.butter,
+            tint: colors.butter,
           ),
         ),
         const SizedBox(width: 8),
@@ -194,7 +194,7 @@ class _MediaSummary extends StatelessWidget {
             icon: Icons.movie_outlined,
             count: videoCount,
             label: '视频',
-            tint: DiaryPalette.terracottaSoft,
+            tint: colors.terracottaSoft,
           ),
         ),
       ],
@@ -217,6 +217,7 @@ class _SummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
     return Container(
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
@@ -225,7 +226,7 @@ class _SummaryCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(icon, size: 19, color: DiaryPalette.ink),
+          Icon(icon, size: 19, color: colors.ink),
           const SizedBox(width: 8),
           Text('$count', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(width: 5),
@@ -246,6 +247,7 @@ class _MediaCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
     final fileName = item.path.split(RegExp(r'[\\/]')).last;
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -267,7 +269,7 @@ class _MediaCard extends StatelessWidget {
                   Text(
                     diaryMediaKindLabel(item.kind),
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: DiaryPalette.terracotta,
+                      color: colors.terracotta,
                       letterSpacing: .3,
                     ),
                   ),
@@ -302,15 +304,16 @@ class _EmptyMediaState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(28),
         child: Column(
           children: [
-            const Icon(
+            Icon(
               Icons.collections_outlined,
               size: 38,
-              color: DiaryPalette.terracotta,
+              color: colors.terracotta,
             ),
             const SizedBox(height: 12),
             Text(

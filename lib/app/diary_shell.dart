@@ -68,6 +68,7 @@ class _DiaryShellState extends State<DiaryShell> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
     if (_controller.isLoading && _entries.isEmpty && _trash.isEmpty) {
       return const _LoadingView();
     }
@@ -100,7 +101,7 @@ class _DiaryShellState extends State<DiaryShell> {
       ],
     );
     return Scaffold(
-      backgroundColor: DiaryPalette.paper,
+      backgroundColor: colors.paper,
       body: LayoutBuilder(
         builder: (context, constraints) {
           final desktop = constraints.maxWidth >= 900;
@@ -261,11 +262,10 @@ class _LoadingView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: DiaryPalette.paper,
-      body: Center(
-        child: CircularProgressIndicator(color: DiaryPalette.terracotta),
-      ),
+    final colors = DiaryThemeColors.of(context);
+    return Scaffold(
+      backgroundColor: colors.paper,
+      body: Center(child: CircularProgressIndicator(color: colors.terracotta)),
     );
   }
 }
@@ -277,18 +277,19 @@ class _ErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
     return Scaffold(
-      backgroundColor: DiaryPalette.paper,
+      backgroundColor: colors.paper,
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(28),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
+              Icon(
                 Icons.cloud_off_outlined,
                 size: 42,
-                color: DiaryPalette.terracotta,
+                color: colors.terracotta,
               ),
               const SizedBox(height: 12),
               Text('日记暂时打不开', style: Theme.of(context).textTheme.titleLarge),

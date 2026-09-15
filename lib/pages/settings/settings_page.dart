@@ -17,11 +17,12 @@ class SettingsPage extends StatelessWidget {
     return AnimatedBuilder(
       animation: controller,
       builder: (context, _) {
+        final colors = DiaryThemeColors.of(context);
         final settings = controller.settings;
         return Scaffold(
-          backgroundColor: DiaryPalette.paper,
+          backgroundColor: colors.paper,
           appBar: AppBar(
-            backgroundColor: DiaryPalette.paper,
+            backgroundColor: colors.paper,
             surfaceTintColor: Colors.transparent,
             title: const Text('偏好设置'),
           ),
@@ -30,9 +31,9 @@ class SettingsPage extends StatelessWidget {
             children: [
               Text(
                 'MAKE IT YOURS',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: DiaryPalette.terracotta,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.labelSmall?.copyWith(color: colors.terracotta),
               ),
               const SizedBox(height: 9),
               Text('偏好设置', style: Theme.of(context).textTheme.displaySmall),
@@ -45,18 +46,13 @@ class SettingsPage extends StatelessWidget {
               _Section(
                 title: '外观与阅读',
                 children: [
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
+                  _SettingsTile(
                     title: const Text('主题模式'),
                     subtitle: Text(settings.themeMode.label),
-                    trailing: const Icon(
-                      Icons.chevron_right,
-                      color: DiaryPalette.mutedInk,
-                    ),
+                    trailing: Icon(Icons.chevron_right, color: colors.mutedInk),
                     onTap: () => _showThemeChoice(context, settings.themeMode),
                   ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
+                  _SettingsTile(
                     title: const Text('阅读字号'),
                     subtitle: Text(
                       '${(settings.fontScale * 100).round()}% · 影响整个应用的文字大小',
@@ -78,14 +74,10 @@ class SettingsPage extends StatelessWidget {
                     onChanged: (value) =>
                         unawaited(controller.setShowWordCount(value)),
                   ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
+                  _SettingsTile(
                     title: const Text('默认编辑方式'),
                     subtitle: Text(settings.defaultEditorType.label),
-                    trailing: const Icon(
-                      Icons.chevron_right,
-                      color: DiaryPalette.mutedInk,
-                    ),
+                    trailing: Icon(Icons.chevron_right, color: colors.mutedInk),
                     onTap: () =>
                         _showEditorChoice(context, settings.defaultEditorType),
                   ),
@@ -115,23 +107,15 @@ class SettingsPage extends StatelessWidget {
               _Section(
                 title: '数据',
                 children: [
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
+                  _SettingsTile(
                     title: const Text('本地优先'),
                     subtitle: const Text('日记默认只保存在你的设备上'),
-                    trailing: const Icon(
-                      Icons.lock_outline,
-                      color: DiaryPalette.sage,
-                    ),
+                    trailing: Icon(Icons.lock_outline, color: colors.sage),
                   ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
+                  _SettingsTile(
                     title: const Text('清理临时缓存'),
                     subtitle: const Text('不会删除你的日记和附件'),
-                    trailing: const Icon(
-                      Icons.chevron_right,
-                      color: DiaryPalette.mutedInk,
-                    ),
+                    trailing: Icon(Icons.chevron_right, color: colors.mutedInk),
                     onTap: () => ScaffoldMessenger.of(
                       context,
                     ).showSnackBar(const SnackBar(content: Text('临时缓存已整理'))),
@@ -151,26 +135,29 @@ class SettingsPage extends StatelessWidget {
   ) async {
     final value = await showModalBottomSheet<DiaryThemeMode>(
       context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const ListTile(title: Text('主题模式')),
-            for (final mode in DiaryThemeMode.values)
-              ListTile(
-                leading: Icon(
-                  mode == current ? Icons.check : Icons.circle_outlined,
-                  color: mode == current
-                      ? DiaryPalette.terracotta
-                      : DiaryPalette.mutedInk,
+      builder: (context) {
+        final colors = DiaryThemeColors.of(context);
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const ListTile(title: Text('主题模式')),
+              for (final mode in DiaryThemeMode.values)
+                _SettingsTile(
+                  leading: Icon(
+                    mode == current ? Icons.check : Icons.circle_outlined,
+                    color: mode == current
+                        ? colors.terracotta
+                        : colors.mutedInk,
+                  ),
+                  title: Text(mode.label),
+                  onTap: () => Navigator.pop(context, mode),
                 ),
-                title: Text(mode.label),
-                onTap: () => Navigator.pop(context, mode),
-              ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
     );
     if (value != null) unawaited(controller.setThemeMode(value));
   }
@@ -181,26 +168,29 @@ class SettingsPage extends StatelessWidget {
   ) async {
     final value = await showModalBottomSheet<DiaryEditorType>(
       context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const ListTile(title: Text('默认编辑方式')),
-            for (final type in DiaryEditorType.values)
-              ListTile(
-                leading: Icon(
-                  type == current ? Icons.check : Icons.circle_outlined,
-                  color: type == current
-                      ? DiaryPalette.terracotta
-                      : DiaryPalette.mutedInk,
+      builder: (context) {
+        final colors = DiaryThemeColors.of(context);
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const ListTile(title: Text('默认编辑方式')),
+              for (final type in DiaryEditorType.values)
+                _SettingsTile(
+                  leading: Icon(
+                    type == current ? Icons.check : Icons.circle_outlined,
+                    color: type == current
+                        ? colors.terracotta
+                        : colors.mutedInk,
+                  ),
+                  title: Text(type.label),
+                  onTap: () => Navigator.pop(context, type),
                 ),
-                title: Text(type.label),
-                onTap: () => Navigator.pop(context, type),
-              ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
     );
     if (value != null) unawaited(controller.setDefaultEditorType(value));
   }
@@ -214,6 +204,7 @@ class _Section extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
     return Card(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(17, 15, 17, 9),
@@ -224,7 +215,7 @@ class _Section extends StatelessWidget {
               title,
               style: Theme.of(
                 context,
-              ).textTheme.labelSmall?.copyWith(color: DiaryPalette.terracotta),
+              ).textTheme.labelSmall?.copyWith(color: colors.terracotta),
             ),
             const SizedBox(height: 6),
             ...children,
@@ -250,12 +241,57 @@ class _SwitchTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SwitchListTile.adaptive(
-      contentPadding: EdgeInsets.zero,
+    return _SettingsTile(
       title: Text(title),
       subtitle: Text(subtitle),
-      value: value,
-      onChanged: onChanged,
+      onTap: () => onChanged(!value),
+      trailing: Switch.adaptive(value: value, onChanged: onChanged),
+    );
+  }
+}
+
+class _SettingsTile extends StatelessWidget {
+  const _SettingsTile({
+    required this.title,
+    this.subtitle,
+    this.leading,
+    this.trailing,
+    this.onTap,
+  });
+
+  final Widget title;
+  final Widget? subtitle;
+  final Widget? leading;
+  final Widget? trailing;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
+    final radius = BorderRadius.circular(14);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Material(
+        color: colors.paper,
+        borderRadius: radius,
+        clipBehavior: Clip.antiAlias,
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 5,
+          ),
+          shape: RoundedRectangleBorder(borderRadius: radius),
+          tileColor: Colors.transparent,
+          splashColor: colors.terracotta.withValues(alpha: .12),
+          hoverColor: colors.terracotta.withValues(alpha: .06),
+          focusColor: colors.terracotta.withValues(alpha: .08),
+          title: title,
+          subtitle: subtitle,
+          leading: leading,
+          trailing: trailing,
+          onTap: onTap,
+        ),
+      ),
     );
   }
 }

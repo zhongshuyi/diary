@@ -16,6 +16,7 @@ class DiaryPageIntro extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -23,7 +24,7 @@ class DiaryPageIntro extends StatelessWidget {
           eyebrow,
           style: Theme.of(
             context,
-          ).textTheme.labelSmall?.copyWith(color: DiaryPalette.terracotta),
+          ).textTheme.labelSmall?.copyWith(color: colors.terracotta),
         ),
         const SizedBox(height: 9),
         Text(title, style: Theme.of(context).textTheme.displaySmall),

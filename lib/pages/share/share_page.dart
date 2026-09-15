@@ -43,10 +43,11 @@ class _SharePageState extends State<SharePage> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
     return Scaffold(
-      backgroundColor: DiaryPalette.paper,
+      backgroundColor: colors.paper,
       appBar: AppBar(
-        backgroundColor: DiaryPalette.paper,
+        backgroundColor: colors.paper,
         surfaceTintColor: Colors.transparent,
         title: const Text('分享日记'),
       ),
@@ -60,9 +61,9 @@ class _SharePageState extends State<SharePage> {
               children: [
                 Text(
                   'A SMALL PIECE OF TODAY',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: DiaryPalette.terracotta,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.labelSmall?.copyWith(color: colors.terracotta),
                 ),
                 const SizedBox(height: 9),
                 Text(
@@ -84,7 +85,7 @@ class _SharePageState extends State<SharePage> {
                         Text(
                           widget.entry.contentText,
                           style: Theme.of(context).textTheme.bodyLarge
-                              ?.copyWith(color: DiaryPalette.ink, height: 1.8),
+                              ?.copyWith(color: colors.ink, height: 1.8),
                         ),
                         if (_includeMeta) ...[
                           const SizedBox(height: 18),

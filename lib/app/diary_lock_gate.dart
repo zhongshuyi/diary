@@ -29,13 +29,17 @@ class _DiaryLockGateState extends State<DiaryLockGate>
   final _localAuth = LocalAuthentication();
   bool _locked = false;
   bool _authenticating = false;
+  bool _authenticationAttempted = false;
+  bool _closingApp = false;
   String? _errorMessage;
+  late bool _lastLockEnabled;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _locked = widget.controller.settings.biometricLock;
+    _lastLockEnabled = _locked;
     widget.controller.addListener(_onSettingsChanged);
     widget.coordinator.addListener(_onCoordinatorChanged);
     if (_locked) _tryUnlock();
@@ -51,11 +55,16 @@ class _DiaryLockGateState extends State<DiaryLockGate>
 
   void _onSettingsChanged() {
     if (!mounted) return;
-    if (!widget.controller.settings.biometricLock) {
+    final enabled = widget.controller.settings.biometricLock;
+    if (!enabled) {
+      _lastLockEnabled = false;
       if (_locked) setState(() => _locked = false);
       return;
     }
-    if (!_locked) {
+    final wasJustEnabled = !_lastLockEnabled;
+    _lastLockEnabled = true;
+    if (wasJustEnabled && !_locked) {
+      _authenticationAttempted = false;
       setState(() => _locked = true);
       _tryUnlock();
     }
@@ -74,13 +83,25 @@ class _DiaryLockGateState extends State<DiaryLockGate>
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive ||
         state == AppLifecycleState.detached) {
-      if (mounted) setState(() => _locked = true);
+      if (mounted) {
+        _authenticationAttempted = false;
+        setState(() {
+          _locked = true;
+          _errorMessage = null;
+        });
+      }
     }
     if (state == AppLifecycleState.resumed && _locked) _tryUnlock();
   }
 
   Future<void> _tryUnlock() async {
-    if (_authenticating || !widget.controller.settings.biometricLock) return;
+    if (_authenticating ||
+        _authenticationAttempted ||
+        _closingApp ||
+        !widget.controller.settings.biometricLock) {
+      return;
+    }
+    _authenticationAttempted = true;
     if (mounted) setState(() => _errorMessage = null);
     _authenticating = true;
     try {
@@ -100,29 +121,32 @@ class _DiaryLockGateState extends State<DiaryLockGate>
         options: AuthenticationOptions(
           biometricOnly: defaultTargetPlatform != TargetPlatform.windows,
           useErrorDialogs: true,
-          stickyAuth: true,
+          // A cancelled attempt must finish this lock session. The gate owns
+          // the next attempt when the app is locked again.
+          stickyAuth: false,
           sensitiveTransaction: true,
         ),
       );
       if (authenticated && mounted) {
         setState(() => _locked = false);
-      } else if (mounted) {
-        setState(() => _errorMessage = '验证未完成。请录入指纹，或先设置系统锁屏密码。');
+      } else {
+        await _exitApp();
       }
     } on PlatformException catch (error) {
-      if (mounted) {
-        setState(
-          () => _errorMessage = '系统验证失败（${error.code}）。请先在系统设置中确认指纹和锁屏密码已启用。',
-        );
-      }
+      debugPrint('Diary biometric authentication failed: ${error.code}');
+      await _exitApp();
     } catch (_) {
-      if (mounted) {
-        setState(() => _errorMessage = '系统没有可用的生物识别验证，请先在系统设置中录入指纹或设置锁屏密码。');
-      }
+      await _exitApp();
     } finally {
       _authenticating = false;
-      if (mounted) setState(() {});
+      if (mounted && !_closingApp) setState(() {});
     }
+  }
+
+  Future<void> _exitApp() async {
+    if (_closingApp) return;
+    _closingApp = true;
+    await SystemNavigator.pop(animated: true);
   }
 
   @override
@@ -130,8 +154,9 @@ class _DiaryLockGateState extends State<DiaryLockGate>
     if (!_locked || !widget.controller.settings.biometricLock) {
       return widget.child;
     }
+    final colors = DiaryThemeColors.of(context);
     return Scaffold(
-      backgroundColor: DiaryPalette.paper,
+      backgroundColor: colors.paper,
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
@@ -142,14 +167,10 @@ class _DiaryLockGateState extends State<DiaryLockGate>
                 width: 72,
                 height: 72,
                 decoration: BoxDecoration(
-                  color: DiaryPalette.ink,
+                  color: colors.ink,
                   borderRadius: BorderRadius.circular(24),
                 ),
-                child: const Icon(
-                  Icons.lock_outline,
-                  color: DiaryPalette.butter,
-                  size: 34,
-                ),
+                child: Icon(Icons.lock_outline, color: colors.onHero, size: 34),
               ),
               const SizedBox(height: 20),
               Text('日记已锁定', style: Theme.of(context).textTheme.headlineSmall),
@@ -163,14 +184,16 @@ class _DiaryLockGateState extends State<DiaryLockGate>
                 Text(
                   _errorMessage!,
                   textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: DiaryPalette.terracotta,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: colors.terracotta),
                 ),
               ],
               const SizedBox(height: 20),
               FilledButton.icon(
-                onPressed: _authenticating ? null : _tryUnlock,
+                onPressed: _authenticating || _authenticationAttempted
+                    ? null
+                    : _tryUnlock,
                 icon: const Icon(Icons.fingerprint),
                 label: Text(_authenticating ? '等待验证…' : '解锁日记'),
               ),

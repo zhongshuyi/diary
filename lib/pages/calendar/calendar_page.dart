@@ -28,6 +28,7 @@ class _CalendarPageState extends State<CalendarPage> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
     final selectedEntries = _selectedEntries;
     final markedDays = widget.entries
         .where(
@@ -66,9 +67,9 @@ class _CalendarPageState extends State<CalendarPage> {
                           IconButton(
                             onPressed: _pickDate,
                             tooltip: '跳转到某一天',
-                            icon: const Icon(
+                            icon: Icon(
                               Icons.event_available_outlined,
-                              color: DiaryPalette.terracotta,
+                              color: colors.terracotta,
                             ),
                           ),
                         ],
@@ -77,13 +78,13 @@ class _CalendarPageState extends State<CalendarPage> {
                         value: [_selectedDate],
                         config: CalendarDatePicker2Config(
                           calendarType: CalendarDatePicker2Type.single,
-                          selectedDayHighlightColor: DiaryPalette.ink,
-                          todayTextStyle: const TextStyle(
-                            color: DiaryPalette.terracotta,
+                          selectedDayHighlightColor: colors.hero,
+                          todayTextStyle: TextStyle(
+                            color: colors.terracotta,
                             fontWeight: FontWeight.w700,
                           ),
-                          selectedDayTextStyle: const TextStyle(
-                            color: DiaryPalette.surface,
+                          selectedDayTextStyle: TextStyle(
+                            color: colors.onHero,
                             fontWeight: FontWeight.w700,
                           ),
                           weekdayLabels: const [
@@ -95,8 +96,8 @@ class _CalendarPageState extends State<CalendarPage> {
                             '六',
                             '日',
                           ],
-                          controlsTextStyle: const TextStyle(
-                            color: DiaryPalette.ink,
+                          controlsTextStyle: TextStyle(
+                            color: colors.ink,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
@@ -112,8 +113,8 @@ class _CalendarPageState extends State<CalendarPage> {
                           Container(
                             width: 8,
                             height: 8,
-                            decoration: const BoxDecoration(
-                              color: DiaryPalette.sage,
+                            decoration: BoxDecoration(
+                              color: colors.sage,
                               shape: BoxShape.circle,
                             ),
                           ),
@@ -167,35 +168,38 @@ class _CalendarPageState extends State<CalendarPage> {
     var picked = _selectedDate;
     await showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('跳转到某一天'),
-        content: SizedBox(
-          width: 340,
-          child: CalendarDatePicker2(
-            value: [picked],
-            config: CalendarDatePicker2Config(
-              calendarType: CalendarDatePicker2Type.single,
-              selectedDayHighlightColor: DiaryPalette.ink,
+      builder: (context) {
+        final colors = DiaryThemeColors.of(context);
+        return AlertDialog(
+          title: const Text('跳转到某一天'),
+          content: SizedBox(
+            width: 340,
+            child: CalendarDatePicker2(
+              value: [picked],
+              config: CalendarDatePicker2Config(
+                calendarType: CalendarDatePicker2Type.single,
+                selectedDayHighlightColor: colors.hero,
+              ),
+              onValueChanged: (values) {
+                if (values.isNotEmpty) picked = values.first;
+              },
             ),
-            onValueChanged: (values) {
-              if (values.isNotEmpty) picked = values.first;
-            },
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () {
-              setState(() => _selectedDate = picked);
-              Navigator.pop(context);
-            },
-            child: const Text('查看'),
-          ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () {
+                setState(() => _selectedDate = picked);
+                Navigator.pop(context);
+              },
+              child: const Text('查看'),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -208,13 +212,14 @@ class _CalendarEntryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
     return Card(
       child: ListTile(
         onTap: onTap,
         contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 5),
         leading: CircleAvatar(
           backgroundColor: Color(entry.colorValue),
-          child: const Icon(Icons.edit_note, color: DiaryPalette.ink),
+          child: Icon(Icons.edit_note, color: colors.ink),
         ),
         title: Text(entry.title.isEmpty ? '无题' : entry.title),
         subtitle: Text(
@@ -222,7 +227,7 @@ class _CalendarEntryTile extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
-        trailing: const Icon(Icons.chevron_right, color: DiaryPalette.mutedInk),
+        trailing: Icon(Icons.chevron_right, color: colors.mutedInk),
       ),
     );
   }
@@ -233,17 +238,14 @@ class _CalendarEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(28),
         child: Center(
           child: Column(
             children: [
-              const Icon(
-                Icons.wb_sunny_outlined,
-                size: 34,
-                color: DiaryPalette.terracotta,
-              ),
+              Icon(Icons.wb_sunny_outlined, size: 34, color: colors.terracotta),
               const SizedBox(height: 10),
               Text('这一天还没有故事', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 5),

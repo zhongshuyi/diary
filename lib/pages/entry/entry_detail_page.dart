@@ -39,10 +39,11 @@ class _EntryDetailPageState extends State<EntryDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
     return Scaffold(
-      backgroundColor: DiaryPalette.paper,
+      backgroundColor: colors.paper,
       appBar: AppBar(
-        backgroundColor: DiaryPalette.paper,
+        backgroundColor: colors.paper,
         surfaceTintColor: Colors.transparent,
         title: const Text('日记详情'),
         actions: [
@@ -80,9 +81,9 @@ class _EntryDetailPageState extends State<EntryDetailPage> {
               children: [
                 Text(
                   diaryDateLabel(_entry.createdAt),
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: DiaryPalette.terracotta,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.labelSmall?.copyWith(color: colors.terracotta),
                 ),
                 const SizedBox(height: 14),
                 Text(
@@ -209,6 +210,7 @@ class _Content extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
     if (entry.editorType == DiaryEditorType.markdown) {
       return Card(
         child: Padding(
@@ -231,7 +233,7 @@ class _Content extends StatelessWidget {
         child: Text(
           entry.contentText,
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            color: DiaryPalette.ink,
+            color: colors.ink,
             height: 1.8,
             fontSize: 16,
           ),
@@ -249,11 +251,12 @@ class _MetaChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
     return Chip(
-      avatar: Icon(icon, size: 15, color: DiaryPalette.terracotta),
+      avatar: Icon(icon, size: 15, color: colors.terracotta),
       label: Text(label),
-      backgroundColor: DiaryPalette.surface,
-      side: const BorderSide(color: DiaryPalette.line),
+      backgroundColor: colors.surface,
+      side: BorderSide(color: colors.line),
       visualDensity: VisualDensity.compact,
     );
   }

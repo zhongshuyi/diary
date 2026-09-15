@@ -12,6 +12,7 @@ class InsightsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
     final recent = entries
         .take(7)
         .toList(growable: false)
@@ -54,24 +55,24 @@ class InsightsPage extends StatelessWidget {
                       _Metric(
                         number: '${entries.length}',
                         label: '累计记录',
-                        tint: DiaryPalette.sage,
+                        tint: colors.sage,
                       ),
                       _Metric(
                         number: '${(averageMood * 100).round()}%',
                         label: '平均心情',
-                        tint: DiaryPalette.butter,
+                        tint: colors.butter,
                       ),
                       _Metric(
                         number:
                             '${entries.where((entry) => entry.isFavorite).length}',
                         label: '收藏片段',
-                        tint: DiaryPalette.terracottaSoft,
+                        tint: colors.terracottaSoft,
                       ),
                       _Metric(
                         number:
                             '${entries.fold<int>(0, (sum, entry) => sum + entry.wordCount)}',
                         label: '写下字数',
-                        tint: DiaryPalette.lavender,
+                        tint: colors.lavender,
                       ),
                     ],
                   );
@@ -134,9 +135,9 @@ class InsightsPage extends StatelessWidget {
                                               meta: meta,
                                               child: Text(
                                                 '${recent[value.toInt()].createdAt.day}日',
-                                                style: const TextStyle(
+                                                style: TextStyle(
                                                   fontSize: 10,
-                                                  color: DiaryPalette.mutedInk,
+                                                  color: colors.mutedInk,
                                                 ),
                                               ),
                                             ),
@@ -151,8 +152,8 @@ class InsightsPage extends StatelessWidget {
                                           toY: item.value.mood.clamp(.08, 1),
                                           width: 22,
                                           color: item.key == recent.length - 1
-                                              ? DiaryPalette.terracotta
-                                              : DiaryPalette.sage,
+                                              ? colors.terracotta
+                                              : colors.sage,
                                           borderRadius: BorderRadius.circular(
                                             6,
                                           ),
@@ -206,8 +207,8 @@ class InsightsPage extends StatelessWidget {
                                     child: LinearProgressIndicator(
                                       value: item.value / entries.length,
                                       minHeight: 8,
-                                      backgroundColor: DiaryPalette.paper,
-                                      color: DiaryPalette.terracotta,
+                                      backgroundColor: colors.paper,
+                                      color: colors.terracotta,
                                     ),
                                   ),
                                 ),
@@ -229,16 +230,16 @@ class InsightsPage extends StatelessWidget {
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: DiaryPalette.ink,
+                  color: colors.hero,
                   borderRadius: BorderRadius.circular(22),
                 ),
-                child: const Column(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       'A NOTE TO YOUR FUTURE SELF',
                       style: TextStyle(
-                        color: DiaryPalette.butter,
+                        color: colors.butter,
                         fontSize: 10,
                         letterSpacing: 1.1,
                         fontWeight: FontWeight.w700,
@@ -248,7 +249,7 @@ class InsightsPage extends StatelessWidget {
                     Text(
                       '“普通的日子，也值得被好好记住。”',
                       style: TextStyle(
-                        color: DiaryPalette.surface,
+                        color: colors.onHero,
                         fontFamily: 'Georgia',
                         fontSize: 20,
                         height: 1.35,

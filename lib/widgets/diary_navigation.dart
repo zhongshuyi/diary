@@ -16,12 +16,13 @@ class DiarySideNavigation extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
     return Container(
       width: 230,
       padding: const EdgeInsets.fromLTRB(20, 27, 16, 24),
-      decoration: const BoxDecoration(
-        color: DiaryPalette.surface,
-        border: Border(right: BorderSide(color: DiaryPalette.line)),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border(right: BorderSide(color: colors.line)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -32,21 +33,21 @@ class DiarySideNavigation extends StatelessWidget {
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: DiaryPalette.ink,
+                  color: colors.ink,
                   borderRadius: BorderRadius.circular(13),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.auto_stories_outlined,
-                  color: DiaryPalette.butter,
+                  color: colors.butter,
                   size: 20,
                 ),
               ),
               const SizedBox(width: 10),
               Text(
                 'MY / DIARY',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: DiaryPalette.terracotta,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.labelSmall?.copyWith(color: colors.terracotta),
               ),
             ],
           ),
@@ -116,22 +117,23 @@ class DiaryNavigationItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: ListTile(
         onTap: onTap,
         dense: true,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        tileColor: selected ? DiaryPalette.ink : Colors.transparent,
+        tileColor: selected ? colors.ink : Colors.transparent,
         leading: Icon(
           icon,
           size: 19,
-          color: selected ? DiaryPalette.surface : DiaryPalette.mutedInk,
+          color: selected ? colors.surface : colors.mutedInk,
         ),
         title: Text(
           label,
           style: TextStyle(
-            color: selected ? DiaryPalette.surface : DiaryPalette.ink,
+            color: selected ? colors.surface : colors.ink,
             fontSize: 13,
             fontWeight: FontWeight.w700,
           ),
@@ -153,11 +155,12 @@ class DiaryBottomNavigation extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
     return NavigationBar(
       selectedIndex: selectedIndex,
       onDestinationSelected: onSelected,
-      backgroundColor: DiaryPalette.surface,
-      indicatorColor: DiaryPalette.sage,
+      backgroundColor: colors.surface,
+      indicatorColor: colors.sage,
       labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
       destinations: const [
         NavigationDestination(
