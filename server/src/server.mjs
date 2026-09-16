@@ -2,6 +2,8 @@ import { createServer as createHttpServer } from 'node:http';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { SyncStore } from './store.mjs';
+import { AssetStore } from './asset-store.mjs';
+import { normalizeV2Request } from './protocol-v2.mjs';
 
 const serverRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const defaultDataFile = resolve(serverRoot, 'data', 'sync-store.json');
@@ -141,11 +143,13 @@ function validateRequest(body) {
 }
 
 export function createServer({ storeFile = process.env.SYNC_DATA_FILE || defaultDataFile, authToken = process.env.SYNC_AUTH_TOKEN || '' } = {}) {
-  const store = new SyncStore(resolve(serverRoot, storeFile));
+  const resolvedStoreFile = resolve(serverRoot, storeFile);
+  const store = new SyncStore(resolvedStoreFile);
+  const assets = new AssetStore(resolve(dirname(resolvedStoreFile), 'assets'));
   const server = createHttpServer(async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, PUT, POST, OPTIONS');
 
     if (req.method === 'OPTIONS') {
       res.statusCode = 204;
@@ -158,17 +162,62 @@ export function createServer({ storeFile = process.env.SYNC_DATA_FILE || default
       return;
     }
 
-    if (req.url !== '/api/v1/sync' || req.method !== 'POST') {
-      jsonResponse(res, 404, errorBody('not_found', 'Route not found'));
-      return;
-    }
-
     if (authToken && req.headers.authorization !== `Bearer ${authToken}`) {
       jsonResponse(res, 401, errorBody('unauthorized', 'Valid bearer token required'));
       return;
     }
 
     try {
+      const requestUrl = new URL(req.url || '/', 'http://diary.local');
+      if (requestUrl.pathname === '/api/v2/sync' && req.method === 'POST') {
+        const body = await readJson(req);
+        const normalized = normalizeV2Request(body);
+        const result = await store.apply({ ...normalized, protocolVersion: 2 });
+        jsonResponse(res, 200, { data: result, meta: { protocolVersion: 2 } });
+        return;
+      }
+
+      const assetMatch = requestUrl.pathname.match(/^\/api\/v2\/assets\/([a-f0-9]{64})$/i);
+      if (assetMatch && ['HEAD', 'GET', 'PUT'].includes(req.method)) {
+        const sha256 = assetMatch[1].toLowerCase();
+        if (req.method === 'HEAD') {
+          const result = await assets.head(sha256);
+          res.statusCode = result.exists ? 200 : 404;
+          if (result.exists) res.setHeader('Content-Length', result.byteSize);
+          res.end();
+          return;
+        }
+        if (req.method === 'GET') {
+          try {
+            const result = await assets.open(sha256);
+            res.statusCode = 200;
+            res.setHeader('Content-Type', result.mimeType);
+            res.setHeader('Content-Length', result.byteSize);
+            result.stream.on('error', () => res.destroy());
+            result.stream.pipe(res);
+          } catch (error) {
+            if (error.code === 'ENOENT') jsonResponse(res, 404, errorBody('asset_not_found', 'Asset not found'));
+            else throw error;
+          }
+          return;
+        }
+        const byteSize = req.headers['content-length'] == null ? undefined : Number(req.headers['content-length']);
+        const result = await assets.put({
+          sha256,
+          kind: String(req.headers['x-asset-kind'] || 'file'),
+          mimeType: String(req.headers['content-type'] || 'application/octet-stream'),
+          byteSize: Number.isFinite(byteSize) ? byteSize : undefined,
+          body: req,
+        });
+        jsonResponse(res, 201, { data: result, meta: { protocolVersion: 2 } });
+        return;
+      }
+
+      if (req.url !== '/api/v1/sync' || req.method !== 'POST') {
+        jsonResponse(res, 404, errorBody('not_found', 'Route not found'));
+        return;
+      }
+
       const body = await readJson(req);
       const { details, mutations } = validateRequest(body);
       if (details.length > 0) {
@@ -187,12 +236,18 @@ export function createServer({ storeFile = process.env.SYNC_DATA_FILE || default
       });
     } catch (error) {
       const statusCode = error.statusCode || 500;
-      const code = statusCode === 413 ? 'payload_too_large' : 'internal_error';
-      jsonResponse(res, statusCode, errorBody(code, statusCode === 500 ? 'Internal server error' : error.message));
+      const code = statusCode === 413
+        ? 'payload_too_large'
+        : statusCode === 422
+          ? 'validation_error'
+          : statusCode === 400
+            ? 'bad_request'
+            : 'internal_error';
+      jsonResponse(res, statusCode, errorBody(code, statusCode === 500 ? 'Internal server error' : error.message, error.details || []));
     }
   });
 
-  return { server, store };
+  return { server, store, assets };
 }
 
 export async function startServer() {

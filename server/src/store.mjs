@@ -2,7 +2,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 const EMPTY_STATE = () => ({
-  version: 1,
+  version: 2,
   sequence: 0,
   entries: {},
   mutations: {},
@@ -63,7 +63,7 @@ export class SyncStore {
     await rename(temporaryPath, this.filePath);
   }
 
-  async apply({ deviceId, cursor, limit, mutations }) {
+  async apply({ deviceId, cursor, limit, mutations, protocolVersion = 1 }) {
     await this.init();
     const operation = this.writeQueue.then(async () => {
       const appliedMutationIds = [];
@@ -91,6 +91,7 @@ export class SyncStore {
           this.state.entries[mutation.entry.id] = {
             ...clone(mutation),
             deviceId,
+            sequence: change.sequence,
           };
           this.state.changes.push(change);
           this.state.mutations[mutation.mutationId] = {
@@ -100,14 +101,52 @@ export class SyncStore {
           };
           appliedMutationIds.push(mutation.mutationId);
         } else {
+          let conflictId = null;
+          if (protocolVersion >= 2) {
+            conflictId = `conflict:${mutation.entry.id}:${mutation.mutationId}`;
+            if (!this.state.entries[conflictId]) {
+              const conflictEntry = {
+                ...clone(mutation.entry),
+                id: conflictId,
+                schemaVersion: 2,
+                isConflict: true,
+                conflictOf: mutation.entry.id,
+                conflictStatus: 'pending',
+              };
+              this.state.sequence += 1;
+              const conflictChange = {
+                sequence: this.state.sequence,
+                mutationId: conflictId,
+                deviceId,
+                entry: clone(conflictEntry),
+              };
+              this.state.entries[conflictId] = {
+                mutationId: conflictId,
+                entry: clone(conflictEntry),
+                deviceId,
+                sequence: conflictChange.sequence,
+              };
+              this.state.changes.push(conflictChange);
+              this.state.mutations[conflictId] = {
+                sequence: conflictChange.sequence,
+                entryId: conflictId,
+                accepted: true,
+                conflictOf: mutation.entry.id,
+              };
+            }
+            appliedMutationIds.push(mutation.mutationId);
+          }
           this.state.mutations[mutation.mutationId] = {
             sequence: current.sequence ?? null,
             entryId: mutation.entry.id,
             accepted: false,
+            conflictId,
           };
           conflicts.push({
             mutationId: mutation.mutationId,
             entryId: mutation.entry.id,
+            conflictId,
+            entry: conflictId ? clone(this.state.entries[conflictId].entry) : undefined,
             serverEntry: clone(current.entry),
           });
         }
