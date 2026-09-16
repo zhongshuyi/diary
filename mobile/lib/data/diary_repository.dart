@@ -467,10 +467,11 @@ class MemoryDiaryRepository extends DiaryRepository {
   Future<void> setSyncState(SyncState state) async => _syncState = state;
 
   @override
-  Future<List<Conflict>> listConflicts({String status = 'pending'}) async =>
-      List.unmodifiable(
-        _conflicts.values.where((item) => item.status == status),
-      );
+  Future<List<Conflict>> listConflicts({String status = 'pending'}) async {
+    return List.unmodifiable(
+      _conflicts.values.where((item) => item.status == status),
+    );
+  }
 
   @override
   Future<void> resolveConflict(String conflictId, DiaryEntry resolution) async {
@@ -568,6 +569,21 @@ Map<String, dynamic> _conflictToJson(Conflict item) => {
   'createdAt': item.createdAt.toIso8601String(),
   'status': item.status,
 };
+
+Conflict _conflictFromJson(Map<String, dynamic> map) => Conflict(
+  conflictId: '${map['conflictId'] ?? ''}',
+  entryId: '${map['entryId'] ?? ''}',
+  entry: DiaryEntry.fromJson(
+    Map<String, dynamic>.from(map['entry'] as Map? ?? const {}),
+  ),
+  serverEntry: DiaryEntry.fromJson(
+    Map<String, dynamic>.from(map['serverEntry'] as Map? ?? const {}),
+  ),
+  sourceDeviceId: '${map['sourceDeviceId'] ?? ''}',
+  sourceMutationId: '${map['sourceMutationId'] ?? ''}',
+  createdAt: DateTime.tryParse('${map['createdAt']}') ?? DateTime.now(),
+  status: '${map['status'] ?? 'pending'}',
+);
 
 bool _hasAttachmentKind(DiaryEntry entry, AttachmentKind kind) {
   switch (kind) {
@@ -846,10 +862,21 @@ class SharedPreferencesDiaryRepository extends DiaryRepository {
   }
 
   @override
-  Future<List<Conflict>> listConflicts({String status = 'pending'}) async =>
-      List.unmodifiable(
-        _conflicts.values.where((item) => item.status == status),
-      );
+  Future<List<Conflict>> listConflicts({String status = 'pending'}) async {
+    final preferences = await _prefs;
+    final raw = preferences.getString('diary.conflicts.v2');
+    if (_conflicts.isEmpty && raw != null) {
+      try {
+        for (final item in (jsonDecode(raw) as List).whereType<Map>()) {
+          final conflict = _conflictFromJson(Map<String, dynamic>.from(item));
+          _conflicts[conflict.conflictId] = conflict;
+        }
+      } catch (_) {}
+    }
+    return List.unmodifiable(
+      _conflicts.values.where((item) => item.status == status),
+    );
+  }
 
   @override
   Future<void> resolveConflict(String conflictId, DiaryEntry resolution) async {
@@ -857,6 +884,11 @@ class SharedPreferencesDiaryRepository extends DiaryRepository {
       resolution.copyWith(isConflict: false, conflictStatus: 'resolved'),
     );
     _conflicts.remove(conflictId);
+    final preferences = await _prefs;
+    await preferences.setString(
+      'diary.conflicts.v2',
+      jsonEncode(_conflicts.values.map(_conflictToJson).toList()),
+    );
   }
 
   List<OutboxMutation> _decodeOutbox(String? raw) {
