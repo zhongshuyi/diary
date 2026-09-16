@@ -91,6 +91,18 @@ const BASE_SCHEMA = `
     value TEXT NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS conflicts (
+    conflict_id TEXT PRIMARY KEY,
+    entry_id TEXT NOT NULL,
+    entry_json TEXT NOT NULL,
+    server_entry_json TEXT NOT NULL,
+    source_device_id TEXT NOT NULL DEFAULT '',
+    source_mutation_id TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'resolved'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_conflicts_status_created ON conflicts(status, created_at DESC);
+
   CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value_json TEXT NOT NULL,

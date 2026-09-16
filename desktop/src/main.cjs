@@ -360,8 +360,8 @@ ipcMain.handle('sync:request', async (_event, payload = {}) => {
     .replace(/\/$/, '');
   const url = configuredBaseUrl.endsWith('/sync')
     ? configuredBaseUrl
-    : `${configuredBaseUrl}/api/v1/sync`;
-  const token = process.env.SYNC_AUTH_TOKEN || '';
+    : `${configuredBaseUrl}/api/v2/sync`;
+  const token = String(payload.token || process.env.SYNC_AUTH_TOKEN || '');
 
   try {
     const headers = { 'Content-Type': 'application/json' };
@@ -403,6 +403,8 @@ ipcMain.handle('db:loadDraft', (_event, id) => diaryStore?.loadDraft(id) || null
 ipcMain.handle('db:clearDraft', (_event, id) => diaryStore?.clearDraft(id) || null);
 ipcMain.handle('db:saveSetting', (_event, { key, value } = {}) => diaryStore?.saveSetting(key, value) || null);
 ipcMain.handle('db:applySync', (_event, payload) => diaryStore?.applySync(payload) || null);
+ipcMain.handle('db:listConflicts', (_event, options) => diaryStore?.listConflicts(options) || []);
+ipcMain.handle('db:resolveConflict', (_event, payload) => diaryStore?.resolveConflict(payload) || null);
 ipcMain.handle('db:trashEntry', (_event, id) => diaryStore?.trashEntry(id) || null);
 ipcMain.handle('db:restoreEntry', (_event, id) => diaryStore?.restoreEntry(id) || null);
 ipcMain.handle('db:batchFavorite', (_event, ids, isFavorite) => diaryStore?.batchFavorite(ids, isFavorite) || null);

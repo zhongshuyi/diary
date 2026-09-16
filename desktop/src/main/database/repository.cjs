@@ -49,6 +49,10 @@ function normalizeEntry(entry) {
     occurredAt,
     updatedAt,
     deletedAt: entry.isInTrash ? readDate(entry.deletedAt, updatedAt) : (entry.deletedAt ?? null),
+    deviceId: readString(entry.deviceId),
+    isConflict: entry.isConflict === true,
+    conflictOf: entry.conflictOf == null ? null : readString(entry.conflictOf),
+    conflictStatus: entry.conflictStatus === 'resolved' ? 'resolved' : 'pending',
     title: readString(entry.title),
     content: readString(entry.content ?? entry.contentText),
     contentText: readString(entry.contentText ?? entry.content),
@@ -57,6 +61,7 @@ function normalizeEntry(entry) {
     moodSet: entry.moodSet === true || mood !== null,
     category: readString(entry.category, '生活') || '未分类',
     tags: readList(entry.tags),
+    attachmentIds: readList(entry.attachmentIds),
     imagePaths: readList(entry.imagePaths),
     audioPaths: readList(entry.audioPaths),
     videoPaths: readList(entry.videoPaths),
@@ -564,23 +569,58 @@ function acknowledgeMutations(db, mutationIds) {
 }
 
 function applySyncResult(db, { changes = [], conflicts = [], acknowledgedMutationIds = [], cursor = null } = {}) {
-  const candidates = [
-    ...(Array.isArray(changes) ? changes.map((change) => change?.entry).filter(Boolean) : []),
-    ...(Array.isArray(conflicts) ? conflicts.map((conflict) => conflict?.serverEntry).filter(Boolean) : []),
-  ];
+  const candidates = Array.isArray(changes) ? changes.map((change) => change?.entry).filter(Boolean) : [];
   return withTransaction(db, () => {
     for (const remote of candidates) {
       const normalized = normalizeEntry(remote);
+      if (normalized.isConflict) continue;
       const local = db.prepare('SELECT updated_at FROM entries WHERE id = ?').get(normalized.id);
       if (!local || Date.parse(normalized.updatedAt) >= Date.parse(local.updated_at)) {
         writeEntryRecord(db, normalized, { enqueue: false });
       }
     }
+    const addConflict = db.prepare(`INSERT INTO conflicts(conflict_id, entry_id, entry_json, server_entry_json, source_device_id, source_mutation_id, created_at, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')
+      ON CONFLICT(conflict_id) DO UPDATE SET entry_json = excluded.entry_json, server_entry_json = excluded.server_entry_json, status = 'pending'`);
+    (Array.isArray(conflicts) ? conflicts : []).forEach((conflict) => {
+      if (!conflict?.conflictId) {
+        if (conflict?.serverEntry) {
+          const normalized = normalizeEntry(conflict.serverEntry);
+          const local = db.prepare('SELECT updated_at FROM entries WHERE id = ?').get(normalized.id);
+          if (!local || Date.parse(normalized.updatedAt) >= Date.parse(local.updated_at)) writeEntryRecord(db, normalized, { enqueue: false });
+        }
+        return;
+      }
+      const conflictEntry = conflict?.entry || (conflict?.conflictId ? { ...conflict.serverEntry, id: conflict.conflictId, isConflict: true, conflictOf: conflict.entryId } : null);
+      if (!conflictEntry || !conflict.conflictId) return;
+      addConflict.run(conflict.conflictId, conflict.entryId || conflictEntry.conflictOf || '', JSON.stringify(conflictEntry), JSON.stringify(conflict.serverEntry || {}), conflict.sourceDeviceId || '', conflict.mutationId || '', nowIso());
+      if (conflict.serverEntry) {
+        const normalized = normalizeEntry(conflict.serverEntry);
+        const local = db.prepare('SELECT updated_at FROM entries WHERE id = ?').get(normalized.id);
+        if (!local || Date.parse(normalized.updatedAt) >= Date.parse(local.updated_at)) writeEntryRecord(db, normalized, { enqueue: false });
+      }
+    });
     const ids = [...new Set((Array.isArray(acknowledgedMutationIds) ? acknowledgedMutationIds : []).filter((id) => typeof id === 'string' && id))];
     const deleteMutation = db.prepare('DELETE FROM outbox WHERE mutation_id = ?');
     ids.forEach((id) => deleteMutation.run(id));
     if (cursor !== null && cursor !== undefined) db.prepare("INSERT OR REPLACE INTO sync_state(key, value) VALUES ('cursor', ?)").run(String(cursor));
     return { appliedEntries: candidates.length, acknowledgedMutations: ids.length };
+  });
+}
+
+function listConflicts(db, { status = 'pending', limit = 100, offset = 0 } = {}) {
+  const rows = db.prepare('SELECT conflict_id, entry_id, entry_json, server_entry_json, source_device_id, source_mutation_id, created_at, status FROM conflicts WHERE status = ? ORDER BY created_at DESC LIMIT ? OFFSET ?').all(status, Math.min(500, Math.max(1, Number(limit) || 100)), Math.max(0, Number(offset) || 0));
+  return rows.map((row) => ({ conflictId: row.conflict_id, entryId: row.entry_id, entry: JSON.parse(row.entry_json), serverEntry: JSON.parse(row.server_entry_json), sourceDeviceId: row.source_device_id, sourceMutationId: row.source_mutation_id, createdAt: row.created_at, status: row.status }));
+}
+
+function resolveConflict(db, { conflictId, resolution, deviceId = 'desktop' }) {
+  if (!conflictId || !resolution) throw new TypeError('Conflict id and resolution are required');
+  return withTransaction(db, () => {
+    const row = db.prepare('SELECT * FROM conflicts WHERE conflict_id = ?').get(conflictId);
+    if (!row) throw new Error('冲突不存在');
+    const saved = writeEntryRecord(db, normalizeEntry({ ...resolution, isConflict: false, conflictStatus: 'resolved' }), { deviceId, enqueue: true });
+    db.prepare("UPDATE conflicts SET status = 'resolved' WHERE conflict_id = ?").run(conflictId);
+    return saved;
   });
 }
 
@@ -643,6 +683,8 @@ module.exports = {
   listSettings,
   acknowledgeMutations,
   applySyncResult,
+  listConflicts,
+  resolveConflict,
   saveDraft,
   loadDraft,
   clearDraft,

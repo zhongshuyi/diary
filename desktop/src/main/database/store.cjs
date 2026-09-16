@@ -21,6 +21,8 @@ const {
   clearDraft,
   writeSetting,
   applySyncResult,
+  listConflicts,
+  resolveConflict,
   setSyncState,
   moveEntryToTrash,
   restoreEntry,
@@ -127,10 +129,11 @@ function createDiaryStore({ userDataPath }) {
   function snapshot() {
     return {
       entries: listEntries(db, { includeTrash: true }),
-      entryCount: db.prepare('SELECT COUNT(*) AS count FROM entries').get().count,
+      entryCount: db.prepare("SELECT COUNT(*) AS count FROM entries WHERE id NOT LIKE 'conflict:%'").get().count,
       outbox: listPendingMutations(db),
       cursor: getSyncState(db, 'cursor', '0'),
       deviceId: getSyncState(db, 'device_id', null),
+      conflicts: listConflicts(db),
       settings: listSettings(db),
       draft: loadDraft(db, 'main'),
     };
@@ -619,6 +622,12 @@ function createDiaryStore({ userDataPath }) {
     clearDraft: clearDraftValue,
     saveSetting,
     applySync,
+    listConflicts: (options) => listConflicts(db, options),
+    resolveConflict: ({ conflictId, resolution }) => {
+      const deviceId = getSyncState(db, 'device_id', 'desktop');
+      resolveConflict(db, { conflictId, resolution, deviceId });
+      return snapshot();
+    },
     trashEntry,
     restoreEntry: restoreTrashedEntry,
     batchFavorite,
