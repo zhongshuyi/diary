@@ -3,7 +3,7 @@ import { dateKey, mediaCount } from '../lib/format';
 
 export function InsightsView({ entries }) {
   const active = entries.filter((entry) => !entry.isInTrash);
-  const today = active.filter((entry) => dateKey(entry.createdAt) === dateKey(new Date()));
+  const today = active.filter((entry) => dateKey(entry.occurredAt || entry.createdAt) === dateKey(new Date()));
   const words = active.reduce((total, entry) => total + (entry.contentText || '').length, 0);
   const images = active.reduce((total, entry) => total + mediaCount(entry), 0);
   const categories = [...new Set(active.map((entry) => entry.category || '生活'))].map((category) => ({ category, count: active.filter((entry) => (entry.category || '生活') === category).length })).sort((a, b) => b.count - a.count);

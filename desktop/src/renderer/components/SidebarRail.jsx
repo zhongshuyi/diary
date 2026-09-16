@@ -1,7 +1,8 @@
-import { CalendarDays, FileImage, PenLine, Settings, Sparkles, Tags, Trash2 } from 'lucide-react';
+import { CalendarDays, FileImage, List, PenLine, Settings, Sparkles, Tags, Trash2 } from 'lucide-react';
 
 const navigation = [
   ['timeline', PenLine, '今天'],
+  ['all', List, '全部记录'],
   ['calendar', CalendarDays, '日历'],
   ['media', FileImage, '媒体'],
   ['insights', Sparkles, '洞察'],

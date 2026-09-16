@@ -29,6 +29,10 @@ server /api/v1/sync
 
 本地写入永远不等待网络。同步失败只影响同步状态，不阻塞写日记。
 
+实现约定：桌面端的本地存储由 Electron main 进程持有 SQLite 连接，renderer 只能通过 preload 暴露的业务 IPC 访问。renderer 的 `localStorage` 只在首次启动时作为 v1 迁移输入，迁移前会写入用户数据目录的恢复副本；正式记录、草稿、outbox、游标和设置不再以 `localStorage` 作为主存储。
+
+桌面本地 schema 可以先于跨端 wire schema 演进。当前本地记录通过兼容映射发送协议 v1；当移动端开始接入 v2 时，再切换到可空 `mood`、独立 `occurredAt` 和附件实体。
+
 ## 同步决策
 
 - 记录以 `id` 作为跨端稳定主键。

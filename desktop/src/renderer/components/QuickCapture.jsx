@@ -4,25 +4,26 @@ import { AssetPreview } from './AssetPreview';
 import { MediaViewer } from './MediaViewer';
 import { Button } from './ui/Button';
 import { IconButton } from './ui/IconButton';
-import { SelectField } from './ui/SelectField';
 import { DatePicker } from './ui/DatePicker';
 import { fileName, mediaKind } from '../lib/format';
 
-const categoryOptions = ['生活', '灵感', '心情', '工作'];
 const moodOptions = [{ value: '0.9', label: '很好' }, { value: '0.7', label: '平静' }, { value: '0.5', label: '一般' }, { value: '0.3', label: '低落' }];
+const defaultCategoryOptions = ['生活', '灵感', '心情', '工作'];
 
 function DateControl({ draft, setDraft }) {
   return <DatePicker className="paper-date-control" value={draft.date} onChange={(date) => setDraft({ ...draft, date })} />;
 }
 
-export function QuickCapture({ draft, setDraft, attachments, setAttachments, editing, inline = false, onSave, onClose, onNotify }) {
+export function QuickCapture({ draft, setDraft, attachments, setAttachments, editing, inline = false, windowed = false, categoryOptions = defaultCategoryOptions, tagOptions = [], onSave, onClose, onNotify }) {
   const contentRef = useRef(null);
   const titleRef = useRef(null);
   const [showTitle, setShowTitle] = useState(Boolean(draft.title));
   const [previewIndex, setPreviewIndex] = useState(null);
+  const [tagInput, setTagInput] = useState('');
 
   useEffect(() => { contentRef.current?.focus(); }, []);
   useEffect(() => { if (draft.title) setShowTitle(true); }, [draft.title]);
+  useEffect(() => { if (!draft.title && !draft.content && attachments.length === 0) setShowTitle(false); }, [draft.title, draft.content, attachments.length]);
 
   const append = (paths) => {
     const valid = paths.filter(Boolean);
@@ -73,6 +74,19 @@ export function QuickCapture({ draft, setDraft, attachments, setAttachments, edi
 
   const hideTitle = () => setShowTitle(false);
 
+  const toggleTag = (tag) => {
+    const tags = Array.isArray(draft.tags) ? draft.tags : [];
+    setDraft({ ...draft, tags: tags.includes(tag) ? tags.filter((item) => item !== tag) : [...tags, tag].slice(0, 12) });
+  };
+
+  const addTags = (value) => {
+    const next = String(value || '').split(/[,，]/).map((tag) => tag.trim()).filter(Boolean);
+    if (!next.length) return;
+    const tags = [...new Set([...(draft.tags || []), ...next])].slice(0, 12);
+    setDraft({ ...draft, tags });
+    setTagInput('');
+  };
+
   const attachmentList = attachments.length > 0 && <div className="attachment-list">{attachments.map((path, index) => {
     const kind = mediaKind(path);
     return <div className={`attachment-item attachment-${kind}`} key={path}>
@@ -87,7 +101,9 @@ export function QuickCapture({ draft, setDraft, attachments, setAttachments, edi
   })}</div>;
 
   const titleField = showTitle && <div className="title-field"><input ref={titleRef} className="composer-title" value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} maxLength={120} placeholder="标题（可选）" /><button type="button" className="title-dismiss" onClick={hideTitle} aria-label="收起标题"><X size={14} /></button></div>;
-  const controls = <div className="composer-controls"><Button variant="ghost" size="sm" icon={ImagePlus} className="attachment-button" onClick={pickMedia}>附件</Button>{!showTitle && <button type="button" className="title-toggle" onClick={revealTitle}><Type size={13} />{draft.title ? '编辑标题' : '添加标题'}</button>}<SelectField value={draft.category} onChange={(value) => setDraft({ ...draft, category: value })} options={categoryOptions} label="分类" />{!inline && <SelectField value={draft.mood} onChange={(value) => setDraft({ ...draft, mood: value })} options={moodOptions} label="心情" />}<span className="capture-shortcut"><kbd>Ctrl</kbd><span>+</span><kbd>Enter</kbd></span></div>;
+  const selectedTags = Array.isArray(draft.tags) ? draft.tags : [];
+  const visibleTags = [...new Set([...selectedTags, ...tagOptions])].slice(0, 16);
+  const controls = <div className="composer-controls"><Button variant="ghost" size="sm" icon={ImagePlus} className="attachment-button" onClick={pickMedia}>附件</Button>{!showTitle && <button type="button" className="title-toggle" onClick={revealTitle}><Type size={13} />{draft.title ? '编辑标题' : '添加标题'}</button>}<div className="composer-taxonomy"><span className="composer-taxonomy-label">分类</span><div className="composer-chips" role="group" aria-label="分类">{categoryOptions.map((category) => <button type="button" key={category} className={`composer-chip ${draft.category === category ? 'selected' : ''}`} aria-pressed={draft.category === category} onClick={() => setDraft({ ...draft, category })}>{category}</button>)}</div><span className="composer-taxonomy-label">标签</span><div className="composer-chips tag-chips" role="group" aria-label="常用标签">{visibleTags.map((tag) => <button type="button" key={tag} className={`composer-chip ${selectedTags.includes(tag) ? 'selected' : ''}`} aria-pressed={selectedTags.includes(tag)} onClick={() => toggleTag(tag)}>#{tag}</button>)}<input className="composer-tag-input" value={tagInput} onChange={(event) => setTagInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ',' || event.key === '，') { event.preventDefault(); addTags(tagInput); } }} onBlur={() => addTags(tagInput)} placeholder="添加标签" aria-label="添加标签，回车确认" /></div></div>{!inline && <div className="composer-mood"><span className="composer-taxonomy-label">心情</span><div className="composer-chips mood-chips" role="group" aria-label="心情">{moodOptions.map((option) => <button type="button" key={option.value} className={`composer-chip ${draft.mood === option.value && draft.moodSet ? 'selected' : ''}`} aria-pressed={draft.mood === option.value && draft.moodSet} onClick={() => setDraft({ ...draft, mood: option.value, moodSet: true })}>{option.label}</button>)}</div></div>}<span className="capture-shortcut"><kbd>Ctrl</kbd><span>+</span><kbd>Enter</kbd></span></div>;
 
   const editor = <section className={`composer-dialog ${inline ? 'composer-inline paper-editor' : 'detail-editor'}`} role={inline ? 'region' : 'dialog'} aria-modal={inline ? undefined : 'true'} aria-label={editing ? '编辑日记' : '新建日记'} onMouseDown={(event) => event.stopPropagation()} onPaste={handlePaste} onDragOver={(event) => event.preventDefault()} onDrop={handleDrop}>
     {inline ? <div className="paper-editor-header"><span>新的一段</span><DateControl draft={draft} setDraft={setDraft} /></div> : <div className="composer-header"><div className="detail-editor-heading"><span>{editing ? '编辑记录' : '新建记录'}</span><DateControl draft={draft} setDraft={setDraft} /></div>{onClose && <IconButton className="icon-only-button" label="关闭" onClick={onClose}><X size={17} /></IconButton>}</div>}
@@ -98,6 +114,6 @@ export function QuickCapture({ draft, setDraft, attachments, setAttachments, edi
     <footer className="composer-footer"><span className="composer-note">{inline ? '自动保留在本机' : '内容会先保存到本机 · 支持一天多次记录'}</span><div>{!inline && <Button variant="ghost" size="sm" onClick={onClose}>取消</Button>}<Button size="sm" onClick={onSave}>{editing ? '保存修改' : inline ? '记下' : '保存日记'}</Button></div></footer>
   </section>;
 
-  const capture = inline ? editor : <div className="composer-dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose?.(); }}>{editor}</div>;
+  const capture = inline || windowed ? editor : <div className="composer-dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose?.(); }}>{editor}</div>;
   return <>{capture}{previewIndex !== null && <MediaViewer items={attachments.map((path) => ({ path }))} activeIndex={previewIndex} onActiveIndexChange={setPreviewIndex} onClose={() => setPreviewIndex(null)} />}</>;
 }

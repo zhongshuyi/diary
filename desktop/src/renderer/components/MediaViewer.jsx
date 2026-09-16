@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { AssetPreview } from './AssetPreview';
 import { fileName, mediaKind } from '../lib/format';
 
-export function MediaViewer({ items, activeIndex, onActiveIndexChange, onClose }) {
+export function MediaViewer({ items, activeIndex, onActiveIndexChange, onClose, onOpenEntry, onRelocate }) {
   const item = items[activeIndex];
   const hasPrevious = activeIndex > 0;
   const hasNext = activeIndex < items.length - 1;
@@ -28,10 +28,10 @@ export function MediaViewer({ items, activeIndex, onActiveIndexChange, onClose }
       <header className="media-viewer-header"><div><strong>{label}</strong><span>{kindLabel} · {activeIndex + 1} / {items.length}</span></div><button type="button" className="media-viewer-close" aria-label="关闭预览" onClick={onClose}><X size={18} /></button></header>
       <div className="media-viewer-stage">
         {hasPrevious && <button type="button" className="media-viewer-nav previous" aria-label="上一张" onClick={() => onActiveIndexChange(activeIndex - 1)}><ChevronLeft size={21} /></button>}
-        <AssetPreview path={item.path} className="media-viewer-asset" />
+        <AssetPreview path={item.path} className="media-viewer-asset" onRelocate={onRelocate} />
         {hasNext && <button type="button" className="media-viewer-nav next" aria-label="下一张" onClick={() => onActiveIndexChange(activeIndex + 1)}><ChevronRight size={21} /></button>}
       </div>
-      <footer className="media-viewer-footer"><span>{fileName(item.path)}</span><span>← → 切换 · Esc 关闭</span></footer>
+      <footer className="media-viewer-footer"><span>{fileName(item.path)}</span><div className="media-viewer-footer-actions">{item.entryId && onOpenEntry && <button type="button" className="media-viewer-entry-link" onClick={() => onOpenEntry(item.entryId)}>打开所属记录</button>}<span>← → 切换 · Esc 关闭</span></div></footer>
     </section>
   </div>;
 }

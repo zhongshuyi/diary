@@ -1,16 +1,30 @@
-import { FileImage, Film, MoreHorizontal, Music2 } from 'lucide-react';
+import { Copy, FileImage, Film, Heart, MoreHorizontal, Music2, RotateCcw, Trash2 } from 'lucide-react';
+import { Fragment, useState } from 'react';
 import { AssetPreview } from './AssetPreview';
 import { fileName, mediaKind, timeLabel } from '../lib/format';
 
-export function EntryCard({ entry, onEdit, onPreview }) {
+function HighlightedText({ text, query }) {
+  const value = String(text || '');
+  const normalized = String(query || '').trim();
+  if (!normalized) return value;
+  const escaped = normalized.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const parts = value.split(new RegExp(`(${escaped})`, 'ig'));
+  return parts.map((part, index) => part.toLowerCase() === normalized.toLowerCase() ? <mark key={`${part}-${index}`}>{part}</mark> : <Fragment key={`${part}-${index}`}>{part}</Fragment>);
+}
+
+export function EntryCard({ entry, highlightQuery = '', selectable = false, selected = false, onSelect, onEdit, onPreview, onToggleFavorite, onCopy, onTrash, onRestore, onDeletePermanent, isTrash = false }) {
+  const [menuOpen, setMenuOpen] = useState(false);
   const media = [...(entry.imagePaths || []), ...(entry.videoPaths || []), ...(entry.audioPaths || [])];
   const content = entry.contentText || entry.content || '';
   const firstLine = content.split(/\r?\n/)[0].trim();
   const hasTitle = Boolean(entry.title?.trim());
   const displayTitle = hasTitle ? entry.title : (firstLine.slice(0, 42) || '一段记录');
+  const previewItems = media.map((path) => ({ path, entryId: entry.id, title: displayTitle }));
   const excerpt = hasTitle ? content : content.split(/\r?\n/).slice(1).join(' ').trim();
   const MediaIcon = media.some((path) => mediaKind(path) === 'video') ? Film : media.some((path) => mediaKind(path) === 'audio') ? Music2 : FileImage;
-  return <article className="entry-card" onClick={() => onEdit(entry.id)}><div className="entry-card-line"><span className="entry-card-dot"></span><span className="entry-time">{timeLabel(entry.createdAt)}</span></div><div className="entry-card-body"><div className="entry-card-title"><h3 className={!hasTitle ? 'generated-title' : ''}>{displayTitle}</h3><span className="entry-category">{entry.category || '生活'}</span><MoreHorizontal size={16} className="entry-menu" /></div>{excerpt && <p>{excerpt}</p>}{media.length > 0 && <div className="entry-images">{media.slice(0, 3).map((path, index) => <button type="button" className="entry-media-button" key={path} aria-label={`预览${fileName(path)}`} onClick={(event) => { event.stopPropagation(); onPreview?.(media, index); }}><AssetPreview path={path} className="entry-image" controls={false} /></button>)}{media.length > 3 && <button type="button" className="more-images" onClick={(event) => { event.stopPropagation(); onPreview?.(media, 3); }}>+{media.length - 3}</button>}</div>}<div className="entry-meta"><span>{content.length} 字</span>{media.length > 0 && <span><MediaIcon size={13} />{media.length} 个附件</span>}<span className="entry-edit-hint">打开编辑</span></div></div></article>;
+  const runAction = (action) => { setMenuOpen(false); action?.(entry.id); };
+  const canManage = isTrash ? Boolean(onRestore || onDeletePermanent) : Boolean(onToggleFavorite || onCopy || onTrash);
+  return <article className={`entry-card ${isTrash ? 'trashed' : ''} ${selected ? 'selected' : ''}`} tabIndex="0" onClick={() => onEdit?.(entry.id)} onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onEdit?.(entry.id); } }}><div className="entry-card-line"><span className="entry-card-dot"></span><span className="entry-time">{timeLabel(entry.occurredAt || entry.createdAt)}</span></div><div className="entry-card-body"><div className="entry-card-title">{selectable && <label className="entry-select" onClick={(event) => event.stopPropagation()}><input type="checkbox" checked={selected} onChange={() => onSelect?.(entry.id)} aria-label={`选择${displayTitle}`} /></label>}<h3 className={!hasTitle ? 'generated-title' : ''}><HighlightedText text={displayTitle} query={highlightQuery} /></h3>{entry.isFavorite && <Heart className="entry-favorite" size={13} fill="currentColor" aria-label="已收藏" /> }<span className="entry-category"><HighlightedText text={entry.category || '生活'} query={highlightQuery} /></span>{canManage && <><button type="button" className="entry-menu" aria-label="记录操作" aria-expanded={menuOpen} onClick={(event) => { event.stopPropagation(); setMenuOpen((open) => !open); }}><MoreHorizontal size={16} /></button>{menuOpen && <div className="entry-actions-menu" role="menu" onClick={(event) => event.stopPropagation()}>{isTrash ? <><button type="button" onClick={() => runAction(onRestore)}><RotateCcw size={13} />恢复记录</button><button type="button" className="danger" onClick={() => runAction(onDeletePermanent)}><Trash2 size={13} />永久删除</button></> : <><button type="button" onClick={() => runAction(onToggleFavorite)}><Heart size={13} fill={entry.isFavorite ? 'currentColor' : 'none'} />{entry.isFavorite ? '取消收藏' : '收藏'}</button><button type="button" onClick={() => runAction(onCopy)}><Copy size={13} />复制一份</button><button type="button" className="danger" onClick={() => runAction(onTrash)}> <Trash2 size={13} />移入回收站</button></>}</div>}</>}</div>{excerpt && <p><HighlightedText text={excerpt} query={highlightQuery} /></p>}{media.length > 0 && <div className="entry-images">{media.slice(0, 3).map((path, index) => <button type="button" className="entry-media-button" key={path} aria-label={`预览${fileName(path)}`} onClick={(event) => { event.stopPropagation(); onPreview?.(previewItems, index); }}><AssetPreview path={path} className="entry-image" controls={false} /></button>)}{media.length > 3 && <button type="button" className="more-images" onClick={(event) => { event.stopPropagation(); onPreview?.(previewItems, 3); }}>+{media.length - 3}</button>}</div>}<div className="entry-meta"><span>{content.length} 字</span>{media.length > 0 && <span><MediaIcon size={13} />{media.length} 个附件</span>}<span className="entry-edit-hint">打开编辑</span></div></div></article>;
 }
 
 export function MediaTile({ path, title, onClick }) {

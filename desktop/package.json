@@ -2,12 +2,14 @@
   "name": "diary-desktop",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@11.17.0",
   "description": "A focused Electron desktop shell for the Diary app",
   "main": "src/main.cjs",
   "scripts": {
     "build": "vite build",
-    "start": "npm run build && electron .",
-    "dev": "npm run build && electron ."
+    "test": "node --test src/main/**/*.test.cjs",
+    "start": "pnpm run build && electron .",
+    "dev": "pnpm run build && electron ."
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^5.0.4",

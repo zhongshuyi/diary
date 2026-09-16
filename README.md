@@ -23,8 +23,8 @@ npm start
 
 # 另开终端
 cd ..\desktop
-npm install
-npm start
+pnpm install
+pnpm start
 ```
 
 Flutter 工程的原有说明和平台配置保留在 [`mobile/README.md`](mobile/README.md)。
@@ -34,3 +34,4 @@ Flutter 工程的原有说明和平台配置保留在 [`mobile/README.md`](mobil
 两端不共享页面壳层，只共享稳定的数据格式和同步协议。这样手机端可以持续优化“打开即写”，桌面端可以独立发展为真正的桌面工作台，不会再被移动端的页面入口和交互逻辑牵制。
 
 详细约定见 [`docs/architecture.md`](docs/architecture.md) 和 [`docs/sync-contract.md`](docs/sync-contract.md)。
+桌面端需求与 Phase 0–5（当前切片）实施进度见 [`docs/desktop-implementation-plan.md`](docs/desktop-implementation-plan.md)。
