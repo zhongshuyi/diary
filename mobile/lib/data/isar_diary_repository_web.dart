@@ -2,7 +2,7 @@ import '../domain/demo_data.dart';
 import '../domain/diary_entry.dart';
 import 'diary_repository.dart';
 
-class IsarDiaryRepository implements DiaryRepository {
+class IsarDiaryRepository extends DiaryRepository {
   IsarDiaryRepository._(this._delegate);
 
   static Future<IsarDiaryRepository> open({

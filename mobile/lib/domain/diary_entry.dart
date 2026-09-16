@@ -43,6 +43,13 @@ class DiaryEntry {
     required this.id,
     required this.createdAt,
     required this.updatedAt,
+    this.occurredAt,
+    this.deletedAt,
+    this.revision = 1,
+    this.deviceId = '',
+    this.isConflict = false,
+    this.conflictOf,
+    this.conflictStatus = 'pending',
     required this.title,
     required this.content,
     required this.contentText,
@@ -50,6 +57,7 @@ class DiaryEntry {
     this.editorType = DiaryEditorType.plainText,
     this.mood = 0.5,
     this.tags = const [],
+    this.attachmentIds = const [],
     this.imagePaths = const [],
     this.audioPaths = const [],
     this.videoPaths = const [],
@@ -65,6 +73,13 @@ class DiaryEntry {
   final String id;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final DateTime? occurredAt;
+  final DateTime? deletedAt;
+  final int revision;
+  final String deviceId;
+  final bool isConflict;
+  final String? conflictOf;
+  final String conflictStatus;
   final String title;
   final String content;
   final String contentText;
@@ -72,6 +87,7 @@ class DiaryEntry {
   final double mood;
   final String category;
   final List<String> tags;
+  final List<String> attachmentIds;
   final List<String> imagePaths;
   final List<String> audioPaths;
   final List<String> videoPaths;
@@ -83,10 +99,12 @@ class DiaryEntry {
   final bool isFavorite;
   final bool isInTrash;
 
-  String get yearMonth => '${createdAt.year}/${createdAt.month}';
+  DateTime get effectiveOccurredAt => occurredAt ?? createdAt;
+
+  String get yearMonth => '${effectiveOccurredAt.year}/${effectiveOccurredAt.month}';
 
   String get yearMonthDay =>
-      '${createdAt.year}/${createdAt.month}/${createdAt.day}';
+      '${effectiveOccurredAt.year}/${effectiveOccurredAt.month}/${effectiveOccurredAt.day}';
 
   bool get hasMedia =>
       imagePaths.isNotEmpty || audioPaths.isNotEmpty || videoPaths.isNotEmpty;
@@ -109,6 +127,13 @@ class DiaryEntry {
     String? id,
     DateTime? createdAt,
     DateTime? updatedAt,
+    DateTime? occurredAt,
+    DateTime? deletedAt,
+    int? revision,
+    String? deviceId,
+    bool? isConflict,
+    String? conflictOf,
+    String? conflictStatus,
     String? title,
     String? content,
     String? contentText,
@@ -116,6 +141,7 @@ class DiaryEntry {
     double? mood,
     String? category,
     List<String>? tags,
+    List<String>? attachmentIds,
     List<String>? imagePaths,
     List<String>? audioPaths,
     List<String>? videoPaths,
@@ -127,10 +153,23 @@ class DiaryEntry {
     bool? isFavorite,
     bool? isInTrash,
   }) {
+    final nextDeletedAt = deletedAt ??
+        (isInTrash == null
+            ? this.deletedAt
+            : isInTrash
+                ? (updatedAt ?? DateTime.now())
+                : null);
     return DiaryEntry(
       id: id ?? this.id,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      occurredAt: occurredAt ?? this.occurredAt,
+      deletedAt: nextDeletedAt,
+      revision: revision ?? this.revision,
+      deviceId: deviceId ?? this.deviceId,
+      isConflict: isConflict ?? this.isConflict,
+      conflictOf: conflictOf ?? this.conflictOf,
+      conflictStatus: conflictStatus ?? this.conflictStatus,
       title: title ?? this.title,
       content: content ?? this.content,
       contentText: contentText ?? this.contentText,
@@ -138,6 +177,7 @@ class DiaryEntry {
       mood: mood ?? this.mood,
       category: category ?? this.category,
       tags: tags ?? this.tags,
+      attachmentIds: attachmentIds ?? this.attachmentIds,
       imagePaths: imagePaths ?? this.imagePaths,
       audioPaths: audioPaths ?? this.audioPaths,
       videoPaths: videoPaths ?? this.videoPaths,
@@ -153,10 +193,17 @@ class DiaryEntry {
 
   Map<String, dynamic> toJson() {
     return {
-      'schemaVersion': 1,
+      'schemaVersion': 2,
       'id': id,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
+      'occurredAt': effectiveOccurredAt.toIso8601String(),
+      'deletedAt': deletedAt?.toIso8601String(),
+      'revision': revision,
+      'deviceId': deviceId,
+      'isConflict': isConflict,
+      'conflictOf': conflictOf,
+      'conflictStatus': conflictStatus,
       'title': title,
       'content': content,
       'contentText': contentText,
@@ -164,6 +211,7 @@ class DiaryEntry {
       'mood': mood,
       'category': category,
       'tags': tags,
+      'attachmentIds': attachmentIds,
       'imagePaths': imagePaths,
       'audioPaths': audioPaths,
       'videoPaths': videoPaths,
@@ -179,6 +227,8 @@ class DiaryEntry {
 
   factory DiaryEntry.fromJson(Map<String, dynamic> json) {
     final now = DateTime.now();
+    final deletedAt = _readNullableDate(json['deletedAt']);
+    final inTrash = json['isInTrash'] == true || json['show'] == false || deletedAt != null;
     return DiaryEntry(
       id: _readString(
         json['id'],
@@ -189,6 +239,13 @@ class DiaryEntry {
         json['updatedAt'] ?? json['lastModified'],
         fallback: now,
       ),
+      occurredAt: _readDate(json['occurredAt'], fallback: _readDate(json['createdAt'] ?? json['time'], fallback: now)),
+      deletedAt: deletedAt ?? (inTrash ? _readDate(json['updatedAt'] ?? json['lastModified'], fallback: now) : null),
+      revision: _readInt(json['revision'], fallback: 1),
+      deviceId: _readString(json['deviceId']),
+      isConflict: json['isConflict'] == true,
+      conflictOf: json['conflictOf'] is String ? json['conflictOf'] as String : null,
+      conflictStatus: json['conflictStatus'] == 'resolved' ? 'resolved' : 'pending',
       title: _readString(json['title']),
       content: _readString(json['content']),
       contentText: _readString(
@@ -201,6 +258,7 @@ class DiaryEntry {
       mood: _readDouble(json['mood'], fallback: 0.5).clamp(0, 1),
       category: _readString(json['category'], fallback: '生活'),
       tags: _readStringList(json['tags']),
+      attachmentIds: _readStringList(json['attachmentIds']),
       imagePaths: _readStringList(json['imagePaths'] ?? json['imageName']),
       audioPaths: _readStringList(json['audioPaths'] ?? json['audioName']),
       videoPaths: _readStringList(json['videoPaths'] ?? json['videoName']),
@@ -210,7 +268,7 @@ class DiaryEntry {
       longitude: _readNullableDouble(json['longitude']),
       colorValue: _readInt(json['colorValue'], fallback: 0xFFE4E0ED),
       isFavorite: json['isFavorite'] == true,
-      isInTrash: json['isInTrash'] == true || json['show'] == false,
+      isInTrash: inTrash,
     );
   }
 
@@ -220,6 +278,13 @@ class DiaryEntry {
         id == other.id &&
         createdAt == other.createdAt &&
         updatedAt == other.updatedAt &&
+        effectiveOccurredAt == other.effectiveOccurredAt &&
+        deletedAt == other.deletedAt &&
+        revision == other.revision &&
+        deviceId == other.deviceId &&
+        isConflict == other.isConflict &&
+        conflictOf == other.conflictOf &&
+        conflictStatus == other.conflictStatus &&
         title == other.title &&
         content == other.content &&
         contentText == other.contentText &&
@@ -227,6 +292,7 @@ class DiaryEntry {
         mood == other.mood &&
         category == other.category &&
         _listEquals(tags, other.tags) &&
+        _listEquals(attachmentIds, other.attachmentIds) &&
         _listEquals(imagePaths, other.imagePaths) &&
         _listEquals(audioPaths, other.audioPaths) &&
         _listEquals(videoPaths, other.videoPaths) &&
@@ -240,10 +306,17 @@ class DiaryEntry {
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     createdAt,
     updatedAt,
+    effectiveOccurredAt,
+    deletedAt,
+    revision,
+    deviceId,
+    isConflict,
+    conflictOf,
+    conflictStatus,
     title,
     content,
     contentText,
@@ -251,6 +324,7 @@ class DiaryEntry {
     mood,
     category,
     Object.hashAll(tags),
+    Object.hashAll(attachmentIds),
     Object.hashAll(imagePaths),
     Object.hashAll(audioPaths),
     Object.hashAll(videoPaths),
@@ -261,7 +335,7 @@ class DiaryEntry {
     colorValue,
     isFavorite,
     isInTrash,
-  );
+  ]);
 }
 
 String _readString(Object? value, {String fallback = ''}) {
@@ -270,6 +344,10 @@ String _readString(Object? value, {String fallback = ''}) {
 
 DateTime _readDate(Object? value, {required DateTime fallback}) {
   return value is String ? DateTime.tryParse(value) ?? fallback : fallback;
+}
+
+DateTime? _readNullableDate(Object? value) {
+  return value is String ? DateTime.tryParse(value) : null;
 }
 
 double _readDouble(Object? value, {required double fallback}) {
