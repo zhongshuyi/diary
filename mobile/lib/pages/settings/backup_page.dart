@@ -5,12 +5,18 @@ import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'package:diary/app/app_theme.dart';
+import 'package:diary/data/diary_backup_service.dart';
+import 'package:diary/data/diary_repository.dart';
+import 'package:diary/domain/attachment.dart';
 import 'package:diary/domain/diary_entry.dart';
 
 class BackupPage extends StatefulWidget {
   const BackupPage({
     required this.entries,
     required this.onImport,
+    this.onImportPackage,
+    this.attachments = const [],
+    this.readAttachment,
     this.onExternalActivityStart,
     this.onExternalActivityEnd,
     super.key,
@@ -18,6 +24,9 @@ class BackupPage extends StatefulWidget {
 
   final List<DiaryEntry> entries;
   final Future<void> Function(List<DiaryEntry> entries) onImport;
+  final Future<void> Function(ImportPackage package)? onImportPackage;
+  final List<Attachment> attachments;
+  final Future<List<int>> Function(Attachment attachment)? readAttachment;
   final VoidCallback? onExternalActivityStart;
   final VoidCallback? onExternalActivityEnd;
 
@@ -27,6 +36,7 @@ class BackupPage extends StatefulWidget {
 
 class _BackupPageState extends State<BackupPage> {
   bool _busy = false;
+  static const _backupService = DiaryBackupService();
 
   @override
   Widget build(BuildContext context) {
@@ -60,6 +70,13 @@ class _BackupPageState extends State<BackupPage> {
             title: '导出日记备份',
             subtitle: '${widget.entries.length} 篇日记 · JSON 格式',
             onTap: _export,
+          ),
+          const SizedBox(height: 10),
+          _BackupAction(
+            icon: Icons.archive_outlined,
+            title: '导出完整 ZIP',
+            subtitle: '${widget.entries.length} 篇日记 · 可选包含附件',
+            onTap: _exportZip,
           ),
           const SizedBox(height: 10),
           _BackupAction(
@@ -112,13 +129,35 @@ class _BackupPageState extends State<BackupPage> {
     if (mounted) setState(() => _busy = false);
   }
 
+  Future<void> _exportZip() async {
+    setState(() => _busy = true);
+    widget.onExternalActivityStart?.call();
+    try {
+      final bytes = await _backupService.exportZipAsync(
+        entries: widget.entries,
+        attachments: widget.attachments,
+        readAttachment: widget.readAttachment,
+      );
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile.fromData(bytes, mimeType: 'application/zip')],
+          fileNameOverrides: const ['diary-backup.zip'],
+          subject: '我的日记完整备份.zip',
+        ),
+      );
+    } finally {
+      widget.onExternalActivityEnd?.call();
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _import() async {
     widget.onExternalActivityStart?.call();
     FilePickerResult? result;
     try {
       result = await FilePicker.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['json'],
+        allowedExtensions: ['json', 'zip'],
         withData: true,
       );
     } finally {
@@ -127,13 +166,29 @@ class _BackupPageState extends State<BackupPage> {
     if (!mounted || result == null || result.files.single.bytes == null) return;
     setState(() => _busy = true);
     try {
-      final decoded = jsonDecode(utf8.decode(result.files.single.bytes!));
-      if (decoded is! List) throw const FormatException();
-      final entries = decoded
-          .whereType<Map>()
-          .map((item) => DiaryEntry.fromJson(Map<String, dynamic>.from(item)))
-          .toList(growable: false);
-      await widget.onImport(entries);
+      final bytes = result.files.single.bytes!;
+      final extension = result.files.single.extension?.toLowerCase();
+      final package = extension == 'zip'
+          ? _backupService.importZip(bytes)
+          : null;
+      final entries =
+          package?.entries ??
+          (() {
+            final decoded = jsonDecode(utf8.decode(bytes));
+            if (decoded is! List) throw const FormatException();
+            return decoded
+                .whereType<Map>()
+                .map(
+                  (item) =>
+                      DiaryEntry.fromJson(Map<String, dynamic>.from(item)),
+                )
+                .toList(growable: false);
+          })();
+      if (package != null && widget.onImportPackage != null) {
+        await widget.onImportPackage!(package);
+      } else {
+        await widget.onImport(entries);
+      }
       if (mounted) {
         ScaffoldMessenger.of(
           context,

@@ -172,12 +172,14 @@ class AttachmentRecord {
     return Attachment(
       assetId: assetId,
       sha256: sha256,
-      kind: AttachmentKind.values[_safeIndex(kind, AttachmentKind.values.length)],
+      kind:
+          AttachmentKind.values[_safeIndex(kind, AttachmentKind.values.length)],
       mimeType: mimeType,
       byteSize: byteSize,
       originalName: originalName,
       localPath: localPath,
-      remoteState: AttachmentRemoteState.values[_safeIndex(remoteState, AttachmentRemoteState.values.length)],
+      remoteState: AttachmentRemoteState
+          .values[_safeIndex(remoteState, AttachmentRemoteState.values.length)],
       lastError: lastError,
       createdAt: createdAt,
     );
@@ -280,7 +282,11 @@ class SyncStateRecord {
   );
 }
 
-int _safeIndex(int value, int length) => value < 0 ? 0 : value >= length ? length - 1 : value;
+int _safeIndex(int value, int length) => value < 0
+    ? 0
+    : value >= length
+    ? length - 1
+    : value;
 
 @collection
 class ConflictRecord {
@@ -315,8 +321,12 @@ class ConflictRecord {
   Conflict toEntity() => Conflict(
     conflictId: conflictId,
     entryId: entryId,
-    entry: DiaryEntry.fromJson(Map<String, dynamic>.from(jsonDecode(entryJson) as Map)),
-    serverEntry: DiaryEntry.fromJson(Map<String, dynamic>.from(jsonDecode(serverEntryJson) as Map)),
+    entry: DiaryEntry.fromJson(
+      Map<String, dynamic>.from(jsonDecode(entryJson) as Map),
+    ),
+    serverEntry: DiaryEntry.fromJson(
+      Map<String, dynamic>.from(jsonDecode(serverEntryJson) as Map),
+    ),
     sourceDeviceId: sourceDeviceId,
     sourceMutationId: sourceMutationId,
     createdAt: createdAt,

@@ -29,7 +29,8 @@ class IsarDiaryRepository extends DiaryRepository {
   }
 
   @override
-  Future<void> save(DiaryEntry entry) => _delegate.save(entry);
+  Future<void> save(DiaryEntry entry, {bool enqueueMutation = true}) =>
+      _delegate.save(entry, enqueueMutation: enqueueMutation);
 
   @override
   Future<void> moveToTrash(String id) => _delegate.moveToTrash(id);

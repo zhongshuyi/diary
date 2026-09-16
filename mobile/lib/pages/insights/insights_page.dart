@@ -134,7 +134,7 @@ class InsightsPage extends StatelessWidget {
                                             SideTitleWidget(
                                               meta: meta,
                                               child: Text(
-                                                '${recent[value.toInt()].createdAt.day}日',
+                                                '${recent[value.toInt()].effectiveOccurredAt.day}日',
                                                 style: TextStyle(
                                                   fontSize: 10,
                                                   color: colors.mutedInk,

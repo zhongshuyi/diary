@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
@@ -9,6 +10,7 @@ import 'package:flutter_quill_extensions/flutter_quill_extensions.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'package:diary/app/app_theme.dart';
+import 'package:diary/data/diary_repository.dart';
 import 'package:diary/domain/diary_entry.dart';
 import 'package:diary/widgets/desktop_window_bar.dart';
 import 'package:diary/widgets/local_media_preview.dart';
@@ -25,6 +27,10 @@ class EntryEditorPage extends StatefulWidget {
     this.showDesktopWindowBar = true,
     this.onToggleTheme,
     this.onDesktopBack,
+    this.draftId,
+    this.onLoadDraft,
+    this.onSaveDraft,
+    this.onClearDraft,
     super.key,
   });
 
@@ -38,6 +44,10 @@ class EntryEditorPage extends StatefulWidget {
   final bool showDesktopWindowBar;
   final VoidCallback? onToggleTheme;
   final VoidCallback? onDesktopBack;
+  final String? draftId;
+  final Future<DraftPayload?> Function(String id)? onLoadDraft;
+  final Future<void> Function(DraftPayload draft)? onSaveDraft;
+  final Future<void> Function(String id)? onClearDraft;
 
   @override
   State<EntryEditorPage> createState() => _EntryEditorPageState();
@@ -53,6 +63,8 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
   late String _selectedMood;
   List<String> _attachments = const [];
   bool _saving = false;
+  Timer? _draftTimer;
+  bool _restoringDraft = false;
 
   static const _moods = ['阴天', '低落', '平常', '平静', '明亮'];
 
@@ -83,6 +95,13 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
         _quillController.document.insert(0, entry.contentText);
       }
     }
+    _titleController.addListener(_scheduleDraftSave);
+    _contentController.addListener(_scheduleDraftSave);
+    _tagsController.addListener(_scheduleDraftSave);
+    _quillController.addListener(_scheduleDraftSave);
+    if (entry == null && widget.draftId != null && widget.onLoadDraft != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _restoreDraft());
+    }
   }
 
   @override
@@ -91,7 +110,54 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
     _contentController.dispose();
     _tagsController.dispose();
     _quillController.dispose();
+    _draftTimer?.cancel();
     super.dispose();
+  }
+
+  Future<void> _restoreDraft() async {
+    if (!mounted || widget.draftId == null || widget.onLoadDraft == null)
+      return;
+    final draft = await widget.onLoadDraft!(widget.draftId!);
+    if (!mounted || draft == null) return;
+    final payload = draft.payload;
+    _restoringDraft = true;
+    _titleController.text = '${payload['title'] ?? ''}';
+    _contentController.text = '${payload['content'] ?? ''}';
+    _tagsController.text = '${payload['tags'] ?? ''}';
+    final category = '${payload['category'] ?? ''}';
+    if (category.isNotEmpty && widget.categories.contains(category))
+      _category = category;
+    final mood = '${payload['mood'] ?? ''}';
+    if (_moods.contains(mood)) _selectedMood = mood;
+    _restoringDraft = false;
+    if (mounted) setState(() {});
+  }
+
+  void _scheduleDraftSave() {
+    if (_restoringDraft || widget.draftId == null || widget.onSaveDraft == null)
+      return;
+    _draftTimer?.cancel();
+    _draftTimer = Timer(const Duration(milliseconds: 700), () {
+      final payload = <String, dynamic>{
+        'title': _titleController.text,
+        'content': _editorType == DiaryEditorType.richText
+            ? jsonEncode(_quillController.document.toDelta().toJson())
+            : _contentController.text,
+        'tags': _tagsController.text,
+        'category': _category,
+        'mood': _selectedMood,
+        'editorType': _editorType.name,
+        'attachments': _attachments,
+      };
+      widget.onSaveDraft!(
+        DraftPayload(
+          id: widget.draftId!,
+          entryId: widget.entry?.id,
+          payload: payload,
+          updatedAt: DateTime.now(),
+        ),
+      );
+    });
   }
 
   @override
@@ -637,6 +703,8 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
     );
     try {
       await widget.onSave(saved);
+      if (widget.draftId != null)
+        await widget.onClearDraft?.call(widget.draftId!);
       if (mounted) Navigator.pop(context);
     } catch (_) {
       if (mounted) {

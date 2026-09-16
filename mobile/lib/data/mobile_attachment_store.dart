@@ -1,0 +1,80 @@
+import 'dart:io';
+
+import 'package:crypto/crypto.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+
+import '../domain/attachment.dart';
+
+class MobileAttachmentStore {
+  Future<Attachment> importFile(
+    String sourcePath, {
+    AttachmentKind? kind,
+    String? mimeType,
+  }) async {
+    final source = File(sourcePath);
+    final bytes = await source.readAsBytes();
+    if (bytes.length > 128 * 1024 * 1024)
+      throw const FileSystemException('附件不能超过 128 MB');
+    final hash = sha256.convert(bytes).toString();
+    final root = Directory(
+      p.join(
+        (await getApplicationDocumentsDirectory()).path,
+        'diary',
+        'attachments',
+      ),
+    );
+    await root.create(recursive: true);
+    final destination = File(p.join(root.path, hash));
+    if (!await destination.exists())
+      await destination.writeAsBytes(bytes, flush: true);
+    final resolvedKind = kind ?? _kindFor(source.path);
+    return Attachment(
+      assetId: 'asset-$hash',
+      sha256: hash,
+      kind: resolvedKind,
+      mimeType: mimeType ?? _mimeFor(resolvedKind, source.path),
+      byteSize: bytes.length,
+      originalName: p.basename(source.path),
+      localPath: destination.path,
+      remoteState: AttachmentRemoteState.localOnly,
+      createdAt: DateTime.now(),
+    );
+  }
+
+  Future<List<int>> readBytes(Attachment attachment) async {
+    if (attachment.localPath == null)
+      throw const FileSystemException('附件本地路径不存在');
+    return File(attachment.localPath!).readAsBytes();
+  }
+
+  AttachmentKind _kindFor(String path) {
+    final extension = p.extension(path).toLowerCase();
+    if (['.mp4', '.mov', '.webm', '.mkv'].contains(extension))
+      return AttachmentKind.video;
+    if (['.mp3', '.wav', '.m4a', '.aac', '.ogg', '.flac'].contains(extension))
+      return AttachmentKind.audio;
+    if (['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'].contains(extension))
+      return AttachmentKind.image;
+    return AttachmentKind.file;
+  }
+
+  String _mimeFor(AttachmentKind kind, String path) {
+    final extension = p.extension(path).toLowerCase();
+    const known = {
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.png': 'image/png',
+      '.gif': 'image/gif',
+      '.webp': 'image/webp',
+      '.mp4': 'video/mp4',
+      '.mov': 'video/quicktime',
+      '.mp3': 'audio/mpeg',
+      '.wav': 'audio/wav',
+    };
+    return known[extension] ??
+        (kind == AttachmentKind.file
+            ? 'application/octet-stream'
+            : '${kind.name}/*');
+  }
+}

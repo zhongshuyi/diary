@@ -102,7 +102,9 @@ class IsarDiaryRepository extends DiaryRepository {
     final now = DateTime.now();
     final next = entry.copyWith(
       occurredAt: entry.occurredAt ?? entry.createdAt,
-      revision: current != null && entry.revision <= current.revision ? current.revision + 1 : entry.revision,
+      revision: current != null && entry.revision <= current.revision
+          ? current.revision + 1
+          : entry.revision,
       deviceId: entry.deviceId.isEmpty ? 'mobile' : entry.deviceId,
       updatedAt: entry.updatedAt,
     );
@@ -112,8 +114,12 @@ class IsarDiaryRepository extends DiaryRepository {
       await _isar.diaryRecords.put(record);
       if (enqueueMutation) {
         final mutationId = '${next.deviceId}:${next.id}:${next.revision}';
-        final existingOutbox = await _isar.outboxRecords.filter().entityIdEqualTo(next.id).findAll();
-        for (final item in existingOutbox) await _isar.outboxRecords.delete(item.id);
+        final existingOutbox = await _isar.outboxRecords
+            .filter()
+            .entityIdEqualTo(next.id)
+            .findAll();
+        for (final item in existingOutbox)
+          await _isar.outboxRecords.delete(item.id);
         await _isar.outboxRecords.put(
           OutboxRecord.fromEntity(
             OutboxMutation(
@@ -169,18 +175,30 @@ class IsarDiaryRepository extends DiaryRepository {
   }
 
   @override
-  Future<List<DiaryEntry>> listEntries({DiaryQuery query = const DiaryQuery()}) async {
+  Future<List<DiaryEntry>> listEntries({
+    DiaryQuery query = const DiaryQuery(),
+  }) async {
     final all = await load(includeTrash: query.includeTrash);
-    final filtered = all.where((entry) {
-      if (!query.includeConflicts && entry.isConflict) return false;
-      if (query.category != null && entry.category != query.category) return false;
-      if (query.favoriteOnly && !entry.isFavorite) return false;
-      if (query.tags.isNotEmpty && !query.tags.every(entry.tags.contains)) return false;
-      if (query.query.trim().isNotEmpty && !entry.matches(query.query)) return false;
-      if (query.dateFrom != null && entry.effectiveOccurredAt.isBefore(query.dateFrom!)) return false;
-      if (query.dateTo != null && entry.effectiveOccurredAt.isAfter(query.dateTo!)) return false;
-      return true;
-    }).toList()..sort((a, b) => b.effectiveOccurredAt.compareTo(a.effectiveOccurredAt));
+    final filtered =
+        all.where((entry) {
+          if (!query.includeConflicts && entry.isConflict) return false;
+          if (query.category != null && entry.category != query.category)
+            return false;
+          if (query.favoriteOnly && !entry.isFavorite) return false;
+          if (query.tags.isNotEmpty && !query.tags.every(entry.tags.contains))
+            return false;
+          if (query.query.trim().isNotEmpty && !entry.matches(query.query))
+            return false;
+          if (query.dateFrom != null &&
+              entry.effectiveOccurredAt.isBefore(query.dateFrom!))
+            return false;
+          if (query.dateTo != null &&
+              entry.effectiveOccurredAt.isAfter(query.dateTo!))
+            return false;
+          return true;
+        }).toList()..sort(
+          (a, b) => b.effectiveOccurredAt.compareTo(a.effectiveOccurredAt),
+        );
     final start = query.offset.clamp(0, filtered.length);
     final end = (start + query.limit).clamp(start, filtered.length);
     return List.unmodifiable(filtered.sublist(start, end));
@@ -188,45 +206,79 @@ class IsarDiaryRepository extends DiaryRepository {
 
   @override
   Future<void> saveDraft(DraftPayload draft) async {
-    await _isar.writeTxn(() async => _isar.draftRecords.put(DraftRecord.fromEntity(draft)));
+    await _isar.writeTxn(
+      () async => _isar.draftRecords.put(DraftRecord.fromEntity(draft)),
+    );
   }
 
   @override
   Future<DraftPayload?> loadDraft(String id) async {
-    final record = await _isar.draftRecords.filter().draftIdEqualTo(id).findFirst();
+    final record = await _isar.draftRecords
+        .filter()
+        .draftIdEqualTo(id)
+        .findFirst();
     return record?.toEntity();
   }
 
   @override
   Future<void> clearDraft(String id) async {
-    final record = await _isar.draftRecords.filter().draftIdEqualTo(id).findFirst();
-    if (record != null) await _isar.writeTxn(() async => _isar.draftRecords.delete(record.id));
+    final record = await _isar.draftRecords
+        .filter()
+        .draftIdEqualTo(id)
+        .findFirst();
+    if (record != null)
+      await _isar.writeTxn(() async => _isar.draftRecords.delete(record.id));
   }
 
   @override
   Future<List<OutboxMutation>> listPendingMutations({int limit = 100}) async {
     final rows = await _isar.outboxRecords.where().sortByCreatedAt().findAll();
-    return rows.take(limit).map((row) => row.toEntity()).toList(growable: false);
+    return rows
+        .take(limit)
+        .map((row) => row.toEntity())
+        .toList(growable: false);
   }
 
   @override
   Future<void> applySyncResult(SyncResult result) async {
     await _isar.writeTxn(() async {
       for (final change in result.changes) {
-        final current = await _isar.diaryRecords.filter().uuidEqualTo(change.id).findFirst();
-        await _isar.diaryRecords.put(DiaryRecord.fromEntity(change)..id = current?.id ?? Isar.autoIncrement);
+        final current = await _isar.diaryRecords
+            .filter()
+            .uuidEqualTo(change.id)
+            .findFirst();
+        await _isar.diaryRecords.put(
+          DiaryRecord.fromEntity(change)
+            ..id = current?.id ?? Isar.autoIncrement,
+        );
       }
       for (final conflict in result.conflicts) {
-        final current = await _isar.diaryRecords.filter().uuidEqualTo(conflict.entry.id).findFirst();
-        await _isar.diaryRecords.put(DiaryRecord.fromEntity(conflict.entry)..id = current?.id ?? Isar.autoIncrement);
+        final current = await _isar.diaryRecords
+            .filter()
+            .uuidEqualTo(conflict.entry.id)
+            .findFirst();
+        await _isar.diaryRecords.put(
+          DiaryRecord.fromEntity(conflict.entry)
+            ..id = current?.id ?? Isar.autoIncrement,
+        );
         await _isar.conflictRecords.put(ConflictRecord.fromEntity(conflict));
       }
       for (final mutationId in result.acknowledgedMutationIds) {
-        final row = await _isar.outboxRecords.filter().mutationIdEqualTo(mutationId).findFirst();
+        final row = await _isar.outboxRecords
+            .filter()
+            .mutationIdEqualTo(mutationId)
+            .findFirst();
         if (row != null) await _isar.outboxRecords.delete(row.id);
       }
       final current = await getSyncState();
-      final next = SyncState(deviceId: current.deviceId, cursor: result.nextCursor ?? current.cursor, lastSuccessAt: DateTime.now(), status: result.conflicts.isEmpty ? SyncStatus.synced : SyncStatus.conflict);
+      final next = SyncState(
+        deviceId: current.deviceId,
+        cursor: result.nextCursor ?? current.cursor,
+        lastSuccessAt: DateTime.now(),
+        status: result.conflicts.isEmpty
+            ? SyncStatus.synced
+            : SyncStatus.conflict,
+      );
       final state = SyncStateRecord()
         ..key = 'default'
         ..deviceId = next.deviceId
@@ -234,7 +286,10 @@ class IsarDiaryRepository extends DiaryRepository {
         ..lastSuccessAt = next.lastSuccessAt
         ..lastError = next.lastError
         ..status = next.status.index;
-      final existing = await _isar.syncStateRecords.filter().keyEqualTo('default').findFirst();
+      final existing = await _isar.syncStateRecords
+          .filter()
+          .keyEqualTo('default')
+          .findFirst();
       state.id = existing?.id ?? Isar.autoIncrement;
       await _isar.syncStateRecords.put(state);
     });
@@ -242,13 +297,19 @@ class IsarDiaryRepository extends DiaryRepository {
 
   @override
   Future<SyncState> getSyncState() async {
-    final row = await _isar.syncStateRecords.filter().keyEqualTo('default').findFirst();
+    final row = await _isar.syncStateRecords
+        .filter()
+        .keyEqualTo('default')
+        .findFirst();
     return row?.toEntity() ?? const SyncState(deviceId: 'mobile', cursor: '0');
   }
 
   @override
   Future<void> setSyncState(SyncState state) async {
-    final existing = await _isar.syncStateRecords.filter().keyEqualTo('default').findFirst();
+    final existing = await _isar.syncStateRecords
+        .filter()
+        .keyEqualTo('default')
+        .findFirst();
     final row = SyncStateRecord()
       ..id = existing?.id ?? Isar.autoIncrement
       ..key = 'default'
@@ -262,14 +323,23 @@ class IsarDiaryRepository extends DiaryRepository {
 
   @override
   Future<List<Conflict>> listConflicts({String status = 'pending'}) async {
-    final rows = await _isar.conflictRecords.filter().statusEqualTo(status).sortByCreatedAtDesc().findAll();
+    final rows = await _isar.conflictRecords
+        .filter()
+        .statusEqualTo(status)
+        .sortByCreatedAtDesc()
+        .findAll();
     return rows.map((row) => row.toEntity()).toList(growable: false);
   }
 
   @override
   Future<void> resolveConflict(String conflictId, DiaryEntry resolution) async {
-    await save(resolution.copyWith(isConflict: false, conflictStatus: 'resolved'));
-    final row = await _isar.conflictRecords.filter().conflictIdEqualTo(conflictId).findFirst();
+    await save(
+      resolution.copyWith(isConflict: false, conflictStatus: 'resolved'),
+    );
+    final row = await _isar.conflictRecords
+        .filter()
+        .conflictIdEqualTo(conflictId)
+        .findFirst();
     if (row != null) {
       row.status = 'resolved';
       await _isar.writeTxn(() async => _isar.conflictRecords.put(row));

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:diary/app/diary_shell.dart';
 import 'package:diary/app/app_theme.dart';
 import 'package:diary/domain/diary_entry.dart';
+import 'package:diary/domain/sync_state.dart';
 import 'package:diary/pages/calendar/calendar_page.dart';
 import 'package:diary/pages/home/home_page.dart';
 import 'package:diary/pages/insights/insights_page.dart';
@@ -20,12 +21,18 @@ class MobileDiaryShell extends StatefulWidget {
     required this.entries,
     required this.trash,
     required this.actions,
+    this.conflictCount = 0,
+    this.syncState = const SyncState(),
+    this.onSyncNow,
     super.key,
   });
 
   final List<DiaryEntry> entries;
   final List<DiaryEntry> trash;
   final DiaryShellActions actions;
+  final int conflictCount;
+  final SyncState syncState;
+  final Future<void> Function()? onSyncNow;
 
   @override
   State<MobileDiaryShell> createState() => _MobileDiaryShellState();
@@ -48,6 +55,10 @@ class _MobileDiaryShellState extends State<MobileDiaryShell> {
         onShare: (entry) => unawaited(widget.actions.openShare(entry)),
         onDelete: (entry) => unawaited(widget.actions.moveToTrash(entry)),
         onQuickCapture: widget.actions.saveQuickCapture,
+        onBatchFavorite: widget.actions.batchSetFavorite,
+        onBatchDelete: widget.actions.batchMoveToTrash,
+        syncState: widget.syncState,
+        onSyncNow: widget.onSyncNow,
       ),
       CalendarPage(
         entries: widget.entries,
@@ -66,6 +77,8 @@ class _MobileDiaryShellState extends State<MobileDiaryShell> {
         onOpenCategories: widget.actions.openCategories,
         onOpenBackup: widget.actions.openBackup,
         onOpenAbout: widget.actions.openAbout,
+        conflictCount: widget.conflictCount,
+        onOpenConflicts: widget.actions.openConflicts,
       ),
     ];
 

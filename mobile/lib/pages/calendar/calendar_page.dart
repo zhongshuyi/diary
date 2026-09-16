@@ -23,7 +23,7 @@ class _CalendarPageState extends State<CalendarPage> {
   DateTime _selectedDate = DateTime.now();
 
   List<DiaryEntry> get _selectedEntries => widget.entries
-      .where((entry) => _sameDay(entry.createdAt, _selectedDate))
+      .where((entry) => _sameDay(entry.effectiveOccurredAt, _selectedDate))
       .toList(growable: false);
 
   @override
@@ -33,10 +33,10 @@ class _CalendarPageState extends State<CalendarPage> {
     final markedDays = widget.entries
         .where(
           (entry) =>
-              entry.createdAt.year == _selectedDate.year &&
-              entry.createdAt.month == _selectedDate.month,
+              entry.effectiveOccurredAt.year == _selectedDate.year &&
+              entry.effectiveOccurredAt.month == _selectedDate.month,
         )
-        .map((entry) => entry.createdAt.day)
+        .map((entry) => entry.effectiveOccurredAt.day)
         .toSet();
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 28, 20, 110),

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -10,9 +12,14 @@ import 'package:diary/application/diary_lock_coordinator.dart';
 import 'package:diary/application/settings_controller.dart';
 import 'package:diary/data/diary_repository.dart';
 import 'package:diary/domain/diary_entry.dart';
+import 'package:diary/domain/conflict.dart';
 import 'package:diary/domain/diary_settings.dart';
+import 'package:diary/domain/sync_state.dart';
+import 'package:diary/sync/sync_client.dart';
+import 'package:diary/sync/sync_engine.dart';
 import 'package:diary/pages/entry/entry_detail_page.dart';
 import 'package:diary/pages/entry/entry_editor_page.dart';
+import 'package:diary/pages/conflicts/conflicts_page.dart';
 import 'package:diary/pages/recycle/recycle_page.dart';
 import 'package:diary/pages/settings/about_page.dart';
 import 'package:diary/pages/settings/backup_page.dart';
@@ -52,6 +59,9 @@ class DiaryShellActions {
     required this.replaceEntries,
     required this.restoreEntry,
     required this.deleteEntryPermanently,
+    required this.openConflicts,
+    this.batchSetFavorite,
+    this.batchMoveToTrash,
   });
 
   final Future<void> Function([DiaryEntry? entry]) openEditor;
@@ -72,6 +82,10 @@ class DiaryShellActions {
   final Future<void> Function(List<DiaryEntry> entries) replaceEntries;
   final Future<void> Function(DiaryEntry entry) restoreEntry;
   final Future<void> Function(DiaryEntry entry) deleteEntryPermanently;
+  final Future<void> Function() openConflicts;
+  final Future<void> Function(Iterable<String> ids, bool value)?
+  batchSetFavorite;
+  final Future<void> Function(Iterable<String> ids)? batchMoveToTrash;
 }
 
 class DiaryShell extends StatefulWidget {
@@ -90,19 +104,26 @@ class DiaryShell extends StatefulWidget {
   State<DiaryShell> createState() => _DiaryShellState();
 }
 
-class _DiaryShellState extends State<DiaryShell> {
+class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
   late final DiaryController _controller;
+  SyncEngine? _syncEngine;
+  SyncState _syncState = const SyncState();
 
   List<DiaryEntry> get _entries => _controller.entries;
   List<DiaryEntry> get _trash => _controller.trash;
   List<String> get _categories => _controller.categories;
+  List<Conflict> _conflicts = const [];
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _controller = DiaryController(repository: widget.repository)
       ..addListener(_onControllerChanged);
+    widget.settingsController.addListener(_onSettingsChanged);
     _controller.initialize();
+    _refreshConflicts();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _configureSync());
   }
 
   @override
@@ -110,10 +131,40 @@ class _DiaryShellState extends State<DiaryShell> {
     _controller
       ..removeListener(_onControllerChanged)
       ..dispose();
+    widget.settingsController.removeListener(_onSettingsChanged);
+    WidgetsBinding.instance.removeObserver(this);
+    _syncEngine?.stop();
     super.dispose();
   }
 
   void _onControllerChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _onSettingsChanged() {
+    if (mounted) setState(() {});
+    _configureSync();
+  }
+
+  void _configureSync() {
+    if (_syncEngine != null) return;
+    final settings = widget.settingsController.settings;
+    const envUrl = String.fromEnvironment('DIARY_SYNC_URL');
+    final endpoint = settings.syncEndpoint.trim().isNotEmpty
+        ? settings.syncEndpoint.trim()
+        : envUrl;
+    if (endpoint.isEmpty) return;
+    _syncEngine = SyncEngine(
+      repository: widget.repository,
+      client: SyncClient(
+        baseUrl: endpoint,
+        token: settings.syncToken.isNotEmpty
+            ? settings.syncToken
+            : const String.fromEnvironment('DIARY_SYNC_TOKEN'),
+      ),
+      onStateChanged: _onSyncStateChanged,
+    )..start();
+    unawaited(_syncNow());
     if (mounted) setState(() {});
   }
 
@@ -148,6 +199,10 @@ class _DiaryShellState extends State<DiaryShell> {
           replaceEntries: (entries) => _controller.replaceAll(entries),
           restoreEntry: _restoreFromRecycle,
           deleteEntryPermanently: _deleteFromRecycle,
+          openConflicts: _openConflicts,
+          batchSetFavorite: (ids, value) =>
+              _controller.batchSetFavorite(ids, value),
+          batchMoveToTrash: (ids) => _controller.batchMoveToTrash(ids),
         );
         if (desktop) {
           return DesktopDiaryShell(
@@ -156,14 +211,59 @@ class _DiaryShellState extends State<DiaryShell> {
             categories: _categories,
             settingsController: widget.settingsController,
             actions: actions,
+            conflictCount: _conflicts.length,
           );
         }
         return MobileDiaryShell(
           entries: _entries,
           trash: _trash,
+          syncState: _syncState,
+          onSyncNow: _syncEngine == null ? null : _syncNow,
           actions: actions,
+          conflictCount: _conflicts.length,
         );
       },
+    );
+  }
+
+  void _onSyncStateChanged(SyncState state) {
+    if (!mounted) return;
+    setState(() => _syncState = state);
+    if (state.status == SyncStatus.synced ||
+        state.status == SyncStatus.conflict) {
+      _controller.refresh();
+      _refreshConflicts();
+    }
+  }
+
+  Future<void> _syncNow() async {
+    await _syncEngine?.syncNow();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) unawaited(_syncNow());
+  }
+
+  Future<void> _refreshConflicts() async {
+    final conflicts = await widget.repository.listConflicts();
+    if (mounted) setState(() => _conflicts = conflicts);
+  }
+
+  Future<void> _openConflicts() async {
+    await _refreshConflicts();
+    if (!mounted) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => ConflictsPage(
+          conflicts: _conflicts,
+          onResolve: (id, entry) async {
+            await widget.repository.resolveConflict(id, entry);
+            await _refreshConflicts();
+            if (mounted) Navigator.pop(context);
+          },
+        ),
+      ),
     );
   }
 
@@ -205,6 +305,10 @@ class _DiaryShellState extends State<DiaryShell> {
           onSave: (saved) async {
             await _controller.save(saved);
           },
+          draftId: 'compose-${entry?.id ?? 'new'}',
+          onLoadDraft: widget.repository.loadDraft,
+          onSaveDraft: widget.repository.saveDraft,
+          onClearDraft: widget.repository.clearDraft,
         ),
       ),
     );
@@ -287,7 +391,13 @@ class _DiaryShellState extends State<DiaryShell> {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         settings: const RouteSettings(name: AppRoutes.categories),
-        builder: (_) => CategoryPage(categories: _categories),
+        builder: (_) => CategoryPage(
+          categories: _categories,
+          tags: _entries
+              .expand((entry) => entry.tags)
+              .toSet()
+              .toList(growable: false),
+        ),
       ),
     );
   }

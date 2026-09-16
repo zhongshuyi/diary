@@ -32,6 +32,7 @@ class DesktopDiaryShell extends StatefulWidget {
     required this.categories,
     required this.settingsController,
     required this.actions,
+    this.conflictCount = 0,
     super.key,
   });
 
@@ -40,6 +41,7 @@ class DesktopDiaryShell extends StatefulWidget {
   final List<String> categories;
   final SettingsController settingsController;
   final DiaryShellActions actions;
+  final int conflictCount;
 
   @override
   State<DesktopDiaryShell> createState() => _DesktopDiaryShellState();
@@ -123,6 +125,8 @@ class _DesktopDiaryShellState extends State<DesktopDiaryShell> {
         onShare: (entry) => unawaited(_openShare(entry)),
         onDelete: (entry) => unawaited(widget.actions.moveToTrash(entry)),
         onQuickCapture: widget.actions.saveQuickCapture,
+        onBatchFavorite: widget.actions.batchSetFavorite,
+        onBatchDelete: widget.actions.batchMoveToTrash,
       ),
       CalendarPage(
         entries: widget.entries,
@@ -142,6 +146,8 @@ class _DesktopDiaryShellState extends State<DesktopDiaryShell> {
         onOpenCategories: _openCategories,
         onOpenBackup: _openBackup,
         onOpenAbout: _openAbout,
+        conflictCount: widget.conflictCount,
+        onOpenConflicts: () => unawaited(widget.actions.openConflicts()),
       ),
     ];
   }

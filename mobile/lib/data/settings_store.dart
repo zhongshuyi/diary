@@ -16,6 +16,8 @@ class SharedPreferencesDiarySettingsStore implements DiarySettingsStore {
   static const _showWordCountKey = 'diary.settings.show_word_count';
   static const _dailyReminderKey = 'diary.settings.daily_reminder';
   static const _biometricLockKey = 'diary.settings.biometric_lock';
+  static const _syncEndpointKey = 'diary.settings.sync_endpoint';
+  static const _syncTokenKey = 'diary.settings.sync_token';
 
   @override
   Future<DiarySettings> load() async {
@@ -31,6 +33,8 @@ class SharedPreferencesDiarySettingsStore implements DiarySettingsStore {
       showWordCount: preferences.getBool(_showWordCountKey) ?? true,
       dailyReminder: preferences.getBool(_dailyReminderKey) ?? false,
       biometricLock: preferences.getBool(_biometricLockKey) ?? false,
+      syncEndpoint: preferences.getString(_syncEndpointKey) ?? '',
+      syncToken: preferences.getString(_syncTokenKey) ?? '',
     );
   }
 
@@ -46,6 +50,8 @@ class SharedPreferencesDiarySettingsStore implements DiarySettingsStore {
     await preferences.setBool(_showWordCountKey, settings.showWordCount);
     await preferences.setBool(_dailyReminderKey, settings.dailyReminder);
     await preferences.setBool(_biometricLockKey, settings.biometricLock);
+    await preferences.setString(_syncEndpointKey, settings.syncEndpoint);
+    await preferences.setString(_syncTokenKey, settings.syncToken);
   }
 }
 

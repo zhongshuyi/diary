@@ -101,7 +101,8 @@ class DiaryEntry {
 
   DateTime get effectiveOccurredAt => occurredAt ?? createdAt;
 
-  String get yearMonth => '${effectiveOccurredAt.year}/${effectiveOccurredAt.month}';
+  String get yearMonth =>
+      '${effectiveOccurredAt.year}/${effectiveOccurredAt.month}';
 
   String get yearMonthDay =>
       '${effectiveOccurredAt.year}/${effectiveOccurredAt.month}/${effectiveOccurredAt.day}';
@@ -153,12 +154,13 @@ class DiaryEntry {
     bool? isFavorite,
     bool? isInTrash,
   }) {
-    final nextDeletedAt = deletedAt ??
+    final nextDeletedAt =
+        deletedAt ??
         (isInTrash == null
             ? this.deletedAt
             : isInTrash
-                ? (updatedAt ?? DateTime.now())
-                : null);
+            ? (updatedAt ?? DateTime.now())
+            : null);
     return DiaryEntry(
       id: id ?? this.id,
       createdAt: createdAt ?? this.createdAt,
@@ -228,7 +230,8 @@ class DiaryEntry {
   factory DiaryEntry.fromJson(Map<String, dynamic> json) {
     final now = DateTime.now();
     final deletedAt = _readNullableDate(json['deletedAt']);
-    final inTrash = json['isInTrash'] == true || json['show'] == false || deletedAt != null;
+    final inTrash =
+        json['isInTrash'] == true || json['show'] == false || deletedAt != null;
     return DiaryEntry(
       id: _readString(
         json['id'],
@@ -239,13 +242,27 @@ class DiaryEntry {
         json['updatedAt'] ?? json['lastModified'],
         fallback: now,
       ),
-      occurredAt: _readDate(json['occurredAt'], fallback: _readDate(json['createdAt'] ?? json['time'], fallback: now)),
-      deletedAt: deletedAt ?? (inTrash ? _readDate(json['updatedAt'] ?? json['lastModified'], fallback: now) : null),
+      occurredAt: _readDate(
+        json['occurredAt'],
+        fallback: _readDate(json['createdAt'] ?? json['time'], fallback: now),
+      ),
+      deletedAt:
+          deletedAt ??
+          (inTrash
+              ? _readDate(
+                  json['updatedAt'] ?? json['lastModified'],
+                  fallback: now,
+                )
+              : null),
       revision: _readInt(json['revision'], fallback: 1),
       deviceId: _readString(json['deviceId']),
       isConflict: json['isConflict'] == true,
-      conflictOf: json['conflictOf'] is String ? json['conflictOf'] as String : null,
-      conflictStatus: json['conflictStatus'] == 'resolved' ? 'resolved' : 'pending',
+      conflictOf: json['conflictOf'] is String
+          ? json['conflictOf'] as String
+          : null,
+      conflictStatus: json['conflictStatus'] == 'resolved'
+          ? 'resolved'
+          : 'pending',
       title: _readString(json['title']),
       content: _readString(json['content']),
       contentText: _readString(

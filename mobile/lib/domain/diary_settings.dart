@@ -32,6 +32,8 @@ class DiarySettings {
     this.showWordCount = true,
     this.dailyReminder = false,
     this.biometricLock = false,
+    this.syncEndpoint = '',
+    this.syncToken = '',
   });
 
   final DiaryThemeMode themeMode;
@@ -40,6 +42,8 @@ class DiarySettings {
   final bool showWordCount;
   final bool dailyReminder;
   final bool biometricLock;
+  final String syncEndpoint;
+  final String syncToken;
 
   DiarySettings copyWith({
     DiaryThemeMode? themeMode,
@@ -48,6 +52,8 @@ class DiarySettings {
     bool? showWordCount,
     bool? dailyReminder,
     bool? biometricLock,
+    String? syncEndpoint,
+    String? syncToken,
   }) {
     return DiarySettings(
       themeMode: themeMode ?? this.themeMode,
@@ -56,6 +62,8 @@ class DiarySettings {
       showWordCount: showWordCount ?? this.showWordCount,
       dailyReminder: dailyReminder ?? this.dailyReminder,
       biometricLock: biometricLock ?? this.biometricLock,
+      syncEndpoint: syncEndpoint ?? this.syncEndpoint,
+      syncToken: syncToken ?? this.syncToken,
     );
   }
 }

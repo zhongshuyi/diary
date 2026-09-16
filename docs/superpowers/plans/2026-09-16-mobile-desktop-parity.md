@@ -10,6 +10,13 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-16-mobile-desktop-sync-design.md`
 
+## 实施状态（2026-09-16）
+
+- 已完成：Sync v2 协议、服务端增量游标/幂等/冲突副本、附件 API、桌面端冲突中心与 SQLite 持久化。
+- 已完成：APP Isar/SharedPreferences 数据模型、outbox、草稿、批量操作、同步引擎、附件本地存储、ZIP 备份、同步设置与冲突入口。
+- 已完成：APP 与桌面共用的字段语义、删除/恢复、按频率与最近使用排序的平铺分类/标签筛选。
+- 待增强：附件后台上传队列的断点续传、系统通知提醒、跨平台真机回归与发布签名。
+
 ## Global Constraints
 
 - APP 与桌面端共用同一个同步资料库，但不共享本地数据库实现。
