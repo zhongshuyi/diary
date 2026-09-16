@@ -37,3 +37,6 @@ server/.env.*
 # Local editor state
 .idea/
 .vscode/
+
+# Git worktrees
+.worktrees/
