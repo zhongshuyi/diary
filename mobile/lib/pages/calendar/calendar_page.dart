@@ -9,11 +9,13 @@ class CalendarPage extends StatefulWidget {
   const CalendarPage({
     required this.entries,
     required this.onOpenEntry,
+    this.onOpenEditor,
     super.key,
   });
 
   final List<DiaryEntry> entries;
   final ValueChanged<DiaryEntry> onOpenEntry;
+  final VoidCallback? onOpenEditor;
 
   @override
   State<CalendarPage> createState() => _CalendarPageState();
@@ -100,6 +102,49 @@ class _CalendarPageState extends State<CalendarPage> {
                             color: colors.ink,
                             fontWeight: FontWeight.w700,
                           ),
+                          dayBuilder:
+                              ({
+                                required date,
+                                textStyle,
+                                decoration,
+                                isSelected,
+                                isDisabled,
+                                isToday,
+                              }) {
+                                final hasEntry = widget.entries.any(
+                                  (entry) => _sameDay(entry.createdAt, date),
+                                );
+                                return Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    Container(
+                                      width: 40,
+                                      height: 40,
+                                      decoration: decoration,
+                                      alignment: Alignment.center,
+                                      child: Text(
+                                        '${date.day}',
+                                        style: textStyle,
+                                      ),
+                                    ),
+                                    if (hasEntry)
+                                      Positioned(
+                                        bottom: 3,
+                                        child: Container(
+                                          key: Key('calendar-mark-${date.day}'),
+                                          width: 4,
+                                          height: 4,
+                                          decoration: BoxDecoration(
+                                            color: isSelected == true
+                                                ? colors.butter
+                                                : colors.sage,
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                );
+                              },
                         ),
                         onValueChanged: (values) {
                           if (values.isNotEmpty) {
@@ -146,7 +191,7 @@ class _CalendarPageState extends State<CalendarPage> {
               ),
               const SizedBox(height: 13),
               if (selectedEntries.isEmpty)
-                const _CalendarEmptyState()
+                _CalendarEmptyState(onOpenEditor: widget.onOpenEditor)
               else
                 ...selectedEntries.map(
                   (entry) => Padding(
@@ -234,7 +279,9 @@ class _CalendarEntryTile extends StatelessWidget {
 }
 
 class _CalendarEmptyState extends StatelessWidget {
-  const _CalendarEmptyState();
+  const _CalendarEmptyState({this.onOpenEditor});
+
+  final VoidCallback? onOpenEditor;
 
   @override
   Widget build(BuildContext context) {
@@ -253,6 +300,14 @@ class _CalendarEmptyState extends StatelessWidget {
                 '也许正适合现在写下第一句。',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
+              if (onOpenEditor != null) ...[
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: onOpenEditor,
+                  icon: const Icon(Icons.edit_outlined),
+                  label: const Text('写下第一句'),
+                ),
+              ],
             ],
           ),
         ),

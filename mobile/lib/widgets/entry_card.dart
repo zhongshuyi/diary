@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:diary/app/app_theme.dart';
+import 'package:diary/app/diary_motion.dart';
 import 'package:diary/domain/diary_entry.dart';
 
 class DiaryEntryCard extends StatelessWidget {
@@ -108,12 +109,24 @@ class DiaryEntryCard extends StatelessWidget {
                         color: colors.mutedInk,
                       ),
                     ),
-                  Icon(
-                    entry.isFavorite ? Icons.bookmark : Icons.bookmark_border,
-                    size: 17,
-                    color: entry.isFavorite
-                        ? colors.terracotta
-                        : colors.mutedInk,
+                  AnimatedSwitcher(
+                    duration: DiaryMotion.duration(
+                      context,
+                      DiaryMotion.standard,
+                    ),
+                    switchInCurve: DiaryMotion.curve(
+                      context,
+                      Curves.easeOutBack,
+                    ),
+                    switchOutCurve: DiaryMotion.curve(context, Curves.easeIn),
+                    child: Icon(
+                      key: ValueKey(entry.isFavorite),
+                      entry.isFavorite ? Icons.bookmark : Icons.bookmark_border,
+                      size: 17,
+                      color: entry.isFavorite
+                          ? colors.terracotta
+                          : colors.mutedInk,
+                    ),
                   ),
                 ],
               ),

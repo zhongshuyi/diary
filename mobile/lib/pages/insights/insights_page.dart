@@ -113,7 +113,26 @@ class InsightsPage extends StatelessWidget {
                                   maxY: 1,
                                   minY: 0,
                                   alignment: BarChartAlignment.spaceAround,
-                                  barTouchData: BarTouchData(enabled: false),
+                                  barTouchData: BarTouchData(
+                                    enabled: true,
+                                    touchTooltipData: BarTouchTooltipData(
+                                      fitInsideHorizontally: true,
+                                      fitInsideVertically: true,
+                                      getTooltipItem:
+                                          (
+                                            group,
+                                            groupIndex,
+                                            rod,
+                                            rodIndex,
+                                          ) => BarTooltipItem(
+                                            '心情 ${(rod.toY * 100).round()}%',
+                                            TextStyle(
+                                              color: colors.onHero,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                    ),
+                                  ),
                                   gridData: const FlGridData(show: false),
                                   borderData: FlBorderData(show: false),
                                   titlesData: FlTitlesData(

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import 'package:diary/app/app_theme.dart';
+import 'package:diary/app/diary_motion.dart';
 import 'package:diary/widgets/quick_capture_sheet.dart';
 
 class DraggableQuickCaptureFab extends StatefulWidget {
@@ -51,8 +52,8 @@ class _DraggableQuickCaptureFabState extends State<DraggableQuickCaptureFab> {
         return Stack(
           children: [
             AnimatedPositioned(
-              duration: const Duration(milliseconds: 180),
-              curve: Curves.easeOutBack,
+              duration: DiaryMotion.duration(context, DiaryMotion.standard),
+              curve: DiaryMotion.curve(context, Curves.easeOutBack),
               left: position.dx,
               top: position.dy,
               width: _buttonSize,

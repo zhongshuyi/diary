@@ -200,7 +200,7 @@ git commit -m "feat: make private actions recoverable"
 - Modify: `mobile/lib/app/mobile_diary_shell.dart`
 - Modify: `mobile/lib/pages/calendar/calendar_page.dart`
 - Modify: `mobile/lib/pages/insights/insights_page.dart`
-- Test: `mobile/test/diary_motion_test.dart`
+- Test: `mobile/test/motion_feedback_test.dart`
 
 **Interfaces:**
 - `DiaryMotion.duration(BuildContext context, Duration normal)` returns `Duration.zero` when `MediaQuery.disableAnimations` is true, otherwise returns `normal`.
@@ -216,7 +216,7 @@ Test both normal and disabled animation media configurations. Add a widget asser
 Run:
 
 ```powershell
-flutter test test/diary_motion_test.dart -j 1
+flutter test test/motion_feedback_test.dart -j 1
 ```
 
 Expected: FAIL because the motion helper and keyed favorite transition do not exist.
@@ -244,7 +244,7 @@ Expected: all commands exit 0.
 - [ ] **Step 6: Commit the task**
 
 ```powershell
-git add mobile/lib/app/diary_motion.dart mobile/lib/app/diary_shell.dart mobile/lib/app/mobile_diary_shell.dart mobile/lib/widgets/entry_card.dart mobile/lib/pages/calendar/calendar_page.dart mobile/lib/pages/insights/insights_page.dart mobile/test/diary_motion_test.dart
+git add mobile/lib/app/diary_motion.dart mobile/lib/app/diary_shell.dart mobile/lib/app/mobile_diary_shell.dart mobile/lib/widgets/entry_card.dart mobile/lib/pages/calendar/calendar_page.dart mobile/lib/pages/insights/insights_page.dart mobile/test/motion_feedback_test.dart
 git commit -m "feat: add mobile motion feedback"
 ```
 
