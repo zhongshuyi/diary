@@ -40,6 +40,8 @@ class HomePageState extends State<HomePage> {
   bool _onlyFavorites = false;
   bool _quickSaving = false;
 
+  bool get _hasActiveFilters => _category != '全部' || _onlyFavorites;
+
   void focusSearch() {
     _searchFocusNode.requestFocus();
     _searchController.selection = TextSelection(
@@ -55,6 +57,114 @@ class HomePageState extends State<HomePage> {
     _searchFocusNode.dispose();
     _quickFocusNode.dispose();
     super.dispose();
+  }
+
+  Future<void> _openFilters() async {
+    var category = _category;
+    var onlyFavorites = _onlyFavorites;
+    final result = await showModalBottomSheet<_HomeFilterSelection>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          final colors = DiaryThemeColors.of(context);
+          final categories = {
+            '全部',
+            ...widget.entries.map((entry) => entry.category),
+          };
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '筛选日记',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    '缩小范围，只看现在想回到的记录。',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 18),
+                  Text('分类', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final value in categories)
+                        ChoiceChip(
+                          label: Text(value),
+                          selected: category == value,
+                          onSelected: (_) =>
+                              setSheetState(() => category = value),
+                          selectedColor: colors.hero,
+                          backgroundColor: colors.surface,
+                          side: BorderSide(
+                            color: category == value
+                                ? colors.hero
+                                : colors.line,
+                          ),
+                          labelStyle: TextStyle(
+                            color: category == value
+                                ? colors.onHero
+                                : colors.ink,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          showCheckmark: false,
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  SwitchListTile.adaptive(
+                    key: const Key('home-favorites-filter'),
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('只看收藏'),
+                    subtitle: const Text('隐藏未收藏的日记'),
+                    value: onlyFavorites,
+                    onChanged: (value) =>
+                        setSheetState(() => onlyFavorites = value),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      TextButton(
+                        onPressed: () => setSheetState(() {
+                          category = '全部';
+                          onlyFavorites = false;
+                        }),
+                        child: const Text('清除条件'),
+                      ),
+                      const Spacer(),
+                      FilledButton(
+                        onPressed: () => Navigator.pop(
+                          context,
+                          _HomeFilterSelection(
+                            category: category,
+                            onlyFavorites: onlyFavorites,
+                          ),
+                        ),
+                        child: const Text('应用筛选'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+    if (!mounted || result == null) return;
+    setState(() {
+      _category = result.category;
+      _onlyFavorites = result.onlyFavorites;
+    });
   }
 
   List<DiaryEntry> get _filteredEntries {
@@ -140,10 +250,19 @@ class HomePageState extends State<HomePage> {
                 controller: _searchController,
                 focusNode: _searchFocusNode,
                 onChanged: (value) => setState(() => _query = value),
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   hintText: '搜索标题、正文、分类或标签',
                   prefixIcon: Icon(Icons.search),
-                  suffixIcon: Icon(Icons.tune),
+                  suffixIcon: IconButton(
+                    tooltip: '筛选',
+                    onPressed: _openFilters,
+                    icon: Icon(
+                      _hasActiveFilters ? Icons.filter_alt : Icons.tune,
+                      color: _hasActiveFilters
+                          ? colors.terracotta
+                          : colors.mutedInk,
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
@@ -373,6 +492,16 @@ class HomePageState extends State<HomePage> {
     }
     return result;
   }
+}
+
+class _HomeFilterSelection {
+  const _HomeFilterSelection({
+    required this.category,
+    required this.onlyFavorites,
+  });
+
+  final String category;
+  final bool onlyFavorites;
 }
 
 class _CategoryFilters extends StatelessWidget {

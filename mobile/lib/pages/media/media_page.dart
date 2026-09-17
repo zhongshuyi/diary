@@ -20,9 +20,13 @@ class MediaPage extends StatefulWidget {
 }
 
 class _MediaPageState extends State<MediaPage> {
+  final _searchController = TextEditingController();
   DiaryMediaKind? _filter;
+  String _query = '';
 
-  List<_MediaItem> get _items => _collectItems(_filter);
+  List<_MediaItem> get _items => _collectItems(
+    _filter,
+  ).where((item) => item.matches(_query)).toList(growable: false);
 
   List<_MediaItem> get _allItems => _collectItems();
 
@@ -55,6 +59,12 @@ class _MediaPageState extends State<MediaPage> {
   }
 
   @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final items = _items;
     return SingleChildScrollView(
@@ -73,6 +83,26 @@ class _MediaPageState extends State<MediaPage> {
               const SizedBox(height: 20),
               _MediaSummary(items: _allItems),
               const SizedBox(height: 16),
+              TextField(
+                key: const Key('media-search-field'),
+                controller: _searchController,
+                onChanged: (value) => setState(() => _query = value),
+                decoration: InputDecoration(
+                  hintText: '搜索文件名、日记标题或内容',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _query.isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: '清除媒体搜索',
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() => _query = '');
+                          },
+                          icon: const Icon(Icons.close),
+                        ),
+                ),
+              ),
+              const SizedBox(height: 12),
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
@@ -85,7 +115,10 @@ class _MediaPageState extends State<MediaPage> {
               ),
               const SizedBox(height: 16),
               if (items.isEmpty)
-                _EmptyMediaState(hasMedia: _allItems.isNotEmpty)
+                _EmptyMediaState(
+                  hasMedia: _allItems.isNotEmpty,
+                  hasQuery: _query.trim().isNotEmpty,
+                )
               else
                 LayoutBuilder(
                   builder: (context, constraints) {
@@ -150,6 +183,19 @@ class _MediaItem {
   final DiaryEntry entry;
   final String path;
   final DiaryMediaKind kind;
+
+  bool matches(String query) {
+    final normalized = query.trim().toLowerCase();
+    if (normalized.isEmpty) return true;
+    final fileName = path.split(RegExp(r'[\\/]')).last;
+    return [
+      fileName,
+      entry.title,
+      entry.contentText,
+      entry.category,
+      ...entry.tags,
+    ].join(' ').toLowerCase().contains(normalized);
+  }
 }
 
 class _MediaSummary extends StatelessWidget {
@@ -258,7 +304,11 @@ class _MediaCard extends StatelessWidget {
           children: [
             Expanded(
               child: SizedBox.expand(
-                child: LocalMediaPreview(path: item.path, kind: item.kind),
+                child: LocalMediaPreview(
+                  path: item.path,
+                  kind: item.kind,
+                  showRetry: true,
+                ),
               ),
             ),
             Padding(
@@ -298,9 +348,10 @@ class _MediaCard extends StatelessWidget {
 }
 
 class _EmptyMediaState extends StatelessWidget {
-  const _EmptyMediaState({required this.hasMedia});
+  const _EmptyMediaState({required this.hasMedia, required this.hasQuery});
 
   final bool hasMedia;
+  final bool hasQuery;
 
   @override
   Widget build(BuildContext context) {
@@ -317,7 +368,11 @@ class _EmptyMediaState extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(
-              hasMedia ? '这个筛选下还没有附件' : '你的媒体库还是空的',
+              hasQuery
+                  ? '没有找到匹配的附件'
+                  : hasMedia
+                  ? '这个筛选下还没有附件'
+                  : '你的媒体库还是空的',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 6),
