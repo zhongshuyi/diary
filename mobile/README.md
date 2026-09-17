@@ -55,6 +55,8 @@ flutter run -d windows
 flutter build windows --release
 ```
 
+关于页支持从同步服务器检查手机端更新，并从实际构建信息读取当前版本。发布构建时通过 `--dart-define=DIARY_UPDATE_SERVER_URL=https://your-sync-host.example` 指定同步服务器地址；`DIARY_APP_VERSION` 仅作为无法读取构建信息时的兜底。
+
 Release 产物位于 `build/windows/x64/runner/Release/diary.exe`。Windows 顶栏提供主题图标、窗口拖动、最小化、最大化/还原和关闭；常用快捷键为 `Ctrl + N` 新建日记、`Ctrl + K` 聚焦搜索、`Ctrl + Enter` 保存编辑中的日记、`Esc` 返回。手机端继续使用底部导航和首页快速记录入口。
 
 Isar 生成文件位于 `lib/data/isar_diary_record.g.dart`，修改 `@collection` 模型后重新运行生成命令。

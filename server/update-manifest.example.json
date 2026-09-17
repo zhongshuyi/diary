@@ -1,0 +1,14 @@
+{
+  "platforms": {
+    "desktop": {
+      "version": "0.1.0",
+      "downloadUrl": "https://your-download-host.example/diary-desktop",
+      "notes": ""
+    },
+    "mobile": {
+      "version": "1.0.0",
+      "downloadUrl": "https://your-download-host.example/diary-mobile",
+      "notes": ""
+    }
+  }
+}

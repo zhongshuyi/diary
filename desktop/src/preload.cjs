@@ -36,6 +36,10 @@ contextBridge.exposeInMainWorld('diaryAPI', {
     read: (assetPath, options) => ipcRenderer.invoke('assets:read', assetPath, options),
   },
   sync: (payload) => ipcRenderer.invoke('sync:request', payload),
+  updates: {
+    check: (baseUrl) => ipcRenderer.invoke('updates:check', { baseUrl }),
+    open: (url) => ipcRenderer.invoke('updates:open', url),
+  },
   backup: {
     export: () => ipcRenderer.invoke('backup:export'),
     import: () => ipcRenderer.invoke('backup:import'),

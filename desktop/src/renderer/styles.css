@@ -311,6 +311,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .text-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
 .shortcut-setting-row { align-items: start; }
 .shortcut-setting-control { position: relative; display: flex; align-items: center; gap: 6px; }
+.update-setting-control { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 6px; max-width: 430px; }
+.setting-update-notes { width: 100%; color: var(--muted); font-size: 10px; line-height: 1.5; text-align: right; }
 .setting-action-group { display: flex; align-items: center; gap: 6px; }
 .shortcut-input { width: 188px; }
 .setting-error { position: absolute; top: calc(100% + 4px); right: 0; color: var(--orange); font-size: 9px; white-space: nowrap; }

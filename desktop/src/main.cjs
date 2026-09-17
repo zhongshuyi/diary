@@ -1,10 +1,11 @@
-const { app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, nativeImage, screen, Tray } = require('electron');
+const { app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, nativeImage, screen, shell, Tray } = require('electron');
 const crypto = require('node:crypto');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { createDiaryStore } = require('./main/database/store.cjs');
 const { DEFAULT_QUICK_CAPTURE_ACCELERATOR, formatAccelerator, normalizeAccelerator } = require('./main/shortcut.cjs');
 const { restoreQuickCaptureBounds } = require('./main/window-bounds.cjs');
+const { checkForUpdate, isSafeExternalUrl } = require('./main/update-check.cjs');
 
 let mainWindow;
 let quickCaptureWindow;
@@ -385,6 +386,29 @@ ipcMain.handle('sync:request', async (_event, payload = {}) => {
       status: 0,
       body: { error: { code: 'network_error', message: error.message || 'Unable to reach sync server' } },
     };
+  }
+});
+
+ipcMain.handle('updates:check', async (_event, { baseUrl } = {}) => {
+  try {
+    const data = await checkForUpdate({
+      baseUrl: baseUrl || process.env.DIARY_SYNC_URL || 'http://127.0.0.1:8787',
+      platform: 'desktop',
+      currentVersion: app.getVersion(),
+    });
+    return { ok: true, data };
+  } catch (error) {
+    return { ok: false, error: { message: error.message || '检查更新失败' } };
+  }
+});
+
+ipcMain.handle('updates:open', async (_event, value) => {
+  try {
+    if (!isSafeExternalUrl(value)) return false;
+    await shell.openExternal(String(value));
+    return true;
+  } catch {
+    return false;
   }
 });
 

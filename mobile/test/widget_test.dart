@@ -5,9 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:diary/domain/diary_entry.dart';
+import 'package:diary/application/update_service.dart';
 import 'package:diary/main.dart';
 import 'package:diary/pages/entry/entry_detail_page.dart';
+import 'package:diary/pages/settings/about_page.dart';
 import 'package:diary/widgets/diary_navigation.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 
 Future<void> _runAsWindows(Future<void> Function() body) async {
   debugDefaultTargetPlatformOverride = TargetPlatform.windows;
@@ -229,6 +233,56 @@ void main() {
 
     expect(find.text('回收站').last, findsOneWidget);
     expect(find.text('这里还没有被丢弃的日记'), findsOneWidget);
+  });
+
+  testWidgets('offers an update check from the about page', (tester) async {
+    final service = AppUpdateService(
+      baseUrl: 'https://sync.example.com',
+      client: MockClient(
+        (_) async => http.Response(
+          '{"data":{"platform":"mobile","version":"1.1.0","downloadUrl":"https://download.example.com","notes":"修复问题"}}',
+          200,
+          headers: const {'content-type': 'application/json; charset=utf-8'},
+        ),
+      ),
+    );
+    await tester.pumpWidget(
+      MaterialApp(home: AboutPage(updateService: service)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('检查更新'), findsOneWidget);
+    await tester.tap(find.text('检查更新'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('发现新版本'), findsOneWidget);
+  });
+
+  testWidgets('uses the actual loaded app version when checking for updates', (
+    tester,
+  ) async {
+    final service = AppUpdateService(
+      baseUrl: 'https://sync.example.com',
+      client: MockClient(
+        (_) async => http.Response(
+          '{"data":{"platform":"mobile","version":"1.0.0","downloadUrl":"https://download.example.com","notes":""}}',
+          200,
+          headers: const {'content-type': 'application/json; charset=utf-8'},
+        ),
+      ),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AboutPage(
+          updateService: service,
+          loadCurrentVersion: () async => '1.1.0',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('检查更新'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('当前已是最新版本'), findsOneWidget);
   });
 
   testWidgets('renders a saved rich-text delta in the detail page', (

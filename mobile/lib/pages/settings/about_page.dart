@@ -1,9 +1,100 @@
 import 'package:flutter/material.dart';
 
-import 'package:diary/app/app_theme.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-class AboutPage extends StatelessWidget {
-  const AboutPage({super.key});
+import 'package:diary/app/app_theme.dart';
+import 'package:diary/application/update_service.dart';
+
+typedef AppVersionLoader = Future<String> Function();
+
+Future<String> loadCurrentAppVersion() async {
+  try {
+    final packageInfo = await PackageInfo.fromPlatform();
+    final version = packageInfo.version.trim();
+    if (version.isNotEmpty) return version;
+  } on Object {
+    // Keep the compile-time fallback usable in tests and unsupported hosts.
+  }
+  return currentAppVersion;
+}
+
+class AboutPage extends StatefulWidget {
+  const AboutPage({
+    this.updateService,
+    this.loadCurrentVersion = loadCurrentAppVersion,
+    super.key,
+  });
+
+  final AppUpdateService? updateService;
+  final AppVersionLoader loadCurrentVersion;
+
+  @override
+  State<AboutPage> createState() => _AboutPageState();
+}
+
+class _AboutPageState extends State<AboutPage> {
+  late final AppUpdateService _updateService =
+      widget.updateService ?? AppUpdateService();
+  AppUpdateResult? _update;
+  String? _message;
+  bool _checking = false;
+  String _currentVersion = currentAppVersion;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCurrentVersion();
+  }
+
+  Future<void> _loadCurrentVersion() async {
+    final version = await widget.loadCurrentVersion();
+    if (mounted && version.trim().isNotEmpty) {
+      setState(() => _currentVersion = version.trim());
+    }
+  }
+
+  Future<void> _checkForUpdate() async {
+    if (_checking) return;
+    setState(() {
+      _checking = true;
+      _message = null;
+      _update = null;
+    });
+    try {
+      final result = await _updateService.check(
+        platform: 'mobile',
+        currentVersion: _currentVersion,
+      );
+      if (!mounted) return;
+      setState(() {
+        _update = result;
+        _message = result.hasUpdate
+            ? '发现新版本 ${result.latestVersion}'
+            : '当前已是最新版本';
+      });
+    } on UpdateCheckException catch (error) {
+      if (mounted) setState(() => _message = error.message);
+    } on Object {
+      if (mounted) setState(() => _message = '检查更新失败，请稍后重试');
+    } finally {
+      if (mounted) setState(() => _checking = false);
+    }
+  }
+
+  Future<void> _openDownload() async {
+    final url = _update?.downloadUrl;
+    if (url == null) return;
+    final uri = Uri.tryParse(url);
+    if (uri == null || !{'http', 'https'}.contains(uri.scheme)) {
+      setState(() => _message = '下载地址无效');
+      return;
+    }
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication) &&
+        mounted) {
+      setState(() => _message = '无法打开下载地址');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -63,7 +154,43 @@ class AboutPage extends StatelessWidget {
           Card(
             child: Column(
               children: [
-                const ListTile(title: Text('版本'), trailing: Text('1.0.0')),
+                ListTile(
+                  title: const Text('版本'),
+                  subtitle: Text('当前版本 $_currentVersion'),
+                  trailing: TextButton(
+                    onPressed: _checking ? null : _checkForUpdate,
+                    child: Text(_checking ? '检查中…' : '检查更新'),
+                  ),
+                ),
+                if (_message != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(_message!),
+                    ),
+                  ),
+                if (_update?.hasUpdate == true) ...[
+                  if (_update!.notes.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text('更新说明：${_update!.notes}'),
+                      ),
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: FilledButton.icon(
+                        onPressed: _openDownload,
+                        icon: const Icon(Icons.download_outlined),
+                        label: const Text('前往下载'),
+                      ),
+                    ),
+                  ),
+                ],
                 const ListTile(
                   title: Text('存储'),
                   trailing: Text('Isar · 离线优先'),

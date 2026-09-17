@@ -30,6 +30,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  http: ^1.6.0
   path: ^1.9.1
   path_provider: ^2.1.5
   shared_preferences: ^2.5.5
@@ -45,6 +46,8 @@ dependencies:
   calendar_date_picker2: ^3.0.0
   isar_community: 3.3.2
   isar_community_flutter_libs: 3.3.2
+  url_launcher: ^6.3.2
+  package_info_plus: ^9.0.1
 
 dev_dependencies:
   flutter_test:

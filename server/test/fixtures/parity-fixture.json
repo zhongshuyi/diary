@@ -1,0 +1,90 @@
+{
+  "entries": [
+    {
+      "schemaVersion": 2,
+      "id": "fixture-entry-1",
+      "createdAt": "2026-09-16T08:00:00.000Z",
+      "occurredAt": "2026-09-16T07:55:00.000Z",
+      "updatedAt": "2026-09-16T08:01:00.000Z",
+      "deletedAt": null,
+      "title": "一句话",
+      "content": "记录正文",
+      "contentText": "记录正文",
+      "editorType": "plain_text",
+      "mood": 0.7,
+      "category": "灵感",
+      "tags": ["摘录", "工作"],
+      "attachmentIds": ["asset-fixture-image"],
+      "isFavorite": true,
+      "revision": 2,
+      "deviceId": "desktop-fixture",
+      "isConflict": false,
+      "conflictOf": null,
+      "conflictStatus": "pending"
+    },
+    {
+      "schemaVersion": 2,
+      "id": "fixture-trash-1",
+      "createdAt": "2026-09-15T08:00:00.000Z",
+      "occurredAt": "2026-09-15T08:00:00.000Z",
+      "updatedAt": "2026-09-15T08:02:00.000Z",
+      "deletedAt": "2026-09-15T08:02:00.000Z",
+      "title": "回收站记录",
+      "content": "待清理",
+      "contentText": "待清理",
+      "editorType": "markdown",
+      "mood": null,
+      "category": "生活",
+      "tags": [],
+      "attachmentIds": [],
+      "isFavorite": false,
+      "revision": 1,
+      "deviceId": "phone-fixture",
+      "isConflict": false,
+      "conflictOf": null,
+      "conflictStatus": "pending"
+    },
+    {
+      "schemaVersion": 2,
+      "id": "conflict:fixture-entry-1:mutation-old",
+      "createdAt": "2026-09-16T08:00:00.000Z",
+      "occurredAt": "2026-09-16T07:55:00.000Z",
+      "updatedAt": "2026-09-16T08:00:30.000Z",
+      "deletedAt": null,
+      "title": "冲突版本",
+      "content": "另一台设备的版本",
+      "contentText": "另一台设备的版本",
+      "editorType": "plain_text",
+      "mood": 0.4,
+      "category": "灵感",
+      "tags": ["摘录"],
+      "attachmentIds": ["asset-fixture-image", "asset-fixture-image"],
+      "isFavorite": false,
+      "revision": 1,
+      "deviceId": "phone-fixture",
+      "isConflict": true,
+      "conflictOf": "fixture-entry-1",
+      "conflictStatus": "pending"
+    }
+  ],
+  "attachments": [
+    {
+      "assetId": "asset-fixture-image",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "kind": "image",
+      "mimeType": "image/png",
+      "byteSize": 4,
+      "originalName": "fixture.png",
+      "remoteState": "ready"
+    },
+    {
+      "assetId": "asset-fixture-file",
+      "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "kind": "file",
+      "mimeType": "text/plain",
+      "byteSize": 12,
+      "originalName": "note.txt",
+      "remoteState": "ready"
+    }
+  ]
+}
