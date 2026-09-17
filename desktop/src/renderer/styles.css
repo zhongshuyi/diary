@@ -471,16 +471,16 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .composer-content { min-height: 180px; padding: 4px 0 15px; resize: vertical; color: var(--muted); line-height: 1.8; }
 .rich-text-editor, .milkdown-editor { position: relative; min-height: 338px; margin: 17px 0 0; overflow: hidden; color: var(--foreground); border: 1px solid var(--border); border-radius: 9px; background: var(--surface); transition: border-color 160ms ease, box-shadow 160ms ease; }
 .rich-text-editor:focus-within, .milkdown-editor:focus-within { border-color: var(--primary); box-shadow: none; }
-.rich-text-editor .ql-toolbar.ql-snow { width: max-content; max-width: 100%; display: flex; align-items: center; flex-wrap: wrap; gap: 0; padding: 3px 4px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-muted); }
-.rich-text-editor .ql-toolbar.ql-snow .ql-formats { height: 26px; display: inline-flex; align-items: center; padding: 0 4px; margin: 0; border-right: 1px solid var(--border); }
+.rich-text-editor .ql-toolbar.ql-snow { width: max-content; max-width: 100%; display: flex; align-items: center; flex-wrap: wrap; gap: 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
+.rich-text-editor .ql-toolbar.ql-snow .ql-formats { height: 28px; display: inline-flex; align-items: center; padding: 0 6px; margin: 0; border-right: 1px solid var(--border); }
 .rich-text-editor .ql-toolbar.ql-snow .ql-formats:last-child { border-right: 0; }
-.rich-text-editor .ql-snow.ql-toolbar button, .rich-text-editor .ql-snow .ql-toolbar button { width: 27px; height: 26px; display: inline-grid; place-items: center; margin-right: 0; border-radius: 5px; }
+.rich-text-editor .ql-snow.ql-toolbar button, .rich-text-editor .ql-snow .ql-toolbar button { width: 28px; height: 28px; display: inline-grid; place-items: center; margin-right: 0; border-radius: 6px; }
 .rich-text-editor .ql-snow.ql-toolbar button:hover, .rich-text-editor .ql-snow .ql-toolbar button:hover, .rich-text-editor .ql-snow .ql-picker-label:hover { background: var(--primary-soft); }
-.rich-text-editor .ql-snow .ql-picker { height: 26px; color: var(--muted); }
+.rich-text-editor .ql-snow .ql-picker { height: 28px; color: var(--muted); }
 .rich-text-editor .ql-snow .ql-picker.ql-header { width: 34px; }
 .rich-text-editor .ql-snow .ql-picker.ql-header .ql-picker-label { width: 34px; justify-content: center; padding: 0; }
 .rich-text-editor .ql-snow .ql-picker.ql-header .ql-picker-label::before { content: 'Aa' !important; color: var(--muted); font-family: Georgia, 'Songti SC', serif; font-size: 13px; }
-.rich-text-editor .ql-snow .ql-picker-label { height: 26px; display: inline-flex; align-items: center; border: 0; border-radius: 5px; }
+.rich-text-editor .ql-snow .ql-picker-label { height: 28px; display: inline-flex; align-items: center; border: 0; border-radius: 6px; }
 .rich-text-editor .ql-snow .ql-picker-options { padding: 4px; color: var(--foreground); border-color: var(--border-strong); border-radius: 7px; background: var(--surface); box-shadow: var(--shadow-float); }
 .rich-text-editor .ql-snow .ql-picker-item { border-radius: 4px; }
 .rich-text-editor .ql-snow .ql-picker-item:hover { color: var(--primary); background: var(--primary-soft); }

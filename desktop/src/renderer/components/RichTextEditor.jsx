@@ -63,5 +63,5 @@ export const RichTextEditor = forwardRef(function RichTextEditor({ value, onChan
     lastValueRef.current = serialized;
   }, [value]);
 
-  return <div className={`rich-text-editor ${className}`.trim()} ref={containerRef} />;
+  return <div className={`rich-text-editor ${className}`.trim()}><div className="rich-text-editor-root" ref={containerRef} /></div>;
 });
