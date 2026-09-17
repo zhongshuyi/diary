@@ -144,7 +144,6 @@ git commit -m "feat: protect mobile editor drafts"
 - Modify: `mobile/lib/app/diary_shell.dart`
 - Modify: `mobile/lib/pages/recycle/recycle_page.dart`
 - Modify: `mobile/lib/pages/settings/backup_page.dart`
-- Test: `mobile/test/diary_lock_gate_test.dart`
 - Test: `mobile/test/recoverable_actions_test.dart`
 
 **Interfaces:**

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -259,15 +261,34 @@ class _DiaryShellState extends State<DiaryShell> {
   Future<void> _moveToTrash(DiaryEntry entry) async {
     await _controller.moveToTrash(entry);
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('日记已移入回收站')));
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: const Text('日记已移入回收站'),
+          duration: const Duration(seconds: 5),
+          action: SnackBarAction(
+            label: '撤销',
+            onPressed: () => unawaited(_undoMoveToTrash(entry)),
+          ),
+        ),
+      );
   }
 
   Future<void> _restoreFromRecycle(DiaryEntry entry) async {
-    await _controller.restore(entry);
+    await _restoreEntry(entry);
     if (mounted) Navigator.pop(context);
   }
+
+  Future<void> _undoMoveToTrash(DiaryEntry entry) async {
+    await _restoreEntry(entry);
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('已撤销，日记回到时间线')));
+  }
+
+  Future<void> _restoreEntry(DiaryEntry entry) => _controller.restore(entry);
 
   Future<void> _deleteFromRecycle(DiaryEntry entry) async {
     await _controller.deletePermanently(entry);

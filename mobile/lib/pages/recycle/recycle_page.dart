@@ -73,7 +73,7 @@ class RecyclePage extends StatelessWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('永久删除这篇日记？'),
-        content: const Text('删除后无法恢复，请确认你已经不需要它。'),
+        content: Text(_deleteWarning(entry)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -88,6 +88,18 @@ class RecyclePage extends StatelessWidget {
     );
     if (confirmed == true) onDelete(entry);
   }
+}
+
+String _deleteWarning(DiaryEntry entry) {
+  final attachmentCount = [
+    ...entry.imagePaths,
+    ...entry.audioPaths,
+    ...entry.videoPaths,
+  ].length;
+  if (attachmentCount == 0) {
+    return '删除后无法恢复，这篇日记没有附件。';
+  }
+  return '删除后无法恢复，其中包含 $attachmentCount 个附件。';
 }
 
 class _RecycleTile extends StatelessWidget {

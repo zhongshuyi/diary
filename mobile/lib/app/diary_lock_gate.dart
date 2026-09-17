@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:local_auth_android/local_auth_android.dart';
 
@@ -13,12 +12,14 @@ class DiaryLockGate extends StatefulWidget {
     required this.controller,
     required this.coordinator,
     required this.child,
+    this.authenticate,
     super.key,
   });
 
   final SettingsController controller;
   final DiaryLockCoordinator coordinator;
   final Widget child;
+  final Future<bool> Function()? authenticate;
 
   @override
   State<DiaryLockGate> createState() => _DiaryLockGateState();
@@ -30,7 +31,6 @@ class _DiaryLockGateState extends State<DiaryLockGate>
   bool _locked = false;
   bool _authenticating = false;
   bool _authenticationAttempted = false;
-  bool _closingApp = false;
   String? _errorMessage;
   late bool _lastLockEnabled;
 
@@ -97,7 +97,6 @@ class _DiaryLockGateState extends State<DiaryLockGate>
   Future<void> _tryUnlock() async {
     if (_authenticating ||
         _authenticationAttempted ||
-        _closingApp ||
         !widget.controller.settings.biometricLock) {
       return;
     }
@@ -105,48 +104,52 @@ class _DiaryLockGateState extends State<DiaryLockGate>
     if (mounted) setState(() => _errorMessage = null);
     _authenticating = true;
     try {
-      final authenticated = await _localAuth.authenticate(
-        authMessages: const [
-          AndroidAuthMessages(
-            biometricHint: '请触碰指纹传感器',
-            biometricNotRecognized: '指纹不匹配，请重试',
-            biometricSuccess: '验证成功',
-            cancelButton: '取消',
-            goToSettingsButton: '去设置',
-            goToSettingsDescription: '请先在系统中开启指纹或设置设备锁屏密码',
-            signInTitle: '扫描指纹以继续',
-          ),
-        ],
-        localizedReason: '验证身份后打开你的私人日记',
-        options: AuthenticationOptions(
-          biometricOnly: defaultTargetPlatform != TargetPlatform.windows,
-          useErrorDialogs: true,
-          // A cancelled attempt must finish this lock session. The gate owns
-          // the next attempt when the app is locked again.
-          stickyAuth: false,
-          sensitiveTransaction: true,
-        ),
-      );
-      if (authenticated && mounted) {
-        setState(() => _locked = false);
+      final authenticated = widget.authenticate != null
+          ? await widget.authenticate!()
+          : await _localAuth.authenticate(
+              authMessages: const [
+                AndroidAuthMessages(
+                  biometricHint: '请触碰指纹传感器',
+                  biometricNotRecognized: '指纹不匹配，请重试',
+                  biometricSuccess: '验证成功',
+                  cancelButton: '取消',
+                  goToSettingsButton: '去设置',
+                  goToSettingsDescription: '请先在系统中开启指纹或设置设备锁屏密码',
+                  signInTitle: '扫描指纹以继续',
+                ),
+              ],
+              localizedReason: '验证身份后打开你的私人日记',
+              options: AuthenticationOptions(
+                biometricOnly: defaultTargetPlatform != TargetPlatform.windows,
+                useErrorDialogs: true,
+                stickyAuth: false,
+                sensitiveTransaction: true,
+              ),
+            );
+      if (!mounted) return;
+      if (authenticated) {
+        setState(() {
+          _locked = false;
+          _errorMessage = null;
+        });
       } else {
-        await _exitApp();
+        setState(() {
+          _authenticationAttempted = false;
+          _errorMessage = '验证未完成，请重试';
+        });
       }
-    } on PlatformException catch (error) {
-      debugPrint('Diary biometric authentication failed: ${error.code}');
-      await _exitApp();
-    } catch (_) {
-      await _exitApp();
+    } on Object catch (error) {
+      debugPrint('Diary biometric authentication failed: $error');
+      if (mounted) {
+        setState(() {
+          _authenticationAttempted = false;
+          _errorMessage = '暂时无法验证，请重试';
+        });
+      }
     } finally {
       _authenticating = false;
-      if (mounted && !_closingApp) setState(() {});
+      if (mounted) setState(() {});
     }
-  }
-
-  Future<void> _exitApp() async {
-    if (_closingApp) return;
-    _closingApp = true;
-    await SystemNavigator.pop(animated: true);
   }
 
   @override

@@ -11,6 +11,7 @@ class BackupPage extends StatefulWidget {
   const BackupPage({
     required this.entries,
     required this.onImport,
+    this.pickBackupBytes,
     this.onExternalActivityStart,
     this.onExternalActivityEnd,
     super.key,
@@ -18,6 +19,7 @@ class BackupPage extends StatefulWidget {
 
   final List<DiaryEntry> entries;
   final Future<void> Function(List<DiaryEntry> entries) onImport;
+  final Future<List<int>?> Function()? pickBackupBytes;
   final VoidCallback? onExternalActivityStart;
   final VoidCallback? onExternalActivityEnd;
 
@@ -59,14 +61,14 @@ class _BackupPageState extends State<BackupPage> {
             icon: Icons.upload_outlined,
             title: '导出日记备份',
             subtitle: '${widget.entries.length} 篇日记 · JSON 格式',
-            onTap: _export,
+            onTap: _busy ? null : _export,
           ),
           const SizedBox(height: 10),
           _BackupAction(
             icon: Icons.download_outlined,
             title: '导入日记备份',
             subtitle: '从 JSON 文件恢复或迁移日记',
-            onTap: _import,
+            onTap: _busy ? null : _import,
           ),
           const SizedBox(height: 18),
           Card(
@@ -113,26 +115,42 @@ class _BackupPageState extends State<BackupPage> {
   }
 
   Future<void> _import() async {
-    widget.onExternalActivityStart?.call();
-    FilePickerResult? result;
-    try {
-      result = await FilePicker.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['json'],
-        withData: true,
-      );
-    } finally {
-      widget.onExternalActivityEnd?.call();
-    }
-    if (!mounted || result == null || result.files.single.bytes == null) return;
+    if (_busy) return;
     setState(() => _busy = true);
+    widget.onExternalActivityStart?.call();
     try {
-      final decoded = jsonDecode(utf8.decode(result.files.single.bytes!));
+      final bytes = widget.pickBackupBytes != null
+          ? await widget.pickBackupBytes!()
+          : (await FilePicker.pickFiles(
+              type: FileType.custom,
+              allowedExtensions: ['json'],
+              withData: true,
+            ))?.files.single.bytes;
+      if (!mounted || bytes == null) return;
+      final decoded = jsonDecode(utf8.decode(bytes));
       if (decoded is! List) throw const FormatException();
       final entries = decoded
           .whereType<Map>()
           .map((item) => DiaryEntry.fromJson(Map<String, dynamic>.from(item)))
           .toList(growable: false);
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('确认导入备份？'),
+          content: Text('将导入 ${entries.length} 篇日记，并替换当前本地日记。'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('确认导入'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
       await widget.onImport(entries);
       if (mounted) {
         ScaffoldMessenger.of(
@@ -146,6 +164,7 @@ class _BackupPageState extends State<BackupPage> {
         ).showSnackBar(const SnackBar(content: Text('文件格式不正确，请选择日记 JSON 备份')));
       }
     } finally {
+      widget.onExternalActivityEnd?.call();
       if (mounted) setState(() => _busy = false);
     }
   }
@@ -162,7 +181,7 @@ class _BackupAction extends StatelessWidget {
   final IconData icon;
   final String title;
   final String subtitle;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
