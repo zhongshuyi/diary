@@ -9,12 +9,14 @@ class LocalMediaPreview extends StatefulWidget {
     required this.path,
     required this.kind,
     this.showRetry = false,
+    this.fit = BoxFit.cover,
     super.key,
   });
 
   final String path;
   final DiaryMediaKind kind;
   final bool showRetry;
+  final BoxFit fit;
 
   @override
   State<LocalMediaPreview> createState() => _LocalMediaPreviewState();
@@ -39,7 +41,7 @@ class _LocalMediaPreviewState extends State<LocalMediaPreview> {
     return Image.file(
       File(widget.path),
       key: ValueKey(_reloadToken),
-      fit: BoxFit.cover,
+      fit: widget.fit,
       errorBuilder: (context, error, stackTrace) => _MediaPlaceholder(
         kind: widget.kind,
         missing: true,
@@ -67,30 +69,41 @@ class _MediaPlaceholder extends StatelessWidget {
   Widget build(BuildContext context) {
     return ColoredBox(
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              _iconForKind(kind),
-              size: 30,
-              color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(
-                alpha: missing ? .55 : 1,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact =
+              constraints.maxHeight < 72 || constraints.maxWidth < 80;
+          final iconColor = Theme.of(
+            context,
+          ).colorScheme.onSurfaceVariant.withValues(alpha: missing ? .55 : 1);
+          if (compact) {
+            return Tooltip(
+              message: missing ? '文件不可用' : diaryMediaKindLabel(kind),
+              child: Center(
+                child: Icon(_iconForKind(kind), size: 24, color: iconColor),
               ),
+            );
+          }
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(_iconForKind(kind), size: 30, color: iconColor),
+                if (missing) ...[
+                  const SizedBox(height: 6),
+                  Text('文件不可用', style: Theme.of(context).textTheme.labelSmall),
+                  if (showRetry)
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      tooltip: '重新加载',
+                      onPressed: onRetry,
+                      icon: const Icon(Icons.refresh, size: 18),
+                    ),
+                ],
+              ],
             ),
-            if (missing) ...[
-              const SizedBox(height: 6),
-              Text('文件不可用', style: Theme.of(context).textTheme.labelSmall),
-              if (showRetry)
-                IconButton(
-                  visualDensity: VisualDensity.compact,
-                  tooltip: '重新加载',
-                  onPressed: onRetry,
-                  icon: const Icon(Icons.refresh, size: 18),
-                ),
-            ],
-          ],
-        ),
+          );
+        },
       ),
     );
   }

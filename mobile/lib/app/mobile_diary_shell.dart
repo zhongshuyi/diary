@@ -1,13 +1,17 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:diary/app/diary_shell.dart';
 import 'package:diary/app/app_theme.dart';
 import 'package:diary/app/diary_motion.dart';
 import 'package:diary/domain/diary_entry.dart';
+import 'package:diary/domain/diary_settings.dart';
+import 'package:diary/domain/sync_state.dart';
 import 'package:diary/pages/calendar/calendar_page.dart';
+import 'package:diary/pages/entry/quick_capture_sheet.dart';
 import 'package:diary/pages/home/home_page.dart';
 import 'package:diary/pages/insights/insights_page.dart';
 import 'package:diary/pages/media/media_page.dart';
@@ -23,12 +27,20 @@ class MobileDiaryShell extends StatefulWidget {
     required this.entries,
     required this.trash,
     required this.actions,
+    this.quickCaptureSide = QuickCaptureSide.right,
+    this.conflictCount = 0,
+    this.syncState = const SyncState(),
+    this.onSyncNow,
     super.key,
   });
 
   final List<DiaryEntry> entries;
   final List<DiaryEntry> trash;
   final DiaryShellActions actions;
+  final QuickCaptureSide quickCaptureSide;
+  final int conflictCount;
+  final SyncState syncState;
+  final Future<void> Function()? onSyncNow;
 
   @override
   State<MobileDiaryShell> createState() => _MobileDiaryShellState();
@@ -62,6 +74,26 @@ class _MobileDiaryShellState extends State<MobileDiaryShell> {
     await preferences.setDouble(_quickCaptureYKey, position.dy);
   }
 
+  Future<void> _openQuickCapture() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: DiaryThemeColors.of(context).surface,
+      builder: (_) => QuickCaptureSheet(
+        onSave: widget.actions.saveQuickCaptureWithPhotos,
+        importPhotos: widget.actions.importQuickPhotos,
+        onLoadDraft: widget.actions.loadDraft,
+        onSaveDraft: widget.actions.saveDraft,
+        onClearDraft: widget.actions.clearDraft,
+        onExternalActivityStart: widget.actions.beginExternalActivity,
+        onExternalActivityEnd: widget.actions.endExternalActivity,
+        onOpenEditor: widget.actions.openEditorFromQuick,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = DiaryThemeColors.of(context);
@@ -76,11 +108,14 @@ class _MobileDiaryShellState extends State<MobileDiaryShell> {
         onShare: (entry) => unawaited(widget.actions.openShare(entry)),
         onDelete: (entry) => unawaited(widget.actions.moveToTrash(entry)),
         onQuickCapture: widget.actions.saveQuickCapture,
+        onBatchFavorite: widget.actions.batchSetFavorite,
+        onBatchDelete: widget.actions.batchMoveToTrash,
+        syncState: widget.syncState,
+        onSyncNow: widget.onSyncNow,
       ),
       CalendarPage(
         entries: widget.entries,
         onOpenEntry: (entry) => unawaited(widget.actions.openEntry(entry)),
-        onOpenEditor: () => unawaited(widget.actions.openEditor()),
       ),
       MediaPage(
         entries: widget.entries,
@@ -95,26 +130,39 @@ class _MobileDiaryShellState extends State<MobileDiaryShell> {
         onOpenCategories: widget.actions.openCategories,
         onOpenBackup: widget.actions.openBackup,
         onOpenAbout: widget.actions.openAbout,
+        conflictCount: widget.conflictCount,
+        onOpenConflicts: widget.actions.openConflicts,
       ),
     ];
 
-    return Scaffold(
-      backgroundColor: colors.paper,
-      body: Stack(
-        children: [
-          _AnimatedTabStack(index: _selectedIndex, pages: pages),
-          DraggableQuickCaptureFab(
-            initialPosition: _quickCapturePosition,
-            onPositionChanged: (position) {
-              unawaited(_saveQuickCapturePosition(position));
-            },
-            onSubmit: widget.actions.saveQuickCapture,
-          ),
-        ],
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: dark ? Brightness.light : Brightness.dark,
+        statusBarBrightness: dark ? Brightness.dark : Brightness.light,
       ),
-      bottomNavigationBar: DiaryBottomNavigation(
-        selectedIndex: _selectedIndex,
-        onSelected: (index) => setState(() => _selectedIndex = index),
+      child: Scaffold(
+        backgroundColor: colors.paper,
+        body: Stack(
+          children: [
+            _AnimatedTabStack(index: _selectedIndex, pages: pages),
+            DraggableQuickCaptureFab(
+              buttonKey: const Key('mobile-quick-capture-fab'),
+              initialPosition: _quickCapturePosition,
+              initialSide: widget.quickCaptureSide,
+              onPositionChanged: (position) {
+                unawaited(_saveQuickCapturePosition(position));
+              },
+              onSubmit: widget.actions.saveQuickCapture,
+              onOpen: _openQuickCapture,
+            ),
+          ],
+        ),
+        bottomNavigationBar: DiaryBottomNavigation(
+          selectedIndex: _selectedIndex,
+          onSelected: (index) => setState(() => _selectedIndex = index),
+        ),
       ),
     );
   }

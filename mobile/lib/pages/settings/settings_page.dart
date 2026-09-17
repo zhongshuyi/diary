@@ -94,6 +94,35 @@ class SettingsPage extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               _Section(
+                title: '操作习惯',
+                children: [
+                  const _SettingsTile(
+                    title: Text('速记按钮位置'),
+                    subtitle: Text('选择更顺手的一侧，切换后立即生效'),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 12, bottom: 12),
+                    child: SegmentedButton<QuickCaptureSide>(
+                      segments: const [
+                        ButtonSegment(
+                          value: QuickCaptureSide.left,
+                          label: Text('左侧'),
+                        ),
+                        ButtonSegment(
+                          value: QuickCaptureSide.right,
+                          label: Text('右侧'),
+                        ),
+                      ],
+                      selected: {settings.quickCaptureSide},
+                      onSelectionChanged: (value) => unawaited(
+                        controller.setQuickCaptureSide(value.single),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _Section(
                 title: '安全与提醒',
                 children: [
                   _SwitchTile(
@@ -131,6 +160,8 @@ class SettingsPage extends StatelessWidget {
                   ),
                 ],
               ),
+              const SizedBox(height: 12),
+              _SyncSettings(controller: controller),
               if (onOpenCategories != null ||
                   onOpenBackup != null ||
                   onOpenAbout != null) ...[
@@ -245,6 +276,80 @@ class SettingsPage extends StatelessWidget {
       },
     );
     if (value != null) unawaited(controller.setDefaultEditorType(value));
+  }
+}
+
+class _SyncSettings extends StatefulWidget {
+  const _SyncSettings({required this.controller});
+  final SettingsController controller;
+
+  @override
+  State<_SyncSettings> createState() => _SyncSettingsState();
+}
+
+class _SyncSettingsState extends State<_SyncSettings> {
+  late final TextEditingController _endpoint;
+  late final TextEditingController _token;
+
+  @override
+  void initState() {
+    super.initState();
+    _endpoint = TextEditingController(
+      text: widget.controller.settings.syncEndpoint,
+    );
+    _token = TextEditingController(text: widget.controller.settings.syncToken);
+  }
+
+  @override
+  void dispose() {
+    _endpoint.dispose();
+    _token.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
+    return _Section(
+      title: '双端同步',
+      children: [
+        Text(
+          '连接你自己的同步服务器；留空即可保持纯本地模式。',
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _endpoint,
+          keyboardType: TextInputType.url,
+          decoration: const InputDecoration(
+            labelText: '服务器地址',
+            hintText: 'http://127.0.0.1:8787',
+          ),
+        ),
+        const SizedBox(height: 9),
+        TextField(
+          controller: _token,
+          obscureText: true,
+          decoration: const InputDecoration(labelText: '访问令牌（可选）'),
+        ),
+        const SizedBox(height: 10),
+        Align(
+          alignment: Alignment.centerRight,
+          child: FilledButton.tonalIcon(
+            onPressed: () async {
+              await widget.controller.setSyncEndpoint(_endpoint.text);
+              await widget.controller.setSyncToken(_token.text);
+              if (context.mounted)
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(const SnackBar(content: Text('同步设置已保存')));
+            },
+            icon: Icon(Icons.save_outlined, color: colors.terracotta),
+            label: const Text('保存连接'),
+          ),
+        ),
+      ],
+    );
   }
 }
 

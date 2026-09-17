@@ -63,7 +63,7 @@ test('v2 keeps a deterministic conflict copy and remains idempotent', async () =
     assert.equal(stale.body.data.conflicts[0].conflictId, 'conflict:e-1:m-old');
     assert.equal(stale.body.data.conflicts[0].entry.isConflict, true);
 
-    const retry = await sync(baseUrl, staleBody);
+    const retry = await sync(baseUrl, { ...staleBody, cursor: stale.body.data.nextCursor });
     assert.deepEqual(retry.body.data.appliedMutationIds, ['m-old']);
     assert.equal(retry.body.data.changes.length, 0);
 

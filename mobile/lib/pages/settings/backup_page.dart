@@ -5,23 +5,32 @@ import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'package:diary/app/app_theme.dart';
+import 'package:diary/data/diary_backup_service.dart';
+import 'package:diary/data/diary_repository.dart';
+import 'package:diary/domain/attachment.dart';
 import 'package:diary/domain/diary_entry.dart';
 
 class BackupPage extends StatefulWidget {
   const BackupPage({
     required this.entries,
     required this.onImport,
-    this.pickBackupBytes,
+    this.onImportPackage,
+    this.attachments = const [],
+    this.readAttachment,
     this.onExternalActivityStart,
     this.onExternalActivityEnd,
+    this.pickBackupBytes,
     super.key,
   });
 
   final List<DiaryEntry> entries;
   final Future<void> Function(List<DiaryEntry> entries) onImport;
-  final Future<List<int>?> Function()? pickBackupBytes;
+  final Future<void> Function(ImportPackage package)? onImportPackage;
+  final List<Attachment> attachments;
+  final Future<List<int>> Function(Attachment attachment)? readAttachment;
   final VoidCallback? onExternalActivityStart;
   final VoidCallback? onExternalActivityEnd;
+  final Future<List<int>?> Function()? pickBackupBytes;
 
   @override
   State<BackupPage> createState() => _BackupPageState();
@@ -29,6 +38,7 @@ class BackupPage extends StatefulWidget {
 
 class _BackupPageState extends State<BackupPage> {
   bool _busy = false;
+  static const _backupService = DiaryBackupService();
 
   @override
   Widget build(BuildContext context) {
@@ -61,14 +71,21 @@ class _BackupPageState extends State<BackupPage> {
             icon: Icons.upload_outlined,
             title: '导出日记备份',
             subtitle: '${widget.entries.length} 篇日记 · JSON 格式',
-            onTap: _busy ? null : _export,
+            onTap: _export,
+          ),
+          const SizedBox(height: 10),
+          _BackupAction(
+            icon: Icons.archive_outlined,
+            title: '导出完整 ZIP',
+            subtitle: '${widget.entries.length} 篇日记 · 可选包含附件',
+            onTap: _exportZip,
           ),
           const SizedBox(height: 10),
           _BackupAction(
             icon: Icons.download_outlined,
             title: '导入日记备份',
             subtitle: '从 JSON 文件恢复或迁移日记',
-            onTap: _busy ? null : _import,
+            onTap: _import,
           ),
           const SizedBox(height: 18),
           Card(
@@ -114,25 +131,67 @@ class _BackupPageState extends State<BackupPage> {
     if (mounted) setState(() => _busy = false);
   }
 
-  Future<void> _import() async {
-    if (_busy) return;
+  Future<void> _exportZip() async {
     setState(() => _busy = true);
     widget.onExternalActivityStart?.call();
     try {
-      final bytes = widget.pickBackupBytes != null
-          ? await widget.pickBackupBytes!()
-          : (await FilePicker.pickFiles(
-              type: FileType.custom,
-              allowedExtensions: ['json'],
-              withData: true,
-            ))?.files.single.bytes;
-      if (!mounted || bytes == null) return;
-      final decoded = jsonDecode(utf8.decode(bytes));
-      if (decoded is! List) throw const FormatException();
-      final entries = decoded
-          .whereType<Map>()
-          .map((item) => DiaryEntry.fromJson(Map<String, dynamic>.from(item)))
-          .toList(growable: false);
+      final bytes = await _backupService.exportZipAsync(
+        entries: widget.entries,
+        attachments: widget.attachments,
+        readAttachment: widget.readAttachment,
+      );
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile.fromData(bytes, mimeType: 'application/zip')],
+          fileNameOverrides: const ['diary-backup.zip'],
+          subject: '我的日记完整备份.zip',
+        ),
+      );
+    } finally {
+      widget.onExternalActivityEnd?.call();
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _import() async {
+    widget.onExternalActivityStart?.call();
+    FilePickerResult? result;
+    List<int>? injectedBytes;
+    try {
+      if (widget.pickBackupBytes != null) {
+        injectedBytes = await widget.pickBackupBytes!();
+      } else {
+        result = await FilePicker.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: ['json', 'zip'],
+          withData: true,
+        );
+      }
+    } finally {
+      widget.onExternalActivityEnd?.call();
+    }
+    final bytes = injectedBytes ?? result?.files.single.bytes;
+    if (!mounted || bytes == null) return;
+    setState(() => _busy = true);
+    try {
+      final extension = result?.files.single.extension?.toLowerCase();
+      final package = extension == 'zip'
+          ? _backupService.importZip(bytes)
+          : null;
+      final entries =
+          package?.entries ??
+          (() {
+            final decoded = jsonDecode(utf8.decode(bytes));
+            if (decoded is! List) throw const FormatException();
+            return decoded
+                .whereType<Map>()
+                .map(
+                  (item) =>
+                      DiaryEntry.fromJson(Map<String, dynamic>.from(item)),
+                )
+                .toList(growable: false);
+          })();
+      if (!mounted) return;
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
@@ -151,7 +210,11 @@ class _BackupPageState extends State<BackupPage> {
         ),
       );
       if (confirmed != true) return;
-      await widget.onImport(entries);
+      if (package != null && widget.onImportPackage != null) {
+        await widget.onImportPackage!(package);
+      } else {
+        await widget.onImport(entries);
+      }
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -164,7 +227,6 @@ class _BackupPageState extends State<BackupPage> {
         ).showSnackBar(const SnackBar(content: Text('文件格式不正确，请选择日记 JSON 备份')));
       }
     } finally {
-      widget.onExternalActivityEnd?.call();
       if (mounted) setState(() => _busy = false);
     }
   }
@@ -181,7 +243,7 @@ class _BackupAction extends StatelessWidget {
   final IconData icon;
   final String title;
   final String subtitle;
-  final VoidCallback? onTap;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {

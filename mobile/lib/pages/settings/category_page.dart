@@ -3,9 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:diary/app/app_theme.dart';
 
 class CategoryPage extends StatefulWidget {
-  const CategoryPage({required this.categories, super.key});
+  const CategoryPage({
+    required this.categories,
+    this.tags = const [],
+    super.key,
+  });
 
   final List<String> categories;
+  final List<String> tags;
 
   @override
   State<CategoryPage> createState() => _CategoryPageState();
@@ -13,11 +18,13 @@ class CategoryPage extends StatefulWidget {
 
 class _CategoryPageState extends State<CategoryPage> {
   late final List<String> _categories;
+  late final List<String> _tags;
 
   @override
   void initState() {
     super.initState();
     _categories = [...widget.categories];
+    _tags = [...widget.tags];
   }
 
   @override
@@ -83,6 +90,42 @@ class _CategoryPageState extends State<CategoryPage> {
               ],
             ),
           ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '标签',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
+              TextButton.icon(
+                onPressed: _addTag,
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('新增'),
+              ),
+            ],
+          ),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: _tags.isEmpty
+                  ? const Text('还没有标签')
+                  : Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _tags
+                          .map(
+                            (tag) => InputChip(
+                              label: Text('#$tag'),
+                              onDeleted: () =>
+                                  setState(() => _tags.remove(tag)),
+                            ),
+                          )
+                          .toList(),
+                    ),
+            ),
+          ),
           const SizedBox(height: 12),
           Text(
             '提示：新分类会从下一篇日记开始使用。',
@@ -132,6 +175,12 @@ class _CategoryPageState extends State<CategoryPage> {
     );
     controller.dispose();
     return result;
+  }
+
+  Future<void> _addTag() async {
+    final name = await _askForName('新增标签');
+    if (name != null && name.isNotEmpty && !_tags.contains(name))
+      setState(() => _tags.add(name));
   }
 }
 

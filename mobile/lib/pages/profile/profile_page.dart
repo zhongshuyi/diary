@@ -12,6 +12,8 @@ class ProfilePage extends StatelessWidget {
     required this.onOpenCategories,
     required this.onOpenBackup,
     required this.onOpenAbout,
+    this.conflictCount = 0,
+    this.onOpenConflicts,
     this.desktopLayout = false,
     super.key,
   });
@@ -23,6 +25,8 @@ class ProfilePage extends StatelessWidget {
   final VoidCallback onOpenCategories;
   final VoidCallback onOpenBackup;
   final VoidCallback onOpenAbout;
+  final int conflictCount;
+  final VoidCallback? onOpenConflicts;
   final bool desktopLayout;
 
   @override
@@ -76,7 +80,7 @@ class ProfilePage extends StatelessWidget {
                           ),
                           const SizedBox(height: 5),
                           Text(
-                            '离线保存 · 只有你能看见',
+                            '先保存在本机 · 可按设置同步',
                             style: Theme.of(context).textTheme.bodyMedium
                                 ?.copyWith(
                                   color: colors.onHero.withValues(alpha: .68),
@@ -96,6 +100,17 @@ class ProfilePage extends StatelessWidget {
                 subtitle: trashCount == 0 ? '这里还没有被丢弃的日记' : '$trashCount 篇待处理',
                 onTap: onOpenRecycle,
               ),
+              if (onOpenConflicts != null) ...[
+                const SizedBox(height: 8),
+                _ProfileTile(
+                  icon: Icons.sync_problem_outlined,
+                  title: '同步冲突',
+                  subtitle: conflictCount == 0
+                      ? '双端数据保持一致'
+                      : '$conflictCount 篇待确认',
+                  onTap: onOpenConflicts!,
+                ),
+              ],
               const SizedBox(height: 8),
               Row(
                 children: [

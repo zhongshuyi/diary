@@ -42,11 +42,20 @@ class SettingsController extends ChangeNotifier {
   Future<void> setShowWordCount(bool value) =>
       _update(_settings.copyWith(showWordCount: value));
 
+  Future<void> setQuickCaptureSide(QuickCaptureSide value) =>
+      _update(_settings.copyWith(quickCaptureSide: value));
+
   Future<void> setDailyReminder(bool value) =>
       _update(_settings.copyWith(dailyReminder: value));
 
   Future<void> setBiometricLock(bool value) =>
       _update(_settings.copyWith(biometricLock: value));
+
+  Future<void> setSyncEndpoint(String value) =>
+      _update(_settings.copyWith(syncEndpoint: value.trim()));
+
+  Future<void> setSyncToken(String value) =>
+      _update(_settings.copyWith(syncToken: value));
 
   Future<void> _update(DiarySettings next) async {
     _settings = next;

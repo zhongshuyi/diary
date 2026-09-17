@@ -1,4 +1,4 @@
-import { CalendarDays, FileImage, List, PenLine, Settings, Sparkles, Tags, Trash2 } from 'lucide-react';
+import { CalendarDays, FileImage, GitCompareArrows, List, PenLine, Settings, Sparkles, Tags, Trash2 } from 'lucide-react';
 
 const navigation = [
   ['timeline', PenLine, '今天'],
@@ -10,6 +10,7 @@ const navigation = [
 
 const resources = [
   ['tags', Tags, '标签'],
+  ['conflicts', GitCompareArrows, '冲突'],
   ['recycle', Trash2, '回收'],
 ];
 

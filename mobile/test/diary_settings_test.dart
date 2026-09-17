@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:diary/application/settings_controller.dart';
 import 'package:diary/data/settings_store.dart';
@@ -17,11 +18,28 @@ void main() {
       await controller.setFontScale(1.2);
       await controller.setDefaultEditorType(DiaryEditorType.markdown);
       await controller.setShowWordCount(false);
+      await controller.setQuickCaptureSide(QuickCaptureSide.left);
 
       expect(store.value.themeMode, DiaryThemeMode.dark);
       expect(store.value.fontScale, 1.2);
       expect(store.value.defaultEditorType, DiaryEditorType.markdown);
       expect(store.value.showWordCount, isFalse);
+      expect(store.value.quickCaptureSide, QuickCaptureSide.left);
+    },
+  );
+
+  test(
+    'quick capture defaults to the right and survives controller reload',
+    () async {
+      final store = _MemorySettingsStore();
+      final first = SettingsController(store: store);
+      await first.initialize();
+      expect(first.settings.quickCaptureSide, QuickCaptureSide.right);
+      await first.setQuickCaptureSide(QuickCaptureSide.left);
+
+      final reopened = SettingsController(store: store);
+      await reopened.initialize();
+      expect(reopened.settings.quickCaptureSide, QuickCaptureSide.left);
     },
   );
 
@@ -36,6 +54,15 @@ void main() {
       expect(controller.settings.fontScale, 1.3);
     },
   );
+
+  test('saved button side round trips through device preferences', () async {
+    SharedPreferences.setMockInitialValues({});
+    final store = SharedPreferencesDiarySettingsStore();
+    await store.save(
+      const DiarySettings(quickCaptureSide: QuickCaptureSide.left),
+    );
+    expect((await store.load()).quickCaptureSide, QuickCaptureSide.left);
+  });
 }
 
 class _MemorySettingsStore implements DiarySettingsStore {

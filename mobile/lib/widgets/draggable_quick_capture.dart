@@ -4,19 +4,26 @@ import 'package:flutter/material.dart';
 
 import 'package:diary/app/app_theme.dart';
 import 'package:diary/app/diary_motion.dart';
+import 'package:diary/domain/diary_settings.dart';
 import 'package:diary/widgets/quick_capture_sheet.dart';
 
 class DraggableQuickCaptureFab extends StatefulWidget {
   const DraggableQuickCaptureFab({
     required this.onSubmit,
     this.initialPosition,
+    this.initialSide = QuickCaptureSide.right,
     this.onPositionChanged,
+    this.onOpen,
+    this.buttonKey,
     super.key,
   });
 
   final Future<void> Function(String) onSubmit;
   final Offset? initialPosition;
+  final QuickCaptureSide initialSide;
   final ValueChanged<Offset>? onPositionChanged;
+  final Future<void> Function()? onOpen;
+  final Key? buttonKey;
 
   @override
   State<DraggableQuickCaptureFab> createState() =>
@@ -77,24 +84,31 @@ class _DraggableQuickCaptureFabState extends State<DraggableQuickCaptureFab> {
         });
       },
       onPanEnd: (_) => _snap(_constraints),
-      child: Semantics(
-        key: const Key('floating-quick-capture'),
-        button: true,
-        label: '快速记录',
-        hint: '点击打开速记，拖动调整位置',
-        child: Material(
-          color: colors.hero,
-          elevation: 5,
-          shadowColor: colors.hero.withValues(alpha: .28),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(21),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: _openSheet,
-            splashColor: colors.terracotta.withValues(alpha: .25),
-            child: Center(
-              child: Icon(Icons.bolt_outlined, color: colors.butter, size: 27),
+      child: KeyedSubtree(
+        key: widget.buttonKey,
+        child: Semantics(
+          key: const Key('floating-quick-capture'),
+          button: true,
+          label: '快速记录',
+          hint: '点击打开速记，拖动调整位置',
+          child: Material(
+            color: colors.hero,
+            elevation: 5,
+            shadowColor: colors.hero.withValues(alpha: .28),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(21),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: _openSheet,
+              splashColor: colors.terracotta.withValues(alpha: .25),
+              child: Center(
+                child: Icon(
+                  Icons.bolt_outlined,
+                  color: colors.butter,
+                  size: 27,
+                ),
+              ),
             ),
           ),
         ),
@@ -106,7 +120,9 @@ class _DraggableQuickCaptureFabState extends State<DraggableQuickCaptureFab> {
       Rect.fromLTWH(position.dx, position.dy, _buttonSize, _buttonSize);
 
   Offset _defaultPosition(BoxConstraints constraints) => Offset(
-    math.max(_margin, constraints.maxWidth - _buttonSize - _margin),
+    widget.initialSide == QuickCaptureSide.left
+        ? _margin
+        : math.max(_margin, constraints.maxWidth - _buttonSize - _margin),
     math.max(_margin, constraints.maxHeight - _buttonSize - _margin),
   );
 
@@ -146,6 +162,10 @@ class _DraggableQuickCaptureFabState extends State<DraggableQuickCaptureFab> {
   }
 
   Future<void> _openSheet() async {
+    if (widget.onOpen != null) {
+      await widget.onOpen!();
+      return;
+    }
     await showQuickCaptureSheet(
       context,
       initialText: _draft,

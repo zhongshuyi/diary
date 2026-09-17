@@ -32,7 +32,7 @@ export class AssetStore {
   }
 
   async put({ sha256, kind = 'file', mimeType = 'application/octet-stream', byteSize, body }) {
-    const metadata = { sha256, kind, byteSize };
+    const metadata = { sha256, kind, byteSize: Number.isSafeInteger(byteSize) ? byteSize : 0 };
     const validation = validateAssetMetadata(metadata);
     if (!validation.valid) throw Object.assign(new Error('Invalid asset metadata'), { statusCode: 422, details: validation.details });
     if (!body || typeof body[Symbol.asyncIterator] !== 'function') throw Object.assign(new Error('Asset body is required'), { statusCode: 400 });
@@ -57,7 +57,7 @@ export class AssetStore {
       const existing = await this.head(validation.sha256);
       if (!existing.exists) await rename(temporary, target);
       else await unlink(temporary);
-      return { sha256: validation.sha256, byteSize: size, mimeType };
+      return { sha256: validation.sha256, byteSize: size, mimeType, kind };
     } catch (error) {
       try { await handle.close(); } catch { /* preserve original error */ }
       try { await unlink(temporary); } catch { /* cleanup is best effort */ }
@@ -71,8 +71,8 @@ export class AssetStore {
     return { stream: createReadStream(target), byteSize: info.size, mimeType: 'application/octet-stream' };
   }
 
-  async putBuffer({ sha256, mimeType, buffer }) {
-    return this.put({ sha256, mimeType, byteSize: buffer.byteLength, body: Readable.from([buffer]) });
+  async putBuffer({ sha256, kind, mimeType, buffer }) {
+    return this.put({ sha256, kind, mimeType, byteSize: buffer.byteLength, body: Readable.from([buffer]) });
   }
 
   async readFile(sha256) {

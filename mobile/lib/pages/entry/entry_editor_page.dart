@@ -11,9 +11,13 @@ import 'package:image_picker/image_picker.dart';
 
 import 'package:diary/app/app_theme.dart';
 import 'package:diary/application/diary_draft_store.dart';
+import 'package:diary/data/diary_repository.dart';
 import 'package:diary/domain/diary_entry.dart';
 import 'package:diary/widgets/desktop_window_bar.dart';
+import 'package:diary/widgets/in_app_photo_picker.dart';
 import 'package:diary/widgets/local_media_preview.dart';
+import 'package:diary/widgets/media_kind.dart';
+import 'package:diary/widgets/selected_photo_strip.dart';
 
 class EntryEditorPage extends StatefulWidget {
   const EntryEditorPage({
@@ -22,26 +26,44 @@ class EntryEditorPage extends StatefulWidget {
     this.defaultEditorType = DiaryEditorType.plainText,
     this.onExternalActivityStart,
     this.onExternalActivityEnd,
+    this.onImportPhotos,
+    this.pickGalleryPhotos,
     this.entry,
+    this.initialContent = '',
+    this.initialImagePaths = const [],
+    this.restoreInitialDraft = false,
     this.desktopLayout = false,
     this.showDesktopWindowBar = true,
     this.onToggleTheme,
     this.onDesktopBack,
+    this.draftId,
+    this.onLoadDraft,
+    this.onSaveDraft,
+    this.onClearDraft,
     this.draftStore,
     this.draftKey,
     super.key,
   });
 
   final DiaryEntry? entry;
+  final String initialContent;
+  final List<String> initialImagePaths;
+  final bool restoreInitialDraft;
   final List<String> categories;
   final Future<void> Function(DiaryEntry entry) onSave;
   final DiaryEditorType defaultEditorType;
   final VoidCallback? onExternalActivityStart;
   final VoidCallback? onExternalActivityEnd;
+  final Future<List<String>> Function(List<String> paths)? onImportPhotos;
+  final Future<List<String>> Function()? pickGalleryPhotos;
   final bool desktopLayout;
   final bool showDesktopWindowBar;
   final VoidCallback? onToggleTheme;
   final VoidCallback? onDesktopBack;
+  final String? draftId;
+  final Future<DraftPayload?> Function(String id)? onLoadDraft;
+  final Future<void> Function(DraftPayload draft)? onSaveDraft;
+  final Future<void> Function(String id)? onClearDraft;
   final DiaryDraftStore? draftStore;
   final String? draftKey;
 
@@ -59,10 +81,9 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
   late String _selectedMood;
   List<String> _attachments = const [];
   bool _saving = false;
-  bool _draftLoaded = false;
-  bool _hasUnsavedChanges = false;
-  bool _restoringDraft = false;
+  bool _pickingAttachment = false;
   Timer? _draftTimer;
+  bool _restoringDraft = false;
 
   static const _moods = ['阴天', '低落', '平常', '平静', '明亮'];
 
@@ -72,14 +93,16 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
     final entry = widget.entry;
     _editorType = entry?.editorType ?? widget.defaultEditorType;
     _titleController = TextEditingController(text: entry?.title ?? '');
-    _contentController = TextEditingController(text: entry?.contentText ?? '');
+    _contentController = TextEditingController(
+      text: entry?.contentText ?? widget.initialContent,
+    );
     _tagsController = TextEditingController(text: entry?.tags.join(', ') ?? '');
     _category =
         entry?.category ??
         (widget.categories.isEmpty ? '生活' : widget.categories.first);
     _selectedMood = diaryMoodLabel(entry?.mood ?? .5);
     _attachments = [
-      ...?entry?.imagePaths,
+      ...(entry?.imagePaths ?? widget.initialImagePaths),
       ...?entry?.audioPaths,
       ...?entry?.videoPaths,
     ];
@@ -92,26 +115,211 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
       } catch (_) {
         _quillController.document.insert(0, entry.contentText);
       }
+    } else if (entry == null &&
+        _editorType == DiaryEditorType.richText &&
+        widget.initialContent.isNotEmpty) {
+      _quillController.document.insert(0, widget.initialContent);
     }
     _titleController.addListener(_scheduleDraftSave);
     _contentController.addListener(_scheduleDraftSave);
     _tagsController.addListener(_scheduleDraftSave);
     _quillController.addListener(_scheduleDraftSave);
-    if (widget.draftStore != null && widget.draftKey != null) {
-      _loadDraft();
-    } else {
-      _draftLoaded = true;
+    final shouldRestoreDraft =
+        entry == null &&
+        (widget.restoreInitialDraft ||
+            (widget.initialContent.isEmpty &&
+                widget.initialImagePaths.isEmpty));
+    if (shouldRestoreDraft &&
+        widget.draftId != null &&
+        widget.onLoadDraft != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _restoreDraft());
+    } else if (shouldRestoreDraft &&
+        widget.draftStore != null &&
+        widget.draftKey != null) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _restoreLegacyDraft(),
+      );
     }
   }
 
   @override
   void dispose() {
-    _draftTimer?.cancel();
     _titleController.dispose();
     _contentController.dispose();
     _tagsController.dispose();
     _quillController.dispose();
+    _draftTimer?.cancel();
     super.dispose();
+  }
+
+  Future<void> _restoreDraft() async {
+    if (!mounted || widget.draftId == null || widget.onLoadDraft == null)
+      return;
+    final draft = await widget.onLoadDraft!(widget.draftId!);
+    if (!mounted || draft == null) return;
+    final payload = draft.payload;
+    _restoringDraft = true;
+    _titleController.text = '${payload['title'] ?? ''}';
+    final editorType = '${payload['editorType'] ?? ''}';
+    if (editorType == DiaryEditorType.richText.name) {
+      _editorType = DiaryEditorType.richText;
+    } else if (editorType == DiaryEditorType.plainText.name) {
+      _editorType = DiaryEditorType.plainText;
+    }
+    final content = '${payload['content'] ?? ''}';
+    if (_editorType == DiaryEditorType.richText) {
+      try {
+        _quillController.document = quill.Document.fromJson(
+          jsonDecode(content) as List,
+        );
+      } catch (_) {
+        _quillController.document = quill.Document()..insert(0, content);
+      }
+      _contentController.text = _quillController.document
+          .toPlainText()
+          .trimRight();
+    } else {
+      _contentController.text = content;
+    }
+    _tagsController.text = '${payload['tags'] ?? ''}';
+    final category = '${payload['category'] ?? ''}';
+    if (category.isNotEmpty && widget.categories.contains(category))
+      _category = category;
+    final mood = '${payload['mood'] ?? ''}';
+    if (_moods.contains(mood)) _selectedMood = mood;
+    final attachments = payload['attachments'] ?? payload['imagePaths'];
+    if (attachments is List) {
+      _attachments = attachments.whereType<String>().toList(growable: false);
+    }
+    _restoringDraft = false;
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _restoreLegacyDraft() async {
+    final store = widget.draftStore;
+    final key = widget.draftKey;
+    if (!mounted || store == null || key == null) return;
+    final draft = await store.load(key);
+    if (!mounted || !_hasDraftContent(draft)) return;
+    final restore = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('发现未完成草稿'),
+        content: const Text('要恢复上次未完成的内容吗？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('丢弃草稿'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('恢复草稿'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (restore == true) {
+      _applyLegacyDraft(draft!);
+    } else if (restore == false) {
+      await store.clear(key);
+    }
+  }
+
+  void _applyLegacyDraft(Map<String, dynamic> draft) {
+    _restoringDraft = true;
+    try {
+      _titleController.text = _stringValue(draft['title']);
+      _editorType = DiaryEditorTypeCodec.fromWireValue(
+        _stringValue(draft['editorType']),
+      );
+      final category = _stringValue(draft['category']);
+      if (category.isNotEmpty && widget.categories.contains(category)) {
+        _category = category;
+      }
+      final mood = _stringValue(draft['mood']);
+      if (_moods.contains(mood)) _selectedMood = mood;
+      _tagsController.text = _stringValue(draft['tagsText']);
+      if (_tagsController.text.isEmpty && draft['tags'] is List) {
+        _tagsController.text = (draft['tags'] as List).whereType<String>().join(
+          ', ',
+        );
+      }
+      _attachments = draft['attachments'] is List
+          ? (draft['attachments'] as List).whereType<String>().toList()
+          : const [];
+      final content = _stringValue(draft['content']);
+      if (_editorType == DiaryEditorType.richText && content.isNotEmpty) {
+        try {
+          _quillController.document = quill.Document.fromJson(
+            jsonDecode(content) as List,
+          );
+          _contentController.text = _quillController.document
+              .toPlainText()
+              .trimRight();
+        } catch (_) {
+          _contentController.text = _stringValue(draft['contentText']);
+        }
+      } else {
+        _contentController.text = _stringValue(
+          draft['contentText'],
+          fallback: content,
+        );
+      }
+    } finally {
+      _restoringDraft = false;
+    }
+    if (mounted) setState(() {});
+  }
+
+  void _scheduleDraftSave() {
+    if (_restoringDraft) return;
+    final modernDraftEnabled =
+        widget.draftId != null && widget.onSaveDraft != null;
+    final legacyDraftEnabled =
+        widget.draftStore != null && widget.draftKey != null;
+    if (!modernDraftEnabled && !legacyDraftEnabled) {
+      return;
+    }
+    _draftTimer?.cancel();
+    _draftTimer = Timer(
+      Duration(milliseconds: legacyDraftEnabled ? 500 : 700),
+      () {
+        final payload = <String, dynamic>{
+          'title': _titleController.text,
+          'content': _editorType == DiaryEditorType.richText
+              ? jsonEncode(_quillController.document.toDelta().toJson())
+              : _contentController.text,
+          'contentText': _editorType == DiaryEditorType.richText
+              ? _quillController.document.toPlainText().trim()
+              : _contentController.text,
+          'tags': _tagsController.text,
+          'tagsText': _tagsController.text,
+          'category': _category,
+          'mood': _selectedMood,
+          'editorType': legacyDraftEnabled
+              ? _editorType.wireValue
+              : _editorType.name,
+          'attachments': _attachments,
+        };
+        if (legacyDraftEnabled) {
+          unawaited(widget.draftStore!.save(widget.draftKey!, payload));
+        }
+        if (modernDraftEnabled) {
+          unawaited(
+            widget.onSaveDraft!(
+              DraftPayload(
+                id: widget.draftId!,
+                entryId: widget.entry?.id,
+                payload: payload,
+                updatedAt: DateTime.now(),
+              ),
+            ),
+          );
+        }
+      },
+    );
   }
 
   @override
@@ -119,96 +327,98 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
     final colors = DiaryThemeColors.of(context);
     return CallbackShortcuts(
       bindings: <ShortcutActivator, VoidCallback>{
-        SingleActivator(LogicalKeyboardKey.enter, control: true): _save,
-        SingleActivator(LogicalKeyboardKey.escape): _requestClose,
-      },
-      child: PopScope<void>(
-        canPop: false,
-        onPopInvokedWithResult: (didPop, _) {
-          if (!didPop) _requestClose();
+        SingleActivator(LogicalKeyboardKey.enter, control: true): () {
+          _save();
         },
-        child: Scaffold(
-          backgroundColor: colors.paper,
-          appBar: widget.desktopLayout
-              ? null
-              : AppBar(
-                  backgroundColor: colors.paper,
-                  surfaceTintColor: Colors.transparent,
-                  title: Text(widget.entry == null ? '写下此刻' : '编辑日记'),
-                  leading: IconButton(
-                    onPressed: _requestClose,
-                    icon: const Icon(Icons.close),
+        SingleActivator(LogicalKeyboardKey.escape): () {
+          if (widget.onDesktopBack != null) {
+            widget.onDesktopBack!();
+          } else {
+            Navigator.maybePop(context);
+          }
+        },
+      },
+      child: Scaffold(
+        backgroundColor: colors.paper,
+        appBar: widget.desktopLayout
+            ? null
+            : AppBar(
+                backgroundColor: colors.paper,
+                surfaceTintColor: Colors.transparent,
+                title: Text(widget.entry == null ? '写下此刻' : '编辑日记'),
+                leading: IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close),
+                ),
+                actions: [
+                  IconButton(
+                    onPressed: _saving || _pickingAttachment ? null : _save,
+                    tooltip: '保存（Ctrl + Enter）',
+                    icon: const Icon(Icons.check),
                   ),
-                  actions: [
-                    IconButton(
-                      onPressed: _saving ? null : _save,
-                      tooltip: '保存（Ctrl + Enter）',
-                      icon: const Icon(Icons.check),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(right: 16),
-                      child: Center(
-                        child: Text(
-                          '私密记录',
-                          style: Theme.of(context).textTheme.labelSmall,
-                        ),
+                  Padding(
+                    padding: const EdgeInsets.only(right: 16),
+                    child: Center(
+                      child: Text(
+                        '私密记录',
+                        style: Theme.of(context).textTheme.labelSmall,
                       ),
                     ),
-                  ],
-                ),
-          body: Column(
-            children: [
-              if (widget.desktopLayout && widget.showDesktopWindowBar)
-                DesktopWindowBar(
-                  title: widget.entry == null ? '写下此刻' : '编辑日记',
-                  isDark: Theme.of(context).brightness == Brightness.dark,
-                  onToggleTheme: widget.onToggleTheme ?? () {},
-                  onBack: _requestClose,
-                  actions: [
-                    IconButton(
-                      onPressed: _saving ? null : _save,
-                      tooltip: '保存（Ctrl + Enter）',
-                      icon: const Icon(Icons.check),
-                    ),
-                  ],
-                ),
-              Expanded(
-                child: SafeArea(
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final desktop =
-                          widget.desktopLayout || constraints.maxWidth >= 1000;
-                      return Column(
-                        children: [
-                          Expanded(
-                            child: SingleChildScrollView(
-                              padding: EdgeInsets.fromLTRB(
-                                desktop ? 34 : 20,
-                                desktop ? 24 : 14,
-                                desktop ? 34 : 20,
-                                30,
-                              ),
-                              child: Center(
-                                child: ConstrainedBox(
-                                  constraints: BoxConstraints(
-                                    maxWidth: desktop ? 1180 : 760,
-                                  ),
-                                  child: desktop
-                                      ? _desktopWorkspace(context)
-                                      : _mobileWorkspace(context),
+                  ),
+                ],
+              ),
+        body: Column(
+          children: [
+            if (widget.desktopLayout && widget.showDesktopWindowBar)
+              DesktopWindowBar(
+                title: widget.entry == null ? '写下此刻' : '编辑日记',
+                isDark: Theme.of(context).brightness == Brightness.dark,
+                onToggleTheme: widget.onToggleTheme ?? () {},
+                onBack: () => Navigator.pop(context),
+                actions: [
+                  IconButton(
+                    onPressed: _saving || _pickingAttachment ? null : _save,
+                    tooltip: '保存（Ctrl + Enter）',
+                    icon: const Icon(Icons.check),
+                  ),
+                ],
+              ),
+            Expanded(
+              child: SafeArea(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final desktop =
+                        widget.desktopLayout || constraints.maxWidth >= 1000;
+                    return Column(
+                      children: [
+                        Expanded(
+                          child: SingleChildScrollView(
+                            padding: EdgeInsets.fromLTRB(
+                              desktop ? 34 : 20,
+                              desktop ? 24 : 14,
+                              desktop ? 34 : 20,
+                              30,
+                            ),
+                            child: Center(
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  maxWidth: desktop ? 1180 : 760,
                                 ),
+                                child: desktop
+                                    ? _desktopWorkspace(context)
+                                    : _mobileWorkspace(context),
                               ),
                             ),
                           ),
-                          _saveBar(context, desktop: desktop),
-                        ],
-                      );
-                    },
-                  ),
+                        ),
+                        _saveBar(context, desktop: desktop),
+                      ],
+                    );
+                  },
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -335,20 +545,34 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
   }
 
   Widget _attachmentControls(BuildContext context) {
+    final photos = _attachments
+        .where((path) => diaryMediaKindForPath(path) == DiaryMediaKind.image)
+        .toList(growable: false);
+    final otherFiles = _attachments
+        .where((path) => diaryMediaKindForPath(path) != DiaryMediaKind.image)
+        .toList(growable: false);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         OutlinedButton.icon(
-          onPressed: _addAttachment,
+          onPressed: _pickingAttachment ? null : _addAttachment,
           icon: const Icon(Icons.add_photo_alternate_outlined, size: 18),
           label: const Text('添加附件'),
         ),
         if (_attachments.isNotEmpty) ...[
           const SizedBox(height: 10),
+          SelectedPhotoStrip(
+            paths: photos,
+            keyPrefix: 'editor-photo',
+            onRemove: (path) {
+              setState(() => _attachments = [..._attachments]..remove(path));
+              _scheduleDraftSave();
+            },
+          ),
           Wrap(
             spacing: 7,
             runSpacing: 7,
-            children: _attachments
+            children: otherFiles
                 .map(
                   (path) => InputChip(
                     label: Text(
@@ -356,11 +580,12 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
                       overflow: TextOverflow.ellipsis,
                     ),
                     avatar: const Icon(Icons.attach_file, size: 15),
-                    onDeleted: () => setState(
-                      () => _attachments = _attachments
-                          .where((item) => item != path)
-                          .toList(),
-                    ),
+                    onDeleted: () {
+                      setState(
+                        () => _attachments = [..._attachments]..remove(path),
+                      );
+                      _scheduleDraftSave();
+                    },
                   ),
                 )
                 .toList(),
@@ -390,12 +615,12 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
             children: [
               Expanded(
                 child: Text(
-                  desktop ? 'Ctrl + Enter 保存 · Esc 返回' : '内容只保存在你的设备上',
+                  desktop ? 'Ctrl + Enter 保存 · Esc 返回' : '先保存在本机',
                   style: Theme.of(context).textTheme.labelSmall,
                 ),
               ),
               FilledButton.icon(
-                onPressed: _saving ? null : _save,
+                onPressed: _saving || _pickingAttachment ? null : _save,
                 icon: _saving
                     ? SizedBox(
                         width: 17,
@@ -421,10 +646,7 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
     return ChoiceChip(
       label: Text(type.label),
       selected: selected,
-      onSelected: (_) => setState(() {
-        _editorType = type;
-        _markDraftDirty();
-      }),
+      onSelected: (_) => setState(() => _editorType = type),
       showCheckmark: false,
       selectedColor: colors.hero,
       backgroundColor: colors.surface,
@@ -443,10 +665,7 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
     return ChoiceChip(
       label: Text(category),
       selected: selected,
-      onSelected: (_) => setState(() {
-        _category = category;
-        _markDraftDirty();
-      }),
+      onSelected: (_) => setState(() => _category = category),
       showCheckmark: false,
       selectedColor: colors.hero,
       backgroundColor: colors.surface,
@@ -464,10 +683,7 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
     return ChoiceChip(
       label: Text(mood),
       selected: selected,
-      onSelected: (_) => setState(() {
-        _selectedMood = mood;
-        _markDraftDirty();
-      }),
+      onSelected: (_) => setState(() => _selectedMood = mood),
       showCheckmark: false,
       selectedColor: colors.hero,
       backgroundColor: colors.surface,
@@ -561,178 +777,23 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
     }
   }
 
-  Future<void> _loadDraft() async {
-    final store = widget.draftStore;
-    final key = widget.draftKey;
-    if (store == null || key == null) return;
-    final draft = await store.load(key);
-    if (!mounted) return;
-    _draftLoaded = true;
-    if (!_hasDraftContent(draft)) return;
-
-    final restore = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text('发现未完成草稿'),
-        content: const Text('要恢复上次未完成的内容吗？'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('丢弃草稿'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('恢复草稿'),
-          ),
-        ],
-      ),
-    );
-    if (!mounted) return;
-    if (restore == true) {
-      _applyDraft(draft!);
-    } else if (restore == false) {
-      await store.clear(key);
-    }
-  }
-
-  void _applyDraft(Map<String, dynamic> draft) {
-    _restoringDraft = true;
-    try {
-      _titleController.text = _stringValue(draft['title']);
-      _editorType = DiaryEditorTypeCodec.fromWireValue(
-        _stringValue(draft['editorType']),
-      );
-      _category = _stringValue(draft['category'], fallback: _category);
-      _selectedMood = _stringValue(draft['mood'], fallback: _selectedMood);
-      _tagsController.text = _stringValue(draft['tagsText']);
-      if (_tagsController.text.isEmpty && draft['tags'] is List) {
-        _tagsController.text = (draft['tags'] as List).whereType<String>().join(
-          ', ',
-        );
-      }
-      _attachments = draft['attachments'] is List
-          ? (draft['attachments'] as List).whereType<String>().toList()
-          : const [];
-      final content = _stringValue(draft['content']);
-      if (_editorType == DiaryEditorType.richText && content.isNotEmpty) {
-        try {
-          _quillController.document = quill.Document.fromJson(
-            jsonDecode(content) as List,
-          );
-        } catch (_) {
-          _contentController.text = _stringValue(draft['contentText']);
-        }
-      } else {
-        _contentController.text = _stringValue(draft['contentText']);
-      }
-    } finally {
-      _restoringDraft = false;
-    }
-    setState(() => _hasUnsavedChanges = true);
-  }
-
-  void _scheduleDraftSave() {
-    if (_restoringDraft) return;
-    _hasUnsavedChanges = true;
-    if (!mounted || widget.draftStore == null || widget.draftKey == null) {
-      return;
-    }
-    _draftTimer?.cancel();
-    _draftTimer = Timer(const Duration(milliseconds: 500), _saveDraft);
-  }
-
-  void _markDraftDirty() => _scheduleDraftSave();
-
-  Future<void> _saveDraft() async {
-    final store = widget.draftStore;
-    final key = widget.draftKey;
-    if (store == null || key == null || !_draftLoaded) return;
-    final draft = _draftSnapshot();
-    if (_hasDraftContent(draft)) {
-      await store.save(key, draft);
-    } else {
-      await store.clear(key);
-    }
-  }
-
-  Map<String, dynamic> _draftSnapshot() {
-    final contentText = _editorType == DiaryEditorType.richText
-        ? _quillController.document.toPlainText().trim()
-        : _contentController.text;
-    return {
-      'title': _titleController.text,
-      'content': _editorType == DiaryEditorType.richText
-          ? jsonEncode(_quillController.document.toDelta().toJson())
-          : _contentController.text,
-      'contentText': contentText,
-      'editorType': _editorType.wireValue,
-      'category': _category,
-      'tagsText': _tagsController.text,
-      'tags': _tagsController.text
-          .split(',')
-          .map((tag) => tag.trim())
-          .where((tag) => tag.isNotEmpty)
-          .toList(growable: false),
-      'mood': _selectedMood,
-      'attachments': _attachments,
-    };
-  }
-
-  Future<void> _clearDraft() async {
-    _draftTimer?.cancel();
-    final store = widget.draftStore;
-    final key = widget.draftKey;
-    if (store != null && key != null) await store.clear(key);
-  }
-
-  Future<void> _requestClose() async {
-    if (_saving) return;
-    if (!_hasUnsavedChanges) {
-      _popEditor();
-      return;
-    }
-    final discard = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('放弃这次编辑？'),
-        content: const Text('未保存的内容会留在草稿中。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('继续编辑'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('离开'),
-          ),
-        ],
-      ),
-    );
-    if (discard == true) {
-      await _clearDraft();
-      if (mounted) _popEditor();
-    }
-  }
-
-  void _popEditor() {
-    if (widget.onDesktopBack != null) {
-      widget.onDesktopBack!();
-    } else {
-      Navigator.pop(context);
-    }
-  }
-
   Future<void> _addAttachment() async {
+    if (_pickingAttachment || _saving) return;
     final choice = await showModalBottomSheet<String>(
       context: context,
       builder: (context) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (!widget.desktopLayout)
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined),
+                title: const Text('拍照'),
+                onTap: () => Navigator.pop(context, 'camera'),
+              ),
             ListTile(
               leading: const Icon(Icons.image_outlined),
-              title: const Text('选择图片'),
+              title: const Text('从相册选择图片'),
               onTap: () => Navigator.pop(context, 'image'),
             ),
             ListTile(
@@ -745,22 +806,44 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
         ),
       ),
     );
-    if (!mounted || choice == null) return;
-    if (choice == 'image') {
-      widget.onExternalActivityStart?.call();
+    if (!context.mounted || choice == null) return;
+    setState(() => _pickingAttachment = true);
+    if (choice == 'image' || choice == 'camera') {
+      final externalPicker = choice == 'camera' || widget.desktopLayout;
+      if (externalPicker) widget.onExternalActivityStart?.call();
       try {
-        final image = await ImagePicker().pickImage(
-          source: ImageSource.gallery,
-          imageQuality: 92,
-        );
-        if (image != null && mounted) {
-          setState(() {
-            _attachments = [..._attachments, image.path];
-            _markDraftDirty();
-          });
+        final picker = ImagePicker();
+        final List<String> pickedPaths;
+        if (choice == 'camera') {
+          final photo = await picker.pickImage(
+            source: ImageSource.camera,
+            imageQuality: 92,
+          );
+          pickedPaths = photo == null ? [] : [photo.path];
+        } else if (widget.desktopLayout) {
+          pickedPaths = (await picker.pickMultiImage(
+            imageQuality: 92,
+          )).map((image) => image.path).toList(growable: false);
+        } else {
+          pickedPaths = await _pickGalleryPhotos();
+        }
+        if (pickedPaths.isNotEmpty) {
+          final imported =
+              await widget.onImportPhotos?.call(pickedPaths) ?? pickedPaths;
+          if (mounted) {
+            setState(() => _attachments = [..._attachments, ...imported]);
+            _scheduleDraftSave();
+          }
+        }
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('照片没有添加成功，请重试')));
         }
       } finally {
-        widget.onExternalActivityEnd?.call();
+        if (externalPicker) widget.onExternalActivityEnd?.call();
+        if (mounted) setState(() => _pickingAttachment = false);
       }
       return;
     }
@@ -768,42 +851,47 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
     try {
       final result = await FilePicker.pickFiles(allowMultiple: true);
       if (result != null && mounted) {
-        setState(() {
-          _attachments = [
+        setState(
+          () => _attachments = [
             ..._attachments,
             ...result.files.map((file) => file.path).whereType<String>(),
-          ];
-          _markDraftDirty();
-        });
+          ],
+        );
+        _scheduleDraftSave();
       }
     } finally {
       widget.onExternalActivityEnd?.call();
+      if (mounted) setState(() => _pickingAttachment = false);
     }
   }
 
+  Future<List<String>> _pickGalleryPhotos() =>
+      widget.pickGalleryPhotos?.call() ?? pickDiaryPhotos(context);
+
   Future<void> _save() async {
-    if (_saving) return;
+    if (_saving || _pickingAttachment) return;
     final title = _titleController.text.trim();
     final plainText = _editorType == DiaryEditorType.richText
         ? _quillController.document.toPlainText().trim()
         : _contentController.text.trim();
-    if (title.isEmpty && plainText.isEmpty) {
+    if (title.isEmpty && plainText.isEmpty && _attachments.isEmpty) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('先写下一点什么吧')));
       return;
     }
+    _draftTimer?.cancel();
     setState(() => _saving = true);
     final now = DateTime.now();
     final saved = DiaryEntry(
       id: widget.entry?.id ?? now.microsecondsSinceEpoch.toString(),
       createdAt: widget.entry?.createdAt ?? now,
       updatedAt: now,
-      title: title.isEmpty ? '无题' : title,
+      title: title.isEmpty ? (_attachments.isEmpty ? '无题' : '此刻的照片') : title,
       content: _editorType == DiaryEditorType.richText
           ? jsonEncode(_quillController.document.toDelta().toJson())
           : plainText,
-      contentText: plainText.isEmpty ? '今天的这一页，留给一个念头。' : plainText,
+      contentText: plainText,
       editorType: _editorType,
       mood: _moodValue(_selectedMood),
       category: _category,
@@ -830,11 +918,13 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
     );
     try {
       await widget.onSave(saved);
-      unawaited(_clearDraft());
-      if (mounted) {
-        _hasUnsavedChanges = false;
-        Navigator.pop(context, saved);
+      if (widget.draftId != null) {
+        await widget.onClearDraft?.call(widget.draftId!);
       }
+      if (widget.draftStore != null && widget.draftKey != null) {
+        await widget.draftStore!.clear(widget.draftKey!);
+      }
+      if (mounted) Navigator.pop(context);
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(

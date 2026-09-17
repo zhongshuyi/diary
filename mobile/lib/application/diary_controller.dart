@@ -83,4 +83,19 @@ class DiaryController extends ChangeNotifier {
     await _repository.replaceAll(entries);
     await refresh();
   }
+
+  Future<void> batchSetFavorite(Iterable<String> ids, bool value) async {
+    await _repository.batchSetFavorite(ids, value);
+    await refresh();
+  }
+
+  Future<void> batchMoveToTrash(Iterable<String> ids) async {
+    await _repository.batchMoveToTrash(ids);
+    await refresh();
+  }
+
+  Future<void> batchRestore(Iterable<String> ids) async {
+    await _repository.batchRestore(ids);
+    await refresh();
+  }
 }

@@ -2,7 +2,7 @@ import '../domain/demo_data.dart';
 import '../domain/diary_entry.dart';
 import 'diary_repository.dart';
 
-class IsarDiaryRepository implements DiaryRepository {
+class IsarDiaryRepository extends DiaryRepository {
   IsarDiaryRepository._(this._delegate);
 
   static Future<IsarDiaryRepository> open({
@@ -29,7 +29,8 @@ class IsarDiaryRepository implements DiaryRepository {
   }
 
   @override
-  Future<void> save(DiaryEntry entry) => _delegate.save(entry);
+  Future<void> save(DiaryEntry entry, {bool enqueueMutation = true}) =>
+      _delegate.save(entry, enqueueMutation: enqueueMutation);
 
   @override
   Future<void> moveToTrash(String id) => _delegate.moveToTrash(id);

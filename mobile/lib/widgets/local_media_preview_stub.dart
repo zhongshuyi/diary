@@ -7,12 +7,14 @@ class LocalMediaPreview extends StatelessWidget {
     required this.path,
     required this.kind,
     this.showRetry = false,
+    this.fit = BoxFit.cover,
     super.key,
   });
 
   final String path;
   final DiaryMediaKind kind;
   final bool showRetry;
+  final BoxFit fit;
 
   @override
   Widget build(BuildContext context) {
@@ -29,7 +31,12 @@ class _MediaPlaceholder extends StatelessWidget {
   Widget build(BuildContext context) {
     return ColoredBox(
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      child: Center(child: Icon(_iconForKind(kind), size: 30)),
+      child: Center(
+        child: Tooltip(
+          message: diaryMediaKindLabel(kind),
+          child: Icon(_iconForKind(kind), size: 24),
+        ),
+      ),
     );
   }
 }

@@ -3,6 +3,7 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
 import 'package:diary/app/app_theme.dart';
 import 'package:diary/domain/diary_entry.dart';
+import 'package:diary/widgets/diary_image_viewer.dart';
 import 'package:diary/widgets/local_media_preview.dart';
 import 'package:diary/widgets/rich_text_viewer.dart';
 
@@ -80,7 +81,7 @@ class _EntryDetailPageState extends State<EntryDetailPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  diaryDateLabel(_entry.createdAt),
+                  diaryDateLabel(_entry.effectiveOccurredAt),
                   style: Theme.of(
                     context,
                   ).textTheme.labelSmall?.copyWith(color: colors.terracotta),
@@ -117,10 +118,18 @@ class _EntryDetailPageState extends State<EntryDetailPage> {
                   ),
                 ],
                 const SizedBox(height: 25),
-                _Content(entry: _entry),
+                if (_entry.contentText.isNotEmpty || _entry.content.isNotEmpty)
+                  _Content(entry: _entry),
+                if (_entry.imagePaths.isNotEmpty) ...[
+                  const SizedBox(height: 25),
+                  DiaryImageGallery(
+                    entryId: _entry.id,
+                    imagePaths: _entry.imagePaths,
+                  ),
+                ],
                 if (_attachments.isNotEmpty) ...[
                   const SizedBox(height: 25),
-                  Text('附件', style: Theme.of(context).textTheme.titleMedium),
+                  Text('其他附件', style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 9),
                   ..._attachments.map(
                     (attachment) => Card(
@@ -186,7 +195,7 @@ class _EntryDetailPageState extends State<EntryDetailPage> {
   }
 
   List<_EntryAttachment> get _attachments =>
-      [..._entry.imagePaths, ..._entry.audioPaths, ..._entry.videoPaths]
+      [..._entry.audioPaths, ..._entry.videoPaths]
           .map(
             (path) =>
                 _EntryAttachment(path: path, kind: diaryMediaKindForPath(path)),

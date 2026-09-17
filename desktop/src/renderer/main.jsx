@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { CalendarView } from './components/CalendarView';
+import { ConflictView } from './components/ConflictView';
 import { EntriesView, RecycleBinView } from './components/EntriesView';
 import { InsightsView } from './components/InsightsView';
 import { LibraryView } from './components/LibraryView';
@@ -130,7 +131,15 @@ const previewDb = {
     localStorage.setItem(STORAGE.entries, JSON.stringify(entries));
     localStorage.setItem(STORAGE.outbox, JSON.stringify(outbox));
     if (cursor !== null && cursor !== undefined) localStorage.setItem(STORAGE.cursor, String(cursor));
+    localStorage.setItem('diary.desktop.conflicts.v1', JSON.stringify(conflicts));
     return previewSnapshot();
+  },
+  async listConflicts() { return loadJson('diary.desktop.conflicts.v1', []); },
+  async resolveConflict({ conflictId, resolution }) {
+    const current = await previewDb.listConflicts();
+    const next = current.filter((item) => item.conflictId !== conflictId);
+    localStorage.setItem('diary.desktop.conflicts.v1', JSON.stringify(next));
+    return (await previewDb.saveEntry({ ...resolution, isConflict: false, conflictStatus: 'resolved', updatedAt: new Date().toISOString() })).snapshot;
   },
   async trashEntry(id) {
     const current = previewSnapshot();
@@ -276,6 +285,7 @@ function App() {
   const [entryCount, setEntryCount] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [outbox, setOutbox] = useState([]);
+  const [conflicts, setConflicts] = useState([]);
   const [cursor, setCursor] = useState('0');
   const [deviceId, setDeviceId] = useState('');
   const [theme, setTheme] = useState(() => localStorage.getItem(STORAGE.theme) || 'light');
@@ -298,10 +308,10 @@ function App() {
   const [syncState, setSyncState] = useState({ kind: '', label: '仅本地保存' });
   const [mediaViewer, setMediaViewer] = useState(null);
   const [toast, setToast] = useState({ message: '', action: null });
-  const stateRef = useRef({ entries, searchResults, outbox, cursor, serverUrl, deviceId, bootstrapped, syncing: false });
+  const stateRef = useRef({ entries, searchResults, outbox, conflicts, cursor, serverUrl, deviceId, bootstrapped, syncing: false });
   const toastTimer = useRef(null);
 
-  useEffect(() => { stateRef.current = { entries, searchResults, outbox, cursor, serverUrl, deviceId, bootstrapped, syncing: stateRef.current.syncing }; }, [entries, searchResults, outbox, cursor, serverUrl, deviceId, bootstrapped]);
+  useEffect(() => { stateRef.current = { entries, searchResults, outbox, conflicts, cursor, serverUrl, deviceId, bootstrapped, syncing: stateRef.current.syncing }; }, [entries, searchResults, outbox, conflicts, cursor, serverUrl, deviceId, bootstrapped]);
   useEffect(() => { document.body.classList.toggle('dark', theme === 'dark'); if (bootstrapped) void databaseAPI().saveSetting('theme', theme); }, [theme, bootstrapped]);
   useEffect(() => { if (outbox.length) setSyncState({ kind: 'error', label: `${outbox.length} 条待同步` }); }, [outbox.length]);
   useEffect(() => {
@@ -401,6 +411,7 @@ function App() {
     if (persisted) {
       setEntries(persisted.entries || []);
       setOutbox(persisted.outbox || []);
+      setConflicts(persisted.conflicts || await databaseAPI().listConflicts?.() || []);
       setCursor(persisted.cursor || current.cursor);
       stateRef.current = { ...stateRef.current, ...persisted };
     }
@@ -408,7 +419,7 @@ function App() {
     setSyncState({ kind: 'syncing', label: '正在同步…' });
     try {
       if (!globalThis.diaryAPI?.sync) return;
-      const result = await globalThis.diaryAPI.sync({ baseUrl: current.serverUrl, body: { protocolVersion: 1, deviceId: current.deviceId, cursor: current.cursor, limit: 100, client: { platform: 'desktop', appVersion: globalThis.diaryAPI.appVersion || 'preview' }, changes: current.outbox } });
+      const result = await globalThis.diaryAPI.sync({ baseUrl: current.serverUrl, body: { protocolVersion: 2, deviceId: current.deviceId, cursor: current.cursor, limit: 100, client: { platform: 'desktop', appVersion: globalThis.diaryAPI.appVersion || 'preview' }, changes: current.outbox } });
       if (!result.ok) throw new Error(result.body?.error?.message || '同步服务不可用');
       const data = result.body.data;
       const done = new Set([...(data.appliedMutationIds || []), ...(data.conflicts || []).map((conflict) => conflict.mutationId)]);
@@ -416,8 +427,10 @@ function App() {
       const snapshot = await databaseAPI().applySync({ changes: data.changes || [], conflicts: data.conflicts || [], acknowledgedMutationIds: [...done], cursor: nextCursor });
       const nextOutbox = snapshot?.outbox || [];
       setEntries(snapshot?.entries || []); setOutbox(nextOutbox); setCursor(snapshot?.cursor || nextCursor);
-      setSyncState({ kind: '', label: nextOutbox.length ? `${nextOutbox.length} 条待同步` : '已同步' });
-      if (data.conflicts?.length) showToast('发现版本差异，已保留服务端最新版本');
+      const nextConflicts = snapshot?.conflicts || await databaseAPI().listConflicts?.() || data.conflicts || [];
+      setConflicts(nextConflicts);
+      setSyncState({ kind: data.conflicts?.length ? 'conflict' : '', label: data.conflicts?.length ? `${data.conflicts.length} 个待处理冲突` : nextOutbox.length ? `${nextOutbox.length} 条待同步` : '已同步' });
+      if (data.conflicts?.length) showToast('发现版本差异，已保留双方版本');
     } catch { setSyncState({ kind: 'error', label: stateRef.current.outbox.length ? '本地已保存 · 待同步' : '仅本地保存' }); }
     finally { stateRef.current.syncing = false; }
   };
@@ -453,8 +466,9 @@ function App() {
     setEntries(snapshot.entries || []);
     setEntryCount(snapshot.entryCount ?? snapshot.entries?.length ?? 0);
     setOutbox(snapshot.outbox || []);
+    setConflicts(snapshot.conflicts || []);
     setCursor(snapshot.cursor || stateRef.current.cursor);
-    stateRef.current = { ...stateRef.current, entries: snapshot.entries || [], outbox: snapshot.outbox || [], cursor: snapshot.cursor || stateRef.current.cursor };
+    stateRef.current = { ...stateRef.current, entries: snapshot.entries || [], outbox: snapshot.outbox || [], conflicts: snapshot.conflicts || [], cursor: snapshot.cursor || stateRef.current.cursor };
   };
 
   const updateTaxonomy = async (action, successMessage) => {
@@ -611,6 +625,16 @@ function App() {
   const selectTag = (tag) => { setSearch(''); setSearchFilters({ ...emptySearchFilters, tags: [tag] }); setView('all'); };
   const selectCategory = (category) => { setSearch(''); setSearchFilters({ ...emptySearchFilters, category }); setView('all'); };
   const clearSearchFilters = () => setSearchFilters({ ...emptySearchFilters });
+  const resolveConflictValue = async (conflict, resolution) => {
+    const result = await databaseAPI().resolveConflict?.({ conflictId: conflict.conflictId, resolution });
+    if (result) applySnapshot(result);
+    const remaining = await databaseAPI().listConflicts?.();
+    setConflicts(Array.isArray(remaining) ? remaining : []);
+    showToast('冲突已处理');
+  };
+  if (view === 'conflicts') {
+    return <div className="window-shell"><Titlebar theme={theme} onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')} /><div className="app-layout"><SidebarRail view={view} onView={setView} syncKind={syncState.kind} syncLabel={syncState.label} /><main className="main-area"><section className="view-panel"><ConflictView conflicts={conflicts} onResolve={resolveConflictValue} /></section></main></div></div>;
+  }
   return <div className="window-shell"><Titlebar theme={theme} onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')} /><div className="app-layout"><SidebarRail view={view} onView={setView} syncKind={syncState.kind} syncLabel={syncState.label} /><main className="main-area">{view !== 'timeline' && view !== 'media' && <WorkspaceHeader view={view} entryCount={activeEntries.length} search={search} onSearch={handleSearchChange} onSync={syncNow} onNew={focusInlineComposer} />}{view === 'timeline' && <section className="view-panel desk-view"><TodayView entries={filteredEntries} onEdit={editEntry} onPreview={openMediaViewer} onToggleFavorite={toggleFavorite} onCopy={copyEntry} onTrash={trashEntry} composer={{ draft, setDraft, attachments, setAttachments, editing: false, categoryOptions, tagOptions, onSave: () => saveEntry({ inline: true }), onNotify: showToast }} /></section>}{view === 'all' && <section className="view-panel"><EntriesView entries={visibleAllEntries} hasMore={searchActive ? searchHasMore : entryCount > entries.length} loading={searchLoading || loadingMore} searchError={searchError} search={search} filters={searchFilters} categories={categoryOptions} tags={tagOptions} onFiltersChange={setSearchFilters} onClearFilters={clearSearchFilters} onBatchAction={batchAction} onLoadMore={loadMoreEntries} onEdit={editEntry} onPreview={openMediaViewer} onToggleFavorite={toggleFavorite} onCopy={copyEntry} onTrash={trashEntry} /></section>}{view === 'recycle' && <section className="view-panel"><RecycleBinView entries={visibleTrashEntries} search={search} filters={searchFilters} categories={categoryOptions} tags={tagOptions} searchError={searchError} loading={searchLoading} hasMore={searchActive ? searchHasMore : false} onLoadMore={loadMoreEntries} onFiltersChange={setSearchFilters} onClearFilters={clearSearchFilters} onEdit={editEntry} onPreview={openMediaViewer} onRestore={restoreEntry} onDeletePermanent={permanentlyDelete} /></section>}{view === 'tags' && <section className="view-panel"><TagsView entries={entries} taxonomy={taxonomy} categories={categoryOptions} onSelect={selectTag} onSelectCategory={selectCategory} onRenameTag={renameTagValue} onDeleteTag={deleteTagValue} onRenameCategory={renameCategoryValue} onDeleteCategory={deleteCategoryValue} /></section>}{view === 'calendar' && <section className="view-panel"><CalendarView entries={activeEntries} selectedDate={selectedDate} setSelectedDate={setSelectedDate} onNew={openComposer} onEdit={editEntry} onPreview={openMediaViewer} /></section>}{view === 'media' && <section className="view-panel media-view-panel"><LibraryView entries={activeEntries} search={search} onPreview={openMediaViewer} /></section>}{view === 'insights' && <section className="view-panel"><InsightsView entries={activeEntries} /></section>}{view === 'settings' && <section className="view-panel"><SettingsView serverUrl={serverUrl} setServerUrl={setServerUrl} onSave={saveSettings} attachmentHealth={attachmentHealth} onExportBackup={exportBackup} onImportBackup={importBackup} /></section>}{PLACEHOLDERS[view] && <section className="view-panel"><PlaceholderView title={PLACEHOLDERS[view][0]} description={PLACEHOLDERS[view][1]} onBack={() => setView('timeline')} /></section>}</main></div>{composerOpen && <QuickCapture draft={draft} setDraft={setDraft} attachments={attachments} setAttachments={setAttachments} editing={Boolean(editingId)} categoryOptions={categoryOptions} tagOptions={tagOptions} onSave={saveEntry} onClose={() => setComposerOpen(false)} onNotify={showToast} />}{mediaViewer && <MediaViewer items={mediaViewer.items} activeIndex={mediaViewer.activeIndex} onActiveIndexChange={(activeIndex) => setMediaViewer((current) => current ? { ...current, activeIndex } : null)} onClose={() => setMediaViewer(null)} onOpenEntry={openEntryFromMedia} onRelocate={relocateAttachment} />}<div className={`toast ${toast.message ? 'show' : ''}`} id="toast" role="status"><span>{toast.message}</span>{toast.action && <button type="button" onClick={async () => { const action = toast.action; setToast({ message: '', action: null }); await action.run?.(); }}>{toast.action.label || '撤销'}</button>}</div></div>;
 }
 

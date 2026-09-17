@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'package:diary/app/app_theme.dart';
 import 'package:diary/domain/diary_entry.dart';
+import 'package:diary/domain/sync_state.dart';
+import 'package:diary/widgets/day_entry_card.dart';
 import 'package:diary/widgets/entry_card.dart';
 
 class HomePage extends StatefulWidget {
@@ -13,6 +15,10 @@ class HomePage extends StatefulWidget {
     required this.onShare,
     required this.onDelete,
     required this.onQuickCapture,
+    this.onBatchFavorite,
+    this.onBatchDelete,
+    this.syncState = const SyncState(),
+    this.onSyncNow,
     this.desktopLayout = false,
     super.key,
   });
@@ -24,6 +30,11 @@ class HomePage extends StatefulWidget {
   final ValueChanged<DiaryEntry> onShare;
   final ValueChanged<DiaryEntry> onDelete;
   final Future<void> Function(String content) onQuickCapture;
+  final Future<void> Function(Iterable<String> ids, bool value)?
+  onBatchFavorite;
+  final Future<void> Function(Iterable<String> ids)? onBatchDelete;
+  final SyncState syncState;
+  final Future<void> Function()? onSyncNow;
   final bool desktopLayout;
 
   @override
@@ -37,10 +48,12 @@ class HomePageState extends State<HomePage> {
   final _quickFocusNode = FocusNode();
   String _query = '';
   String _category = '全部';
+  final Set<String> _selectedTags = <String>{};
   bool _onlyFavorites = false;
   bool _quickSaving = false;
-
-  bool get _hasActiveFilters => _category != '全部' || _onlyFavorites;
+  bool _selectionMode = false;
+  final Set<String> _selectedIds = <String>{};
+  final Set<DateTime> _toggledDays = <DateTime>{};
 
   void focusSearch() {
     _searchFocusNode.requestFocus();
@@ -59,9 +72,13 @@ class HomePageState extends State<HomePage> {
     super.dispose();
   }
 
+  bool get _hasActiveFilters =>
+      _category != '全部' || _selectedTags.isNotEmpty || _onlyFavorites;
+
   Future<void> _openFilters() async {
     var category = _category;
     var onlyFavorites = _onlyFavorites;
+    final selectedTags = Set<String>.of(_selectedTags);
     final result = await showModalBottomSheet<_HomeFilterSelection>(
       context: context,
       isScrollControlled: true,
@@ -69,10 +86,6 @@ class HomePageState extends State<HomePage> {
       builder: (context) => StatefulBuilder(
         builder: (context, setSheetState) {
           final colors = DiaryThemeColors.of(context);
-          final categories = {
-            '全部',
-            ...widget.entries.map((entry) => entry.category),
-          };
           return SafeArea(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
@@ -96,7 +109,10 @@ class HomePageState extends State<HomePage> {
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      for (final value in categories)
+                      for (final value in {
+                        '全部',
+                        ...widget.entries.map((entry) => entry.category),
+                      })
                         ChoiceChip(
                           label: Text(value),
                           selected: category == value,
@@ -120,6 +136,29 @@ class HomePageState extends State<HomePage> {
                         ),
                     ],
                   ),
+                  if (_sortedTags(widget.entries).isNotEmpty) ...[
+                    const SizedBox(height: 14),
+                    Text('标签', style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final tag in _sortedTags(widget.entries))
+                          FilterChip(
+                            key: Key('home-tag-filter-$tag'),
+                            label: Text('#$tag'),
+                            selected: selectedTags.contains(tag),
+                            onSelected: (_) => setSheetState(() {
+                              if (!selectedTags.add(tag)) {
+                                selectedTags.remove(tag);
+                              }
+                            }),
+                            showCheckmark: false,
+                          ),
+                      ],
+                    ),
+                  ],
                   const SizedBox(height: 10),
                   SwitchListTile.adaptive(
                     key: const Key('home-favorites-filter'),
@@ -137,6 +176,7 @@ class HomePageState extends State<HomePage> {
                         onPressed: () => setSheetState(() {
                           category = '全部';
                           onlyFavorites = false;
+                          selectedTags.clear();
                         }),
                         child: const Text('清除条件'),
                       ),
@@ -146,6 +186,7 @@ class HomePageState extends State<HomePage> {
                           context,
                           _HomeFilterSelection(
                             category: category,
+                            tags: selectedTags,
                             onlyFavorites: onlyFavorites,
                           ),
                         ),
@@ -163,6 +204,9 @@ class HomePageState extends State<HomePage> {
     if (!mounted || result == null) return;
     setState(() {
       _category = result.category;
+      _selectedTags
+        ..clear()
+        ..addAll(result.tags);
       _onlyFavorites = result.onlyFavorites;
     });
   }
@@ -172,8 +216,13 @@ class HomePageState extends State<HomePage> {
         .where((entry) {
           final categoryMatch =
               _category == '全部' || entry.category == _category;
+          final tagMatch =
+              _selectedTags.isEmpty || _selectedTags.every(entry.tags.contains);
           final favoriteMatch = !_onlyFavorites || entry.isFavorite;
-          return categoryMatch && favoriteMatch && entry.matches(_query);
+          return categoryMatch &&
+              tagMatch &&
+              favoriteMatch &&
+              entry.matches(_query);
         })
         .toList(growable: false);
   }
@@ -182,22 +231,29 @@ class HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     final colors = DiaryThemeColors.of(context);
     final entries = _filteredEntries;
-    final categories = <String>{
-      '全部',
-      ...widget.entries.map((entry) => entry.category),
-    }.toList(growable: false);
-    final desktop =
-        widget.desktopLayout || MediaQuery.sizeOf(context).width >= 900;
-    if (desktop) {
-      return _buildDesktop(context, entries, categories);
+    final categories =
+        <String>{
+          '全部',
+          ...widget.entries.map((entry) => entry.category),
+        }.toList()..sort(
+          (a, b) => a == '全部'
+              ? -1
+              : b == '全部'
+              ? 1
+              : _usageCompare(a, b, widget.entries),
+        );
+    final tags = _sortedTags(widget.entries);
+    if (widget.desktopLayout) {
+      return _buildDesktop(context, entries, categories, tags);
     }
-    return _buildMobile(context, entries, categories, colors);
+    return _buildMobile(context, entries, categories, tags, colors);
   }
 
   Widget _buildMobile(
     BuildContext context,
     List<DiaryEntry> entries,
     List<String> categories,
+    List<String> tags,
     DiaryThemeColors colors,
   ) {
     return SingleChildScrollView(
@@ -208,10 +264,49 @@ class HomePageState extends State<HomePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _Header(onOpenEditor: widget.onOpenEditor),
+              if (_selectionMode)
+                _SelectionToolbar(
+                  count: _selectedIds.length,
+                  onFavorite: widget.onBatchFavorite == null
+                      ? null
+                      : () async {
+                          await widget.onBatchFavorite!(_selectedIds, true);
+                          if (mounted)
+                            setState(() {
+                              _selectionMode = false;
+                              _selectedIds.clear();
+                            });
+                        },
+                  onDelete: widget.onBatchDelete == null
+                      ? null
+                      : () async {
+                          await widget.onBatchDelete!(_selectedIds);
+                          if (mounted)
+                            setState(() {
+                              _selectionMode = false;
+                              _selectedIds.clear();
+                            });
+                        },
+                  onClose: () => setState(() {
+                    _selectionMode = false;
+                    _selectedIds.clear();
+                  }),
+                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: _Header(
+                      onOpenEditor: widget.onOpenEditor,
+                      showAction: false,
+                    ),
+                  ),
+                  _SyncIndicator(
+                    state: widget.syncState,
+                    onSyncNow: widget.onSyncNow,
+                  ),
+                ],
+              ),
               const SizedBox(height: 16),
-              _WritingPrompt(onOpenEditor: widget.onOpenEditor),
-              const SizedBox(height: 24),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -252,7 +347,7 @@ class HomePageState extends State<HomePage> {
                 onChanged: (value) => setState(() => _query = value),
                 decoration: InputDecoration(
                   hintText: '搜索标题、正文、分类或标签',
-                  prefixIcon: Icon(Icons.search),
+                  prefixIcon: const Icon(Icons.search),
                   suffixIcon: IconButton(
                     tooltip: '筛选',
                     onPressed: _openFilters,
@@ -293,11 +388,21 @@ class HomePageState extends State<HomePage> {
                   }).toList(),
                 ),
               ),
+              if (tags.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                _TagFilters(
+                  tags: tags,
+                  selected: _selectedTags,
+                  onToggle: (tag) => setState(() {
+                    if (!_selectedTags.add(tag)) _selectedTags.remove(tag);
+                  }),
+                ),
+              ],
               const SizedBox(height: 18),
               if (entries.isEmpty)
                 _EmptyState(query: _query, onOpenEditor: widget.onOpenEditor)
               else
-                ..._buildEntryGroups(context, entries),
+                ..._buildMobileDayGroups(entries),
             ],
           ),
         ),
@@ -309,15 +414,16 @@ class HomePageState extends State<HomePage> {
     BuildContext context,
     List<DiaryEntry> entries,
     List<String> categories,
+    List<String> tags,
   ) {
     final colors = DiaryThemeColors.of(context);
     final today = DateTime.now();
     final todayEntries = widget.entries
         .where(
           (entry) =>
-              entry.createdAt.year == today.year &&
-              entry.createdAt.month == today.month &&
-              entry.createdAt.day == today.day,
+              entry.effectiveOccurredAt.year == today.year &&
+              entry.effectiveOccurredAt.month == today.month &&
+              entry.effectiveOccurredAt.day == today.day,
         )
         .toList(growable: false);
     return SingleChildScrollView(
@@ -405,6 +511,17 @@ class HomePageState extends State<HomePage> {
                           onSelected: (category) =>
                               setState(() => _category = category),
                         ),
+                        if (tags.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          _TagFilters(
+                            tags: tags,
+                            selected: _selectedTags,
+                            onToggle: (tag) => setState(() {
+                              if (!_selectedTags.add(tag))
+                                _selectedTags.remove(tag);
+                            }),
+                          ),
+                        ],
                         const SizedBox(height: 18),
                         if (entries.isEmpty)
                           _EmptyState(
@@ -461,6 +578,62 @@ class HomePageState extends State<HomePage> {
     }
   }
 
+  List<Widget> _buildMobileDayGroups(List<DiaryEntry> entries) {
+    final sorted = List<DiaryEntry>.of(entries)
+      ..sort((a, b) {
+        final byTime = b.effectiveOccurredAt.compareTo(a.effectiveOccurredAt);
+        return byTime != 0 ? byTime : a.id.compareTo(b.id);
+      });
+    final days = <DateTime, List<DiaryEntry>>{};
+    for (final entry in sorted) {
+      final local = entry.effectiveOccurredAt.toLocal();
+      final day = DateTime(local.year, local.month, local.day);
+      days.putIfAbsent(day, () => []).add(entry);
+    }
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final filtering =
+        _query.trim().isNotEmpty ||
+        _category != '全部' ||
+        _selectedTags.isNotEmpty ||
+        _onlyFavorites;
+    return [
+      for (final day in days.keys)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 14),
+          child: DayEntryCard(
+            date: day,
+            entries: days[day]!,
+            expanded:
+                filtering ||
+                (day == today
+                    ? !_toggledDays.contains(day)
+                    : _toggledDays.contains(day)),
+            showExpandControl: !filtering,
+            onToggleExpanded: () => setState(() {
+              if (!_toggledDays.add(day)) _toggledDays.remove(day);
+            }),
+            onOpenEntry: (entry) => _selectionMode
+                ? setState(() {
+                    if (!_selectedIds.add(entry.id)) {
+                      _selectedIds.remove(entry.id);
+                    }
+                  })
+                : widget.onOpenEntry(entry),
+            onLongPressEntry: (entry) => setState(() {
+              _selectionMode = true;
+              if (!_selectedIds.add(entry.id)) _selectedIds.remove(entry.id);
+            }),
+            onFavorite: widget.onToggleFavorite,
+            onShare: widget.onShare,
+            onDelete: widget.onDelete,
+            selectedIds: _selectedIds,
+            selectionMode: _selectionMode,
+          ),
+        ),
+    ];
+  }
+
   List<Widget> _buildEntryGroups(
     BuildContext context,
     List<DiaryEntry> entries,
@@ -468,11 +641,8 @@ class HomePageState extends State<HomePage> {
     final result = <Widget>[];
     DateTime? currentDay;
     for (final entry in entries) {
-      final entryDay = DateTime(
-        entry.createdAt.year,
-        entry.createdAt.month,
-        entry.createdAt.day,
-      );
+      final occurred = entry.effectiveOccurredAt;
+      final entryDay = DateTime(occurred.year, occurred.month, occurred.day);
       if (currentDay == null || currentDay != entryDay) {
         currentDay = entryDay;
         result.add(_DateMarker(date: entryDay));
@@ -482,7 +652,17 @@ class HomePageState extends State<HomePage> {
           padding: const EdgeInsets.only(bottom: 12),
           child: DiaryEntryCard(
             entry: entry,
-            onTap: () => widget.onOpenEntry(entry),
+            onTap: () => _selectionMode
+                ? setState(() {
+                    if (!_selectedIds.add(entry.id))
+                      _selectedIds.remove(entry.id);
+                  })
+                : widget.onOpenEntry(entry),
+            onLongPress: () => setState(() {
+              _selectionMode = true;
+              if (!_selectedIds.add(entry.id)) _selectedIds.remove(entry.id);
+            }),
+            selected: _selectedIds.contains(entry.id),
             onFavorite: () => widget.onToggleFavorite(entry),
             onShare: () => widget.onShare(entry),
             onDelete: () => widget.onDelete(entry),
@@ -492,16 +672,6 @@ class HomePageState extends State<HomePage> {
     }
     return result;
   }
-}
-
-class _HomeFilterSelection {
-  const _HomeFilterSelection({
-    required this.category,
-    required this.onlyFavorites,
-  });
-
-  final String category;
-  final bool onlyFavorites;
 }
 
 class _CategoryFilters extends StatelessWidget {
@@ -541,6 +711,217 @@ class _CategoryFilters extends StatelessWidget {
             ),
           );
         }).toList(),
+      ),
+    );
+  }
+}
+
+class _TagFilters extends StatelessWidget {
+  const _TagFilters({
+    required this.tags,
+    required this.selected,
+    required this.onToggle,
+  });
+
+  final List<String> tags;
+  final Set<String> selected;
+  final ValueChanged<String> onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: tags
+            .map((tag) {
+              final isSelected = selected.contains(tag);
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: FilterChip(
+                  label: Text('#$tag'),
+                  selected: isSelected,
+                  onSelected: (_) => onToggle(tag),
+                  showCheckmark: false,
+                  selectedColor: colors.sage,
+                  backgroundColor: colors.surface,
+                  side: BorderSide(
+                    color: isSelected ? colors.sage : colors.line,
+                  ),
+                  labelStyle: TextStyle(
+                    color: isSelected ? colors.ink : colors.mutedInk,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              );
+            })
+            .toList(growable: false),
+      ),
+    );
+  }
+}
+
+List<String> _sortedTags(List<DiaryEntry> entries) {
+  final usage = <String, _Usage>{};
+  for (final entry in entries.where(
+    (item) => !item.isInTrash && !item.isConflict,
+  )) {
+    for (final tag in entry.tags) {
+      final old = usage[tag];
+      usage[tag] = _Usage(
+        (old?.count ?? 0) + 1,
+        _latestDate(old?.latest, entry.effectiveOccurredAt),
+      );
+    }
+  }
+  final values = usage.keys.toList();
+  values.sort((a, b) {
+    final left = usage[a]!;
+    final right = usage[b]!;
+    return right.count.compareTo(left.count) != 0
+        ? right.count.compareTo(left.count)
+        : right.latest.compareTo(left.latest) != 0
+        ? right.latest.compareTo(left.latest)
+        : a.compareTo(b);
+  });
+  return values;
+}
+
+int _usageCompare(String a, String b, List<DiaryEntry> entries) {
+  int count(String value) => entries
+      .where((entry) => entry.category == value && !entry.isInTrash)
+      .length;
+  final countCompare = count(b).compareTo(count(a));
+  if (countCompare != 0) return countCompare;
+  DateTime latest(String value) {
+    final dates = entries
+        .where((entry) => entry.category == value && !entry.isInTrash)
+        .map((entry) => entry.effectiveOccurredAt);
+    return dates.isEmpty
+        ? DateTime.fromMillisecondsSinceEpoch(0)
+        : dates.reduce((a, b) => a.isAfter(b) ? a : b);
+  }
+
+  final latestCompare = latest(b).compareTo(latest(a));
+  return latestCompare != 0 ? latestCompare : a.compareTo(b);
+}
+
+class _HomeFilterSelection {
+  const _HomeFilterSelection({
+    required this.category,
+    required this.tags,
+    required this.onlyFavorites,
+  });
+
+  final String category;
+  final Set<String> tags;
+  final bool onlyFavorites;
+}
+
+DateTime _latestDate(DateTime? old, DateTime next) =>
+    old == null || next.isAfter(old) ? next : old;
+
+class _Usage {
+  const _Usage(this.count, this.latest);
+  final int count;
+  final DateTime latest;
+}
+
+class _SyncIndicator extends StatelessWidget {
+  const _SyncIndicator({required this.state, this.onSyncNow});
+
+  final SyncState state;
+  final Future<void> Function()? onSyncNow;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
+    final (label, icon, tint) = switch (state.status) {
+      SyncStatus.syncing => ('同步中', Icons.sync, colors.terracotta),
+      SyncStatus.synced => ('已同步', Icons.cloud_done_outlined, colors.sage),
+      SyncStatus.pending => (
+        '待同步',
+        Icons.cloud_upload_outlined,
+        colors.terracotta,
+      ),
+      SyncStatus.conflict => (
+        '有冲突',
+        Icons.warning_amber_outlined,
+        colors.terracotta,
+      ),
+      SyncStatus.failed => (
+        '同步失败',
+        Icons.cloud_off_outlined,
+        colors.terracotta,
+      ),
+      SyncStatus.idle => ('本地优先', Icons.cloud_outlined, colors.mutedInk),
+    };
+    return Tooltip(
+      message: onSyncNow == null ? label : '$label · 点击立即同步',
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onSyncNow == null ? null : () => onSyncNow!(),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 17, color: tint),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: tint,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SelectionToolbar extends StatelessWidget {
+  const _SelectionToolbar({
+    required this.count,
+    required this.onFavorite,
+    required this.onDelete,
+    required this.onClose,
+  });
+
+  final int count;
+  final VoidCallback? onFavorite;
+  final VoidCallback? onDelete;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
+    return Card(
+      color: colors.surface,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Row(
+          children: [
+            IconButton(onPressed: onClose, icon: const Icon(Icons.close)),
+            Text('已选择 $count 篇', style: Theme.of(context).textTheme.titleSmall),
+            const Spacer(),
+            IconButton(
+              onPressed: count == 0 ? null : onFavorite,
+              tooltip: '收藏',
+              icon: const Icon(Icons.bookmark_add_outlined),
+            ),
+            IconButton(
+              onPressed: count == 0 ? null : onDelete,
+              tooltip: '移入回收站',
+              color: colors.terracotta,
+              icon: const Icon(Icons.delete_outline),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -719,9 +1100,10 @@ class _DesktopQuickPanel extends StatelessWidget {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.onOpenEditor});
+  const _Header({required this.onOpenEditor, this.showAction = true});
 
   final VoidCallback onOpenEditor;
+  final bool showAction;
 
   @override
   Widget build(BuildContext context) {
@@ -753,72 +1135,13 @@ class _Header extends StatelessWidget {
             ],
           ),
         ),
-        IconButton(
-          onPressed: onOpenEditor,
-          tooltip: '写一篇',
-          icon: Icon(Icons.add_circle_outline, color: colors.terracotta),
-        ),
-      ],
-    );
-  }
-}
-
-class _WritingPrompt extends StatelessWidget {
-  const _WritingPrompt({required this.onOpenEditor});
-
-  final VoidCallback onOpenEditor;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = DiaryThemeColors.of(context);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(22, 22, 18, 19),
-      decoration: BoxDecoration(
-        color: colors.hero,
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'TODAY, FOR YOURSELF',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.labelSmall?.copyWith(color: colors.butter),
-                ),
-                const SizedBox(height: 11),
-                Text(
-                  '今天，写给自己',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.headlineSmall?.copyWith(color: colors.onHero),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  '不需要完整，也不需要漂亮。想到什么，就写下什么。',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: colors.onHero.withValues(alpha: .72),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          FilledButton(
+        if (showAction)
+          IconButton(
             onPressed: onOpenEditor,
-            style: FilledButton.styleFrom(
-              backgroundColor: colors.butter,
-              foregroundColor: colors.hero,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-            ),
-            child: const Text('写一篇'),
+            tooltip: '写一篇',
+            icon: Icon(Icons.add_circle_outline, color: colors.terracotta),
           ),
-        ],
-      ),
+      ],
     );
   }
 }
