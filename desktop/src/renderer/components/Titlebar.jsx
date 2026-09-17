@@ -1,4 +1,5 @@
-import { BookOpen, Minus, Moon, Square, Sun, X } from 'lucide-react';
+import { Minus, Moon, Square, Sun, X } from 'lucide-react';
+import logoUrl from '../brand/diary_logo.png';
 import { IconButton } from './ui/IconButton';
 
 function WindowButton({ label, className = '', children, onClick }) {
@@ -8,7 +9,7 @@ function WindowButton({ label, className = '', children, onClick }) {
 export function Titlebar({ theme, onToggleTheme }) {
   return <header className="titlebar">
     <div className="titlebar-brand" aria-label="此刻">
-      <span className="brand-icon"><BookOpen size={16} strokeWidth={2.2} /></span>
+      <span className="brand-icon"><img className="brand-logo" src={logoUrl} alt="" /></span>
       <strong>此刻</strong><span className="brand-divider">/</span><span className="brand-context">个人日记</span>
     </div>
     <div className="titlebar-hint">离线优先 · 记录属于你</div>

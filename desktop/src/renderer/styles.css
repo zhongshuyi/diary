@@ -69,7 +69,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .window-shell { width: 100%; height: 100%; background: var(--background); }
 .titlebar { height: 49px; display: flex; align-items: center; padding: 0 8px 0 17px; border-bottom: 1px solid var(--border); background: var(--surface); user-select: none; -webkit-app-region: drag; }
 .titlebar-brand { min-width: 215px; display: flex; align-items: center; gap: 8px; }
-.brand-icon { width: 23px; height: 23px; display: grid; place-items: center; color: var(--primary); }
+.brand-icon { width: 23px; height: 23px; display: grid; place-items: center; overflow: hidden; border-radius: 7px; }
+.brand-logo { width: 100%; height: 100%; display: block; object-fit: cover; }
 .titlebar-brand strong { font-size: 14px; font-weight: 700; letter-spacing: -.025em; }
 .brand-divider { color: var(--border-strong); }
 .brand-context, .titlebar-hint { color: var(--muted); font-size: 11px; }

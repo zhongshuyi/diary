@@ -6,6 +6,7 @@ const { createDiaryStore } = require('./main/database/store.cjs');
 const { DEFAULT_QUICK_CAPTURE_ACCELERATOR, formatAccelerator, normalizeAccelerator } = require('./main/shortcut.cjs');
 const { restoreQuickCaptureBounds } = require('./main/window-bounds.cjs');
 const { checkForUpdate, isSafeExternalUrl } = require('./main/update-check.cjs');
+const { getDesktopIconPath } = require('./main/app-icon.cjs');
 
 let mainWindow;
 let quickCaptureWindow;
@@ -16,8 +17,7 @@ let lastFocusedWindow;
 let quickCaptureAccelerator = DEFAULT_QUICK_CAPTURE_ACCELERATOR;
 let quickCaptureRegistered = false;
 let quickBoundsTimer;
-
-const TRAY_ICON_DATA_URL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+const APP_ICON_PATH = getDesktopIconPath(__dirname);
 
 function rememberFocusedWindow() {
   const focusedWindow = BrowserWindow.getFocusedWindow();
@@ -80,6 +80,7 @@ function createWindow() {
     frame: false,
     titleBarStyle: 'hidden',
     backgroundColor: '#f4f1eb',
+    icon: APP_ICON_PATH,
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -113,6 +114,7 @@ function createQuickCaptureWindow() {
     alwaysOnTop: true,
     skipTaskbar: true,
     backgroundColor: '#f4f1eb',
+    icon: APP_ICON_PATH,
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -142,7 +144,7 @@ function createQuickCaptureWindow() {
 }
 
 function createTray() {
-  tray = new Tray(nativeImage.createFromDataURL(TRAY_ICON_DATA_URL));
+  tray = new Tray(nativeImage.createFromPath(APP_ICON_PATH));
   tray.setToolTip('此刻 · 个人日记');
   updateTrayMenu();
   tray.on('double-click', showMainWindow);
