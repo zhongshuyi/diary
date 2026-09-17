@@ -18,7 +18,7 @@ class EntryDetailPage extends StatefulWidget {
   });
 
   final DiaryEntry entry;
-  final Future<void> Function(DiaryEntry entry) onEdit;
+  final Future<DiaryEntry?> Function(DiaryEntry entry) onEdit;
   final VoidCallback onShare;
   final VoidCallback onDelete;
   final VoidCallback onToggleFavorite;
@@ -176,8 +176,8 @@ class _EntryDetailPageState extends State<EntryDetailPage> {
   }
 
   Future<void> _edit() async {
-    await widget.onEdit(_entry);
-    if (mounted) Navigator.pop(context);
+    final updated = await widget.onEdit(_entry);
+    if (mounted && updated != null) setState(() => _entry = updated);
   }
 
   void _delete() {

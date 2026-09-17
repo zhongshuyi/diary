@@ -86,6 +86,7 @@ git commit -m "feat: add draggable mobile quick capture"
 **Files:**
 - Create: `mobile/lib/application/diary_draft_store.dart`
 - Modify: `mobile/lib/app/diary_shell.dart`
+- Modify: `mobile/lib/app/desktop_diary_shell.dart`
 - Modify: `mobile/lib/pages/entry/entry_editor_page.dart`
 - Modify: `mobile/lib/pages/entry/entry_detail_page.dart`
 - Test: `mobile/test/diary_draft_store_test.dart`
@@ -132,7 +133,7 @@ Expected: PASS.
 - [ ] **Step 6: Commit the task**
 
 ```powershell
-git add mobile/lib/application/diary_draft_store.dart mobile/lib/app/diary_shell.dart mobile/lib/pages/entry/entry_editor_page.dart mobile/lib/pages/entry/entry_detail_page.dart mobile/test/diary_draft_store_test.dart mobile/test/entry_editor_ux_test.dart
+git add mobile/lib/application/diary_draft_store.dart mobile/lib/app/diary_shell.dart mobile/lib/app/desktop_diary_shell.dart mobile/lib/pages/entry/entry_editor_page.dart mobile/lib/pages/entry/entry_detail_page.dart mobile/test/diary_draft_store_test.dart mobile/test/entry_editor_ux_test.dart
 git commit -m "feat: protect mobile editor drafts"
 ```
 

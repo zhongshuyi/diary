@@ -312,7 +312,7 @@ void main() {
       MaterialApp(
         home: EntryDetailPage(
           entry: entry,
-          onEdit: (_) async {},
+          onEdit: (_) async => null,
           onShare: () {},
           onDelete: () {},
           onToggleFavorite: () {},

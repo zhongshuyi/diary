@@ -6,6 +6,7 @@ import 'package:diary/app/app_theme.dart';
 import 'package:diary/app/desktop_diary_shell.dart';
 import 'package:diary/app/mobile_diary_shell.dart';
 import 'package:diary/application/diary_controller.dart';
+import 'package:diary/application/diary_draft_store.dart';
 import 'package:diary/application/diary_lock_coordinator.dart';
 import 'package:diary/application/settings_controller.dart';
 import 'package:diary/data/diary_repository.dart';
@@ -54,7 +55,7 @@ class DiaryShellActions {
     required this.deleteEntryPermanently,
   });
 
-  final Future<void> Function([DiaryEntry? entry]) openEditor;
+  final Future<DiaryEntry?> Function([DiaryEntry? entry]) openEditor;
   final Future<void> Function(DiaryEntry entry) openEntry;
   final Future<void> Function(DiaryEntry entry) toggleFavorite;
   final Future<void> Function(DiaryEntry entry) openShare;
@@ -92,6 +93,7 @@ class DiaryShell extends StatefulWidget {
 
 class _DiaryShellState extends State<DiaryShell> {
   late final DiaryController _controller;
+  final _draftStore = SharedPreferencesDiaryDraftStore();
 
   List<DiaryEntry> get _entries => _controller.entries;
   List<DiaryEntry> get _trash => _controller.trash;
@@ -187,9 +189,9 @@ class _DiaryShellState extends State<DiaryShell> {
     ).showSnackBar(const SnackBar(content: Text('已记下，今天又多了一个瞬间')));
   }
 
-  Future<void> _openEditor([DiaryEntry? entry]) async {
+  Future<DiaryEntry?> _openEditor([DiaryEntry? entry]) async {
     final desktop = diaryUsesDesktopShell(context);
-    await Navigator.of(context).push<void>(
+    return Navigator.of(context).push<DiaryEntry>(
       MaterialPageRoute(
         settings: const RouteSettings(name: AppRoutes.entryEditor),
         builder: (_) => EntryEditorPage(
@@ -202,6 +204,8 @@ class _DiaryShellState extends State<DiaryShell> {
               widget.settingsController.settings.defaultEditorType,
           onExternalActivityStart: widget.lockCoordinator.beginExternalActivity,
           onExternalActivityEnd: widget.lockCoordinator.endExternalActivity,
+          draftStore: desktop ? null : _draftStore,
+          draftKey: desktop ? null : 'entry:${entry?.id ?? 'new'}',
           onSave: (saved) async {
             await _controller.save(saved);
           },

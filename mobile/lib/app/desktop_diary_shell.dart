@@ -191,13 +191,13 @@ class _DesktopDiaryShellState extends State<DesktopDiaryShell> {
     _openWorkspacePage('日记详情', (context) => _detailPage(context, entry));
   }
 
-  Future<void> _openEditor([DiaryEntry? entry]) async {
+  Future<DiaryEntry?> _openEditor([DiaryEntry? entry]) async {
     Widget page(BuildContext context) => _editorPage(context, entry);
     if (!_inWorkspace) {
       _openWorkspacePage(entry == null ? '写下此刻' : '编辑日记', page);
-      return;
+      return null;
     }
-    await _pushWorkspacePage(entry == null ? '写下此刻' : '编辑日记', page);
+    return _pushWorkspacePage(entry == null ? '写下此刻' : '编辑日记', page);
   }
 
   Widget _detailPage(BuildContext context, DiaryEntry entry) {
@@ -306,11 +306,14 @@ class _DesktopDiaryShellState extends State<DesktopDiaryShell> {
     await _pushWorkspacePage(title, builder);
   }
 
-  Future<void> _pushWorkspacePage(String title, WidgetBuilder builder) async {
-    if (!mounted) return;
+  Future<DiaryEntry?> _pushWorkspacePage(
+    String title,
+    WidgetBuilder builder,
+  ) async {
+    if (!mounted) return null;
     _workspaceTitles.add(title);
     setState(() {});
-    await _workspaceNavigatorKey.currentState?.push<void>(
+    return _workspaceNavigatorKey.currentState?.push<DiaryEntry>(
       MaterialPageRoute(
         settings: RouteSettings(name: title),
         builder: builder,
