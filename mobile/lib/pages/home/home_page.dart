@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:diary/app/app_theme.dart';
 import 'package:diary/domain/diary_entry.dart';
 import 'package:diary/domain/sync_state.dart';
+import 'package:diary/widgets/day_entry_card.dart';
 import 'package:diary/widgets/entry_card.dart';
 
 class HomePage extends StatefulWidget {
@@ -52,6 +53,7 @@ class HomePageState extends State<HomePage> {
   bool _quickSaving = false;
   bool _selectionMode = false;
   final Set<String> _selectedIds = <String>{};
+  final Set<DateTime> _toggledDays = <DateTime>{};
 
   void focusSearch() {
     _searchFocusNode.requestFocus();
@@ -102,9 +104,7 @@ class HomePageState extends State<HomePage> {
               : _usageCompare(a, b, widget.entries),
         );
     final tags = _sortedTags(widget.entries);
-    final desktop =
-        widget.desktopLayout || MediaQuery.sizeOf(context).width >= 900;
-    if (desktop) {
+    if (widget.desktopLayout) {
       return _buildDesktop(context, entries, categories, tags);
     }
     return _buildMobile(context, entries, categories, tags, colors);
@@ -155,7 +155,12 @@ class HomePageState extends State<HomePage> {
                 ),
               Row(
                 children: [
-                  Expanded(child: _Header(onOpenEditor: widget.onOpenEditor)),
+                  Expanded(
+                    child: _Header(
+                      onOpenEditor: widget.onOpenEditor,
+                      showAction: false,
+                    ),
+                  ),
                   _SyncIndicator(
                     state: widget.syncState,
                     onSyncNow: widget.onSyncNow,
@@ -163,17 +168,6 @@ class HomePageState extends State<HomePage> {
                 ],
               ),
               const SizedBox(height: 16),
-              _QuickCaptureBar(
-                controller: _quickController,
-                focusNode: _quickFocusNode,
-                saving: _quickSaving,
-                compact: false,
-                onSubmit: _submitQuickCapture,
-                onOpenEditor: widget.onOpenEditor,
-              ),
-              const SizedBox(height: 16),
-              _WritingPrompt(onOpenEditor: widget.onOpenEditor),
-              const SizedBox(height: 24),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -260,7 +254,7 @@ class HomePageState extends State<HomePage> {
               if (entries.isEmpty)
                 _EmptyState(query: _query, onOpenEditor: widget.onOpenEditor)
               else
-                ..._buildEntryGroups(context, entries),
+                ..._buildMobileDayGroups(entries),
             ],
           ),
         ),
@@ -434,6 +428,62 @@ class HomePageState extends State<HomePage> {
     } finally {
       if (mounted) setState(() => _quickSaving = false);
     }
+  }
+
+  List<Widget> _buildMobileDayGroups(List<DiaryEntry> entries) {
+    final sorted = List<DiaryEntry>.of(entries)
+      ..sort((a, b) {
+        final byTime = b.effectiveOccurredAt.compareTo(a.effectiveOccurredAt);
+        return byTime != 0 ? byTime : a.id.compareTo(b.id);
+      });
+    final days = <DateTime, List<DiaryEntry>>{};
+    for (final entry in sorted) {
+      final local = entry.effectiveOccurredAt.toLocal();
+      final day = DateTime(local.year, local.month, local.day);
+      days.putIfAbsent(day, () => []).add(entry);
+    }
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final filtering =
+        _query.trim().isNotEmpty ||
+        _category != '全部' ||
+        _selectedTags.isNotEmpty ||
+        _onlyFavorites;
+    return [
+      for (final day in days.keys)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 14),
+          child: DayEntryCard(
+            date: day,
+            entries: days[day]!,
+            expanded:
+                filtering ||
+                (day == today
+                    ? !_toggledDays.contains(day)
+                    : _toggledDays.contains(day)),
+            showExpandControl: !filtering,
+            onToggleExpanded: () => setState(() {
+              if (!_toggledDays.add(day)) _toggledDays.remove(day);
+            }),
+            onOpenEntry: (entry) => _selectionMode
+                ? setState(() {
+                    if (!_selectedIds.add(entry.id)) {
+                      _selectedIds.remove(entry.id);
+                    }
+                  })
+                : widget.onOpenEntry(entry),
+            onLongPressEntry: (entry) => setState(() {
+              _selectionMode = true;
+              if (!_selectedIds.add(entry.id)) _selectedIds.remove(entry.id);
+            }),
+            onFavorite: widget.onToggleFavorite,
+            onShare: widget.onShare,
+            onDelete: widget.onDelete,
+            selectedIds: _selectedIds,
+            selectionMode: _selectionMode,
+          ),
+        ),
+    ];
   }
 
   List<Widget> _buildEntryGroups(
@@ -890,9 +940,10 @@ class _DesktopQuickPanel extends StatelessWidget {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.onOpenEditor});
+  const _Header({required this.onOpenEditor, this.showAction = true});
 
   final VoidCallback onOpenEditor;
+  final bool showAction;
 
   @override
   Widget build(BuildContext context) {
@@ -924,72 +975,13 @@ class _Header extends StatelessWidget {
             ],
           ),
         ),
-        IconButton(
-          onPressed: onOpenEditor,
-          tooltip: '写一篇',
-          icon: Icon(Icons.add_circle_outline, color: colors.terracotta),
-        ),
-      ],
-    );
-  }
-}
-
-class _WritingPrompt extends StatelessWidget {
-  const _WritingPrompt({required this.onOpenEditor});
-
-  final VoidCallback onOpenEditor;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = DiaryThemeColors.of(context);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(22, 22, 18, 19),
-      decoration: BoxDecoration(
-        color: colors.hero,
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'TODAY, FOR YOURSELF',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.labelSmall?.copyWith(color: colors.butter),
-                ),
-                const SizedBox(height: 11),
-                Text(
-                  '今天，写给自己',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.headlineSmall?.copyWith(color: colors.onHero),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  '不需要完整，也不需要漂亮。想到什么，就写下什么。',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: colors.onHero.withValues(alpha: .72),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          FilledButton(
+        if (showAction)
+          IconButton(
             onPressed: onOpenEditor,
-            style: FilledButton.styleFrom(
-              backgroundColor: colors.butter,
-              foregroundColor: colors.hero,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-            ),
-            child: const Text('写一篇'),
+            tooltip: '写一篇',
+            icon: Icon(Icons.add_circle_outline, color: colors.terracotta),
           ),
-        ],
-      ),
+      ],
     );
   }
 }

@@ -2,6 +2,15 @@ import 'package:diary/domain/diary_entry.dart';
 
 enum DiaryThemeMode { system, light, dark }
 
+enum QuickCaptureSide { left, right }
+
+extension QuickCaptureSideCodec on QuickCaptureSide {
+  static QuickCaptureSide fromWireValue(String? value) =>
+      value == QuickCaptureSide.left.name
+      ? QuickCaptureSide.left
+      : QuickCaptureSide.right;
+}
+
 extension DiaryThemeModeCodec on DiaryThemeMode {
   String get wireValue => name;
 
@@ -34,6 +43,7 @@ class DiarySettings {
     this.biometricLock = false,
     this.syncEndpoint = '',
     this.syncToken = '',
+    this.quickCaptureSide = QuickCaptureSide.right,
   });
 
   final DiaryThemeMode themeMode;
@@ -44,6 +54,7 @@ class DiarySettings {
   final bool biometricLock;
   final String syncEndpoint;
   final String syncToken;
+  final QuickCaptureSide quickCaptureSide;
 
   DiarySettings copyWith({
     DiaryThemeMode? themeMode,
@@ -54,6 +65,7 @@ class DiarySettings {
     bool? biometricLock,
     String? syncEndpoint,
     String? syncToken,
+    QuickCaptureSide? quickCaptureSide,
   }) {
     return DiarySettings(
       themeMode: themeMode ?? this.themeMode,
@@ -64,6 +76,7 @@ class DiarySettings {
       biometricLock: biometricLock ?? this.biometricLock,
       syncEndpoint: syncEndpoint ?? this.syncEndpoint,
       syncToken: syncToken ?? this.syncToken,
+      quickCaptureSide: quickCaptureSide ?? this.quickCaptureSide,
     );
   }
 }

@@ -3,10 +3,16 @@ import 'package:flutter/material.dart';
 import 'media_kind.dart';
 
 class LocalMediaPreview extends StatelessWidget {
-  const LocalMediaPreview({required this.path, required this.kind, super.key});
+  const LocalMediaPreview({
+    required this.path,
+    required this.kind,
+    this.fit = BoxFit.cover,
+    super.key,
+  });
 
   final String path;
   final DiaryMediaKind kind;
+  final BoxFit fit;
 
   @override
   Widget build(BuildContext context) {

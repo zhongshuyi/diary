@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'package:diary/app/app_theme.dart';
 import 'package:diary/domain/diary_entry.dart';
+import 'package:diary/widgets/diary_image_viewer.dart';
 import 'package:diary/widgets/page_intro.dart';
 
 class CalendarPage extends StatefulWidget {
@@ -22,13 +23,21 @@ class CalendarPage extends StatefulWidget {
 class _CalendarPageState extends State<CalendarPage> {
   DateTime _selectedDate = DateTime.now();
 
-  List<DiaryEntry> get _selectedEntries => widget.entries
-      .where((entry) => _sameDay(entry.effectiveOccurredAt, _selectedDate))
-      .toList(growable: false);
+  List<DiaryEntry> get _selectedEntries {
+    final entries = widget.entries
+        .where((entry) => _sameDay(entry.effectiveOccurredAt, _selectedDate))
+        .toList();
+    entries.sort(
+      (left, right) =>
+          right.effectiveOccurredAt.compareTo(left.effectiveOccurredAt),
+    );
+    return entries;
+  }
 
   @override
   Widget build(BuildContext context) {
     final colors = DiaryThemeColors.of(context);
+    final compactCalendarControls = MediaQuery.sizeOf(context).width < 480;
     final selectedEntries = _selectedEntries;
     final markedDays = widget.entries
         .where(
@@ -100,6 +109,7 @@ class _CalendarPageState extends State<CalendarPage> {
                             color: colors.ink,
                             fontWeight: FontWeight.w700,
                           ),
+                          disableMonthPicker: compactCalendarControls,
                         ),
                         onValueChanged: (values) {
                           if (values.isNotEmpty) {
@@ -148,14 +158,9 @@ class _CalendarPageState extends State<CalendarPage> {
               if (selectedEntries.isEmpty)
                 const _CalendarEmptyState()
               else
-                ...selectedEntries.map(
-                  (entry) => Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: _CalendarEntryTile(
-                      entry: entry,
-                      onTap: () => widget.onOpenEntry(entry),
-                    ),
-                  ),
+                _CalendarDayMoments(
+                  entries: selectedEntries,
+                  onOpenEntry: widget.onOpenEntry,
                 ),
             ],
           ),
@@ -179,6 +184,7 @@ class _CalendarPageState extends State<CalendarPage> {
               config: CalendarDatePicker2Config(
                 calendarType: CalendarDatePicker2Type.single,
                 selectedDayHighlightColor: colors.hero,
+                disableMonthPicker: true,
               ),
               onValueChanged: (values) {
                 if (values.isNotEmpty) picked = values.first;
@@ -204,6 +210,33 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 }
 
+class _CalendarDayMoments extends StatelessWidget {
+  const _CalendarDayMoments({required this.entries, required this.onOpenEntry});
+
+  final List<DiaryEntry> entries;
+  final ValueChanged<DiaryEntry> onOpenEntry;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
+    return Card(
+      key: const Key('calendar-day-moments'),
+      child: Column(
+        children: [
+          for (var index = 0; index < entries.length; index++) ...[
+            if (index > 0)
+              Divider(indent: 18, endIndent: 18, color: colors.line),
+            _CalendarEntryTile(
+              entry: entries[index],
+              onTap: () => onOpenEntry(entries[index]),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class _CalendarEntryTile extends StatelessWidget {
   const _CalendarEntryTile({required this.entry, required this.onTap});
 
@@ -213,21 +246,162 @@ class _CalendarEntryTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = DiaryThemeColors.of(context);
-    return Card(
-      child: ListTile(
-        onTap: onTap,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 5),
-        leading: CircleAvatar(
-          backgroundColor: Color(entry.colorValue),
-          child: Icon(Icons.edit_note, color: colors.ink),
+    final title = entry.title.trim();
+    final content = entry.contentText.trim();
+    final primaryText = title.isNotEmpty
+        ? title
+        : content.isNotEmpty
+        ? content
+        : entry.imagePaths.isNotEmpty
+        ? '照片片段'
+        : '无题';
+    final secondaryText = title.isNotEmpty ? content : '';
+    final details = [
+      entry.category,
+      if (entry.tags.isNotEmpty) '#${entry.tags.first}',
+      if (entry.imagePaths.isNotEmpty) '${entry.imagePaths.length} 张照片',
+      if (entry.audioPaths.isNotEmpty || entry.videoPaths.isNotEmpty) '含附件',
+    ].where((detail) => detail.isNotEmpty).join(' · ');
+    return InkWell(
+      key: Key('calendar-entry-row-${entry.id}'),
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 13, 12, 13),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 48,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  diaryTimeLabel(entry.effectiveOccurredAt),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.labelLarge?.copyWith(color: colors.terracotta),
+                ),
+              ),
+            ),
+            Container(
+              width: 7,
+              height: 7,
+              margin: const EdgeInsets.only(top: 5, right: 10),
+              decoration: BoxDecoration(
+                color: Color(entry.colorValue),
+                shape: BoxShape.circle,
+              ),
+            ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    primaryText,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  if (secondaryText.isNotEmpty) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      secondaryText,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ],
+                  if (details.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      details,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.labelSmall,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (entry.imagePaths.isNotEmpty) ...[
+              const SizedBox(width: 10),
+              _CalendarImageCollage(entry: entry),
+            ] else ...[
+              const SizedBox(width: 4),
+              Icon(Icons.chevron_right, color: colors.mutedInk),
+            ],
+          ],
         ),
-        title: Text(entry.title.isEmpty ? '无题' : entry.title),
-        subtitle: Text(
-          '${diaryTimeLabel(entry.createdAt)} · ${entry.contentText}',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        trailing: Icon(Icons.chevron_right, color: colors.mutedInk),
+      ),
+    );
+  }
+}
+
+class _CalendarImageCollage extends StatelessWidget {
+  const _CalendarImageCollage({required this.entry});
+
+  final DiaryEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
+    final count = entry.imagePaths.length;
+    return SizedBox(
+      width: count == 1 ? 58 : 76,
+      height: 58,
+      child: Stack(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: DiaryImageThumbnail(
+                  entryId: entry.id,
+                  imagePaths: entry.imagePaths,
+                  index: 0,
+                  borderRadius: 9,
+                  expand: true,
+                ),
+              ),
+              if (count > 1) ...[
+                const SizedBox(width: 4),
+                Expanded(
+                  child: DiaryImageThumbnail(
+                    entryId: entry.id,
+                    imagePaths: entry.imagePaths,
+                    index: 1,
+                    borderRadius: 9,
+                    expand: true,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          if (count > 2)
+            Positioned(
+              right: 3,
+              bottom: 3,
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: colors.hero.withValues(alpha: .72),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 2,
+                    ),
+                    child: Text(
+                      '+${count - 2}',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.labelSmall?.copyWith(color: colors.onHero),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

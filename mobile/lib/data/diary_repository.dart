@@ -655,7 +655,7 @@ class SharedPreferencesDiaryRepository extends DiaryRepository {
 
   @override
   Future<void> save(DiaryEntry entry, {bool enqueueMutation = true}) async {
-    final entries = await load(includeTrash: true);
+    final entries = List<DiaryEntry>.of(await load(includeTrash: true));
     final index = entries.indexWhere((item) => item.id == entry.id);
     final previous = index == -1 ? null : entries[index];
     final next = entry.copyWith(
@@ -694,7 +694,7 @@ class SharedPreferencesDiaryRepository extends DiaryRepository {
 
   @override
   Future<void> moveToTrash(String id) async {
-    final entries = await load(includeTrash: true);
+    final entries = List<DiaryEntry>.of(await load(includeTrash: true));
     await _replaceMatching(
       entries,
       id,
@@ -704,7 +704,7 @@ class SharedPreferencesDiaryRepository extends DiaryRepository {
 
   @override
   Future<void> restore(String id) async {
-    final entries = await load(includeTrash: true);
+    final entries = List<DiaryEntry>.of(await load(includeTrash: true));
     await _replaceMatching(
       entries,
       id,
@@ -714,7 +714,7 @@ class SharedPreferencesDiaryRepository extends DiaryRepository {
 
   @override
   Future<void> deletePermanently(String id) async {
-    final entries = await load(includeTrash: true);
+    final entries = List<DiaryEntry>.of(await load(includeTrash: true));
     entries.removeWhere((entry) => entry.id == id);
     await replaceAll(entries);
   }

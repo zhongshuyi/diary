@@ -11,6 +11,7 @@ import 'package:diary/application/diary_controller.dart';
 import 'package:diary/application/diary_lock_coordinator.dart';
 import 'package:diary/application/settings_controller.dart';
 import 'package:diary/data/diary_repository.dart';
+import 'package:diary/data/quick_photo_importer.dart';
 import 'package:diary/domain/diary_entry.dart';
 import 'package:diary/domain/conflict.dart';
 import 'package:diary/domain/diary_settings.dart';
@@ -42,11 +43,17 @@ bool diaryUsesDesktopShell(BuildContext context) {
 class DiaryShellActions {
   const DiaryShellActions({
     required this.openEditor,
+    required this.openEditorFromQuick,
     required this.openEntry,
     required this.toggleFavorite,
     required this.openShare,
     required this.moveToTrash,
     required this.saveQuickCapture,
+    required this.saveQuickCaptureWithPhotos,
+    required this.importQuickPhotos,
+    required this.loadDraft,
+    required this.saveDraft,
+    required this.clearDraft,
     required this.openRecycle,
     required this.openSettings,
     required this.openCategories,
@@ -65,11 +72,19 @@ class DiaryShellActions {
   });
 
   final Future<void> Function([DiaryEntry? entry]) openEditor;
+  final Future<void> Function(String content, List<String> imagePaths)
+  openEditorFromQuick;
   final Future<void> Function(DiaryEntry entry) openEntry;
   final Future<void> Function(DiaryEntry entry) toggleFavorite;
   final Future<void> Function(DiaryEntry entry) openShare;
   final Future<void> Function(DiaryEntry entry) moveToTrash;
   final Future<void> Function(String content) saveQuickCapture;
+  final Future<void> Function(String content, List<String> imagePaths)
+  saveQuickCaptureWithPhotos;
+  final Future<List<String>> Function(List<String> paths) importQuickPhotos;
+  final Future<DraftPayload?> Function(String id) loadDraft;
+  final Future<void> Function(DraftPayload draft) saveDraft;
+  final Future<void> Function(String id) clearDraft;
   final Future<void> Function() openRecycle;
   final Future<void> Function() openSettings;
   final Future<void> Function() openCategories;
@@ -182,11 +197,17 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
         final desktop = diaryUsesDesktopShell(context);
         final actions = DiaryShellActions(
           openEditor: _openEditor,
+          openEditorFromQuick: _openEditorFromQuick,
           openEntry: _openEntry,
           toggleFavorite: _toggleFavorite,
           openShare: _openShare,
           moveToTrash: _moveToTrash,
           saveQuickCapture: _saveQuickCapture,
+          saveQuickCaptureWithPhotos: _saveQuickCaptureWithPhotos,
+          importQuickPhotos: importQuickPhotos,
+          loadDraft: widget.repository.loadDraft,
+          saveDraft: widget.repository.saveDraft,
+          clearDraft: widget.repository.clearDraft,
           openRecycle: _openRecycle,
           openSettings: _openSettings,
           openCategories: _openCategories,
@@ -217,6 +238,7 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
         return MobileDiaryShell(
           entries: _entries,
           trash: _trash,
+          quickCaptureSide: widget.settingsController.settings.quickCaptureSide,
           syncState: _syncState,
           onSyncNow: _syncEngine == null ? null : _syncNow,
           actions: actions,
@@ -268,6 +290,15 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
   }
 
   Future<void> _saveQuickCapture(String content) async {
+    await _saveQuickCaptureWithPhotos(content, const []);
+  }
+
+  Future<void> _saveQuickCaptureWithPhotos(
+    String content,
+    List<String> imagePaths,
+  ) async {
+    final text = content.trim();
+    if (text.isEmpty && imagePaths.isEmpty) return;
     final now = DateTime.now();
     final timeLabel = diaryTimeLabel(now);
     await _controller.save(
@@ -275,25 +306,37 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
         id: now.microsecondsSinceEpoch.toString(),
         createdAt: now,
         updatedAt: now,
-        title: '$timeLabel 的一个念头',
-        content: content,
-        contentText: content,
+        title: text.isEmpty ? '$timeLabel 的照片' : '$timeLabel 的一个念头',
+        content: text,
+        contentText: text,
         category: '生活',
+        imagePaths: imagePaths,
       ),
     );
     if (!mounted) return;
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text('已记下，今天又多了一个瞬间')));
+    ).showSnackBar(const SnackBar(content: Text('已保存在本机')));
   }
 
-  Future<void> _openEditor([DiaryEntry? entry]) async {
+  Future<void> _openEditorFromQuick(String content, List<String> imagePaths) =>
+      _openEditor(null, content, imagePaths);
+
+  Future<void> _openEditor([
+    DiaryEntry? entry,
+    String initialContent = '',
+    List<String> initialImagePaths = const [],
+  ]) async {
     final desktop = diaryUsesDesktopShell(context);
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         settings: const RouteSettings(name: AppRoutes.entryEditor),
         builder: (_) => EntryEditorPage(
           entry: entry,
+          initialContent: initialContent,
+          initialImagePaths: initialImagePaths,
+          restoreInitialDraft:
+              initialContent.isNotEmpty || initialImagePaths.isNotEmpty,
           desktopLayout: desktop,
           onToggleTheme: desktop ? _toggleTheme : null,
           categories: _categories,
@@ -302,10 +345,16 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
               widget.settingsController.settings.defaultEditorType,
           onExternalActivityStart: widget.lockCoordinator.beginExternalActivity,
           onExternalActivityEnd: widget.lockCoordinator.endExternalActivity,
+          onImportPhotos: importQuickPhotos,
           onSave: (saved) async {
             await _controller.save(saved);
+            if (initialContent.isNotEmpty || initialImagePaths.isNotEmpty) {
+              await widget.repository.clearDraft('mobile-quick-capture');
+            }
           },
-          draftId: 'compose-${entry?.id ?? 'new'}',
+          draftId: initialContent.isNotEmpty || initialImagePaths.isNotEmpty
+              ? 'mobile-quick-capture'
+              : 'compose-${entry?.id ?? 'new'}',
           onLoadDraft: widget.repository.loadDraft,
           onSaveDraft: widget.repository.saveDraft,
           onClearDraft: widget.repository.clearDraft,

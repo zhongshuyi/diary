@@ -80,7 +80,7 @@ class ProfilePage extends StatelessWidget {
                           ),
                           const SizedBox(height: 5),
                           Text(
-                            '离线保存 · 只有你能看见',
+                            '先保存在本机 · 可按设置同步',
                             style: Theme.of(context).textTheme.bodyMedium
                                 ?.copyWith(
                                   color: colors.onHero.withValues(alpha: .68),

@@ -94,6 +94,35 @@ class SettingsPage extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               _Section(
+                title: '操作习惯',
+                children: [
+                  const _SettingsTile(
+                    title: Text('速记按钮位置'),
+                    subtitle: Text('选择更顺手的一侧，切换后立即生效'),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 12, bottom: 12),
+                    child: SegmentedButton<QuickCaptureSide>(
+                      segments: const [
+                        ButtonSegment(
+                          value: QuickCaptureSide.left,
+                          label: Text('左侧'),
+                        ),
+                        ButtonSegment(
+                          value: QuickCaptureSide.right,
+                          label: Text('右侧'),
+                        ),
+                      ],
+                      selected: {settings.quickCaptureSide},
+                      onSelectionChanged: (value) => unawaited(
+                        controller.setQuickCaptureSide(value.single),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _Section(
                 title: '安全与提醒',
                 children: [
                   _SwitchTile(

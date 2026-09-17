@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:diary/data/diary_repository.dart';
 import 'package:diary/domain/diary_entry.dart';
@@ -40,6 +41,27 @@ void main() {
 
       expect(entries.single.id, 'new');
       expect((await repository.load()).first.id, 'new');
+    },
+  );
+
+  test(
+    'fallback repository can edit its read-only load results safely',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final repository = SharedPreferencesDiaryRepository(
+        initialEntries: [_entry('one', '第一篇')],
+      );
+      await repository.load();
+
+      await repository.save(_entry('two', '第二篇'));
+      await repository.save(_entry('one', '修改后'));
+      await repository.moveToTrash('one');
+      expect((await repository.load()).map((entry) => entry.id), ['two']);
+
+      await repository.restore('one');
+      expect((await repository.load()).length, 2);
+      await repository.deletePermanently('one');
+      expect((await repository.load()).map((entry) => entry.id), ['two']);
     },
   );
 }

@@ -7,6 +7,10 @@ import 'package:path_provider/path_provider.dart';
 import '../domain/attachment.dart';
 
 class MobileAttachmentStore {
+  MobileAttachmentStore({this.rootDirectory});
+
+  final Directory? rootDirectory;
+
   Future<Attachment> importFile(
     String sourcePath, {
     AttachmentKind? kind,
@@ -17,18 +21,26 @@ class MobileAttachmentStore {
     if (bytes.length > 128 * 1024 * 1024)
       throw const FileSystemException('附件不能超过 128 MB');
     final hash = sha256.convert(bytes).toString();
-    final root = Directory(
-      p.join(
-        (await getApplicationDocumentsDirectory()).path,
-        'diary',
-        'attachments',
-      ),
-    );
+    final root =
+        rootDirectory ??
+        Directory(
+          p.join(
+            (await getApplicationDocumentsDirectory()).path,
+            'diary',
+            'attachments',
+          ),
+        );
     await root.create(recursive: true);
-    final destination = File(p.join(root.path, hash));
+    final resolvedKind = kind ?? _kindFor(source.path);
+    final extension = p.extension(source.path).toLowerCase();
+    final safeExtension = RegExp(r'^\.[a-z0-9]{1,8}$').hasMatch(extension)
+        ? extension
+        : resolvedKind == AttachmentKind.image
+        ? '.jpg'
+        : '';
+    final destination = File(p.join(root.path, '$hash$safeExtension'));
     if (!await destination.exists())
       await destination.writeAsBytes(bytes, flush: true);
-    final resolvedKind = kind ?? _kindFor(source.path);
     return Attachment(
       assetId: 'asset-$hash',
       sha256: hash,

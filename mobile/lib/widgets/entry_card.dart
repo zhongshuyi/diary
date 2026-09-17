@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'package:diary/app/app_theme.dart';
 import 'package:diary/domain/diary_entry.dart';
+import 'package:diary/widgets/local_media_preview.dart';
+import 'package:diary/widgets/media_kind.dart';
 
 class DiaryEntryCard extends StatelessWidget {
   const DiaryEntryCard({
@@ -97,11 +99,36 @@ class DiaryEntryCard extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         Text(
-          entry.contentText.isEmpty ? '这一天还没有留下文字。' : entry.contentText,
+          entry.contentText.isEmpty && entry.imagePaths.isNotEmpty
+              ? '${entry.imagePaths.length} 张照片'
+              : entry.contentText.isEmpty
+              ? '这一天还没有留下文字。'
+              : entry.contentText,
           maxLines: 3,
           overflow: TextOverflow.ellipsis,
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.65),
         ),
+        if (entry.imagePaths.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 72,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: entry.imagePaths.length.clamp(0, 3),
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              itemBuilder: (context, index) => ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: SizedBox(
+                  width: 72,
+                  child: LocalMediaPreview(
+                    path: entry.imagePaths[index],
+                    kind: DiaryMediaKind.image,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
         const SizedBox(height: 14),
         Row(
           children: [

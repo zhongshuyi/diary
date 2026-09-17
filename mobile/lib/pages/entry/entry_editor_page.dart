@@ -13,7 +13,10 @@ import 'package:diary/app/app_theme.dart';
 import 'package:diary/data/diary_repository.dart';
 import 'package:diary/domain/diary_entry.dart';
 import 'package:diary/widgets/desktop_window_bar.dart';
+import 'package:diary/widgets/in_app_photo_picker.dart';
 import 'package:diary/widgets/local_media_preview.dart';
+import 'package:diary/widgets/media_kind.dart';
+import 'package:diary/widgets/selected_photo_strip.dart';
 
 class EntryEditorPage extends StatefulWidget {
   const EntryEditorPage({
@@ -22,7 +25,12 @@ class EntryEditorPage extends StatefulWidget {
     this.defaultEditorType = DiaryEditorType.plainText,
     this.onExternalActivityStart,
     this.onExternalActivityEnd,
+    this.onImportPhotos,
+    this.pickGalleryPhotos,
     this.entry,
+    this.initialContent = '',
+    this.initialImagePaths = const [],
+    this.restoreInitialDraft = false,
     this.desktopLayout = false,
     this.showDesktopWindowBar = true,
     this.onToggleTheme,
@@ -35,11 +43,16 @@ class EntryEditorPage extends StatefulWidget {
   });
 
   final DiaryEntry? entry;
+  final String initialContent;
+  final List<String> initialImagePaths;
+  final bool restoreInitialDraft;
   final List<String> categories;
   final Future<void> Function(DiaryEntry entry) onSave;
   final DiaryEditorType defaultEditorType;
   final VoidCallback? onExternalActivityStart;
   final VoidCallback? onExternalActivityEnd;
+  final Future<List<String>> Function(List<String> paths)? onImportPhotos;
+  final Future<List<String>> Function()? pickGalleryPhotos;
   final bool desktopLayout;
   final bool showDesktopWindowBar;
   final VoidCallback? onToggleTheme;
@@ -63,6 +76,7 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
   late String _selectedMood;
   List<String> _attachments = const [];
   bool _saving = false;
+  bool _pickingAttachment = false;
   Timer? _draftTimer;
   bool _restoringDraft = false;
 
@@ -74,14 +88,16 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
     final entry = widget.entry;
     _editorType = entry?.editorType ?? widget.defaultEditorType;
     _titleController = TextEditingController(text: entry?.title ?? '');
-    _contentController = TextEditingController(text: entry?.contentText ?? '');
+    _contentController = TextEditingController(
+      text: entry?.contentText ?? widget.initialContent,
+    );
     _tagsController = TextEditingController(text: entry?.tags.join(', ') ?? '');
     _category =
         entry?.category ??
         (widget.categories.isEmpty ? '生活' : widget.categories.first);
     _selectedMood = diaryMoodLabel(entry?.mood ?? .5);
     _attachments = [
-      ...?entry?.imagePaths,
+      ...(entry?.imagePaths ?? widget.initialImagePaths),
       ...?entry?.audioPaths,
       ...?entry?.videoPaths,
     ];
@@ -94,12 +110,21 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
       } catch (_) {
         _quillController.document.insert(0, entry.contentText);
       }
+    } else if (entry == null &&
+        _editorType == DiaryEditorType.richText &&
+        widget.initialContent.isNotEmpty) {
+      _quillController.document.insert(0, widget.initialContent);
     }
     _titleController.addListener(_scheduleDraftSave);
     _contentController.addListener(_scheduleDraftSave);
     _tagsController.addListener(_scheduleDraftSave);
     _quillController.addListener(_scheduleDraftSave);
-    if (entry == null && widget.draftId != null && widget.onLoadDraft != null) {
+    if (entry == null &&
+        (widget.restoreInitialDraft ||
+            (widget.initialContent.isEmpty &&
+                widget.initialImagePaths.isEmpty)) &&
+        widget.draftId != null &&
+        widget.onLoadDraft != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _restoreDraft());
     }
   }
@@ -122,13 +147,37 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
     final payload = draft.payload;
     _restoringDraft = true;
     _titleController.text = '${payload['title'] ?? ''}';
-    _contentController.text = '${payload['content'] ?? ''}';
+    final editorType = '${payload['editorType'] ?? ''}';
+    if (editorType == DiaryEditorType.richText.name) {
+      _editorType = DiaryEditorType.richText;
+    } else if (editorType == DiaryEditorType.plainText.name) {
+      _editorType = DiaryEditorType.plainText;
+    }
+    final content = '${payload['content'] ?? ''}';
+    if (_editorType == DiaryEditorType.richText) {
+      try {
+        _quillController.document = quill.Document.fromJson(
+          jsonDecode(content) as List,
+        );
+      } catch (_) {
+        _quillController.document = quill.Document()..insert(0, content);
+      }
+      _contentController.text = _quillController.document
+          .toPlainText()
+          .trimRight();
+    } else {
+      _contentController.text = content;
+    }
     _tagsController.text = '${payload['tags'] ?? ''}';
     final category = '${payload['category'] ?? ''}';
     if (category.isNotEmpty && widget.categories.contains(category))
       _category = category;
     final mood = '${payload['mood'] ?? ''}';
     if (_moods.contains(mood)) _selectedMood = mood;
+    final attachments = payload['attachments'] ?? payload['imagePaths'];
+    if (attachments is List) {
+      _attachments = attachments.whereType<String>().toList(growable: false);
+    }
     _restoringDraft = false;
     if (mounted) setState(() {});
   }
@@ -190,7 +239,7 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
                 ),
                 actions: [
                   IconButton(
-                    onPressed: _saving ? null : _save,
+                    onPressed: _saving || _pickingAttachment ? null : _save,
                     tooltip: '保存（Ctrl + Enter）',
                     icon: const Icon(Icons.check),
                   ),
@@ -215,7 +264,7 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
                 onBack: () => Navigator.pop(context),
                 actions: [
                   IconButton(
-                    onPressed: _saving ? null : _save,
+                    onPressed: _saving || _pickingAttachment ? null : _save,
                     tooltip: '保存（Ctrl + Enter）',
                     icon: const Icon(Icons.check),
                   ),
@@ -383,20 +432,34 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
   }
 
   Widget _attachmentControls(BuildContext context) {
+    final photos = _attachments
+        .where((path) => diaryMediaKindForPath(path) == DiaryMediaKind.image)
+        .toList(growable: false);
+    final otherFiles = _attachments
+        .where((path) => diaryMediaKindForPath(path) != DiaryMediaKind.image)
+        .toList(growable: false);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         OutlinedButton.icon(
-          onPressed: _addAttachment,
+          onPressed: _pickingAttachment ? null : _addAttachment,
           icon: const Icon(Icons.add_photo_alternate_outlined, size: 18),
           label: const Text('添加附件'),
         ),
         if (_attachments.isNotEmpty) ...[
           const SizedBox(height: 10),
+          SelectedPhotoStrip(
+            paths: photos,
+            keyPrefix: 'editor-photo',
+            onRemove: (path) {
+              setState(() => _attachments = [..._attachments]..remove(path));
+              _scheduleDraftSave();
+            },
+          ),
           Wrap(
             spacing: 7,
             runSpacing: 7,
-            children: _attachments
+            children: otherFiles
                 .map(
                   (path) => InputChip(
                     label: Text(
@@ -404,11 +467,12 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
                       overflow: TextOverflow.ellipsis,
                     ),
                     avatar: const Icon(Icons.attach_file, size: 15),
-                    onDeleted: () => setState(
-                      () => _attachments = _attachments
-                          .where((item) => item != path)
-                          .toList(),
-                    ),
+                    onDeleted: () {
+                      setState(
+                        () => _attachments = [..._attachments]..remove(path),
+                      );
+                      _scheduleDraftSave();
+                    },
                   ),
                 )
                 .toList(),
@@ -438,12 +502,12 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
             children: [
               Expanded(
                 child: Text(
-                  desktop ? 'Ctrl + Enter 保存 · Esc 返回' : '内容只保存在你的设备上',
+                  desktop ? 'Ctrl + Enter 保存 · Esc 返回' : '先保存在本机',
                   style: Theme.of(context).textTheme.labelSmall,
                 ),
               ),
               FilledButton.icon(
-                onPressed: _saving ? null : _save,
+                onPressed: _saving || _pickingAttachment ? null : _save,
                 icon: _saving
                     ? SizedBox(
                         width: 17,
@@ -601,15 +665,22 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
   }
 
   Future<void> _addAttachment() async {
+    if (_pickingAttachment || _saving) return;
     final choice = await showModalBottomSheet<String>(
       context: context,
       builder: (context) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (!widget.desktopLayout)
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined),
+                title: const Text('拍照'),
+                onTap: () => Navigator.pop(context, 'camera'),
+              ),
             ListTile(
               leading: const Icon(Icons.image_outlined),
-              title: const Text('选择图片'),
+              title: const Text('从相册选择图片'),
               onTap: () => Navigator.pop(context, 'image'),
             ),
             ListTile(
@@ -622,19 +693,44 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
         ),
       ),
     );
-    if (!mounted || choice == null) return;
-    if (choice == 'image') {
-      widget.onExternalActivityStart?.call();
+    if (!context.mounted || choice == null) return;
+    setState(() => _pickingAttachment = true);
+    if (choice == 'image' || choice == 'camera') {
+      final externalPicker = choice == 'camera' || widget.desktopLayout;
+      if (externalPicker) widget.onExternalActivityStart?.call();
       try {
-        final image = await ImagePicker().pickImage(
-          source: ImageSource.gallery,
-          imageQuality: 92,
-        );
-        if (image != null && mounted) {
-          setState(() => _attachments = [..._attachments, image.path]);
+        final picker = ImagePicker();
+        final List<String> pickedPaths;
+        if (choice == 'camera') {
+          final photo = await picker.pickImage(
+            source: ImageSource.camera,
+            imageQuality: 92,
+          );
+          pickedPaths = photo == null ? [] : [photo.path];
+        } else if (widget.desktopLayout) {
+          pickedPaths = (await picker.pickMultiImage(
+            imageQuality: 92,
+          )).map((image) => image.path).toList(growable: false);
+        } else {
+          pickedPaths = await _pickGalleryPhotos();
+        }
+        if (pickedPaths.isNotEmpty) {
+          final imported =
+              await widget.onImportPhotos?.call(pickedPaths) ?? pickedPaths;
+          if (mounted) {
+            setState(() => _attachments = [..._attachments, ...imported]);
+            _scheduleDraftSave();
+          }
+        }
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('照片没有添加成功，请重试')));
         }
       } finally {
-        widget.onExternalActivityEnd?.call();
+        if (externalPicker) widget.onExternalActivityEnd?.call();
+        if (mounted) setState(() => _pickingAttachment = false);
       }
       return;
     }
@@ -648,19 +744,24 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
             ...result.files.map((file) => file.path).whereType<String>(),
           ],
         );
+        _scheduleDraftSave();
       }
     } finally {
       widget.onExternalActivityEnd?.call();
+      if (mounted) setState(() => _pickingAttachment = false);
     }
   }
 
+  Future<List<String>> _pickGalleryPhotos() =>
+      widget.pickGalleryPhotos?.call() ?? pickDiaryPhotos(context);
+
   Future<void> _save() async {
-    if (_saving) return;
+    if (_saving || _pickingAttachment) return;
     final title = _titleController.text.trim();
     final plainText = _editorType == DiaryEditorType.richText
         ? _quillController.document.toPlainText().trim()
         : _contentController.text.trim();
-    if (title.isEmpty && plainText.isEmpty) {
+    if (title.isEmpty && plainText.isEmpty && _attachments.isEmpty) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('先写下一点什么吧')));
@@ -672,11 +773,11 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
       id: widget.entry?.id ?? now.microsecondsSinceEpoch.toString(),
       createdAt: widget.entry?.createdAt ?? now,
       updatedAt: now,
-      title: title.isEmpty ? '无题' : title,
+      title: title.isEmpty ? (_attachments.isEmpty ? '无题' : '此刻的照片') : title,
       content: _editorType == DiaryEditorType.richText
           ? jsonEncode(_quillController.document.toDelta().toJson())
           : plainText,
-      contentText: plainText.isEmpty ? '今天的这一页，留给一个念头。' : plainText,
+      contentText: plainText,
       editorType: _editorType,
       mood: _moodValue(_selectedMood),
       category: _category,
