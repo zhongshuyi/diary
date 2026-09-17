@@ -41,7 +41,7 @@ class _DraggableQuickCaptureFabState extends State<DraggableQuickCaptureFab> {
           constraints,
         );
         final child = _button(position);
-        if (_dragging) {
+        if (_dragging || _position == null) {
           return Stack(
             children: [
               Positioned.fromRect(rect: _rect(position), child: child),
