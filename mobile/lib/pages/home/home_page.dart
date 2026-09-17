@@ -100,15 +100,6 @@ class HomePageState extends State<HomePage> {
             children: [
               _Header(onOpenEditor: widget.onOpenEditor),
               const SizedBox(height: 16),
-              _QuickCaptureBar(
-                controller: _quickController,
-                focusNode: _quickFocusNode,
-                saving: _quickSaving,
-                compact: false,
-                onSubmit: _submitQuickCapture,
-                onOpenEditor: widget.onOpenEditor,
-              ),
-              const SizedBox(height: 16),
               _WritingPrompt(onOpenEditor: widget.onOpenEditor),
               const SizedBox(height: 24),
               Row(

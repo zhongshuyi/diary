@@ -90,8 +90,10 @@ void main() {
     await tester.pumpWidget(const MyApp());
     await tester.pumpAndSettle();
 
+    await tester.tap(find.byKey(const Key('floating-quick-capture')));
+    await tester.pumpAndSettle();
     await tester.enterText(
-      find.byKey(const Key('quick-capture-field')),
+      find.byKey(const Key('quick-capture-sheet-field')),
       '路边的树影很好看。',
     );
     await tester.tap(find.text('记下'));

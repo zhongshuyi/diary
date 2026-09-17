@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:diary/app/diary_shell.dart';
 import 'package:diary/app/app_theme.dart';
@@ -11,6 +12,7 @@ import 'package:diary/pages/insights/insights_page.dart';
 import 'package:diary/pages/media/media_page.dart';
 import 'package:diary/pages/profile/profile_page.dart';
 import 'package:diary/widgets/diary_navigation.dart';
+import 'package:diary/widgets/draggable_quick_capture.dart';
 
 /// The phone shell keeps navigation close to the thumb and makes quick capture
 /// the first-class action. It intentionally does not share the desktop shell's
@@ -32,7 +34,32 @@ class MobileDiaryShell extends StatefulWidget {
 }
 
 class _MobileDiaryShellState extends State<MobileDiaryShell> {
+  static const _quickCaptureXKey = 'diary.mobile.quick_capture.x';
+  static const _quickCaptureYKey = 'diary.mobile.quick_capture.y';
+
   int _selectedIndex = 0;
+  Offset? _quickCapturePosition;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadQuickCapturePosition();
+  }
+
+  Future<void> _loadQuickCapturePosition() async {
+    final preferences = await SharedPreferences.getInstance();
+    final x = preferences.getDouble(_quickCaptureXKey);
+    final y = preferences.getDouble(_quickCaptureYKey);
+    if (!mounted || x == null || y == null) return;
+    setState(() => _quickCapturePosition = Offset(x, y));
+  }
+
+  Future<void> _saveQuickCapturePosition(Offset position) async {
+    _quickCapturePosition = position;
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setDouble(_quickCaptureXKey, position.dx);
+    await preferences.setDouble(_quickCaptureYKey, position.dy);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -71,7 +98,18 @@ class _MobileDiaryShellState extends State<MobileDiaryShell> {
 
     return Scaffold(
       backgroundColor: colors.paper,
-      body: IndexedStack(index: _selectedIndex, children: pages),
+      body: Stack(
+        children: [
+          IndexedStack(index: _selectedIndex, children: pages),
+          DraggableQuickCaptureFab(
+            initialPosition: _quickCapturePosition,
+            onPositionChanged: (position) {
+              unawaited(_saveQuickCapturePosition(position));
+            },
+            onSubmit: widget.actions.saveQuickCapture,
+          ),
+        ],
+      ),
       bottomNavigationBar: DiaryBottomNavigation(
         selectedIndex: _selectedIndex,
         onSelected: (index) => setState(() => _selectedIndex = index),
