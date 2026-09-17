@@ -127,6 +127,7 @@ class _DesktopDiaryShellState extends State<DesktopDiaryShell> {
       CalendarPage(
         entries: widget.entries,
         onOpenEntry: (entry) => unawaited(_openEntry(entry)),
+        onOpenEditor: () => unawaited(_openEditor()),
       ),
       MediaPage(
         entries: widget.entries,
