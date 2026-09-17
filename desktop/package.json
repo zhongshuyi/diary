@@ -18,7 +18,20 @@
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.8",
+    "@milkdown/core": "^7.22.1",
+    "@milkdown/ctx": "^7.22.1",
+    "@milkdown/plugin-clipboard": "^7.22.1",
+    "@milkdown/plugin-cursor": "^7.22.1",
+    "@milkdown/plugin-history": "^7.22.1",
+    "@milkdown/plugin-listener": "^7.22.1",
+    "@milkdown/preset-commonmark": "^7.22.1",
+    "@milkdown/preset-gfm": "^7.22.1",
+    "@milkdown/react": "^7.22.1",
+    "@milkdown/theme-nord": "^7.22.1",
+    "@milkdown/utils": "^7.22.1",
     "lucide-react": "^1.20.0",
+    "motion": "^13.3.0",
+    "quill": "^2.0.3",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   }

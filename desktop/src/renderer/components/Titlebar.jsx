@@ -1,4 +1,4 @@
-import { Minus, Moon, Square, Sun, X } from 'lucide-react';
+import { Minus, Moon, Search, Square, Sun, X } from 'lucide-react';
 import logoUrl from '../brand/diary_logo.png';
 import { IconButton } from './ui/IconButton';
 
@@ -6,13 +6,13 @@ function WindowButton({ label, className = '', children, onClick }) {
   return <IconButton className={`window-button ${className}`} label={label} onClick={onClick}>{children}</IconButton>;
 }
 
-export function Titlebar({ theme, onToggleTheme }) {
+export function Titlebar({ theme, onToggleTheme, onOpenCommand }) {
   return <header className="titlebar">
     <div className="titlebar-brand" aria-label="此刻">
       <span className="brand-icon"><img className="brand-logo" src={logoUrl} alt="" /></span>
       <strong>此刻</strong><span className="brand-divider">/</span><span className="brand-context">个人日记</span>
     </div>
-    <div className="titlebar-hint">离线优先 · 记录属于你</div>
+    <button type="button" className="titlebar-command" onClick={onOpenCommand} aria-label="打开命令面板"><Search size={14} /><span>搜索或执行命令</span><kbd>Ctrl K</kbd></button>
     <div className="window-actions">
       <IconButton className="header-action" label={theme === 'dark' ? '切换浅色模式' : '切换暗色模式'} onClick={onToggleTheme}>{theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}</IconButton>
       <WindowButton label="最小化" className="minimize" onClick={() => window.diaryAPI.window.minimize()}><Minus size={15} /></WindowButton>

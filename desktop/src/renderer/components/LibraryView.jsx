@@ -1,6 +1,7 @@
 import { Images } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { AssetPreview } from './AssetPreview';
+import { entryContentText } from '../lib/content';
 import { fileName, mediaKind, shortDateLabel } from '../lib/format';
 
 export function LibraryView({ entries, search, onPreview }) {
@@ -9,7 +10,7 @@ export function LibraryView({ entries, search, onPreview }) {
   const query = mediaQuery.trim().toLowerCase();
   const media = useMemo(() => entries
     .filter((entry) => !entry.isInTrash)
-    .flatMap((entry) => [...(entry.imagePaths || []), ...(entry.videoPaths || []), ...(entry.audioPaths || [])].map((path) => ({ path, id: `${entry.id}-${path}`, entryId: entry.id, title: entry.title || entry.contentText || '一段记录', createdAt: entry.occurredAt || entry.createdAt, kind: mediaKind(path) })))
+    .flatMap((entry) => [...(entry.imagePaths || []), ...(entry.videoPaths || []), ...(entry.audioPaths || [])].map((path) => ({ path, id: `${entry.id}-${path}`, entryId: entry.id, title: entry.title || entryContentText(entry) || '一段记录', createdAt: entry.occurredAt || entry.createdAt, kind: mediaKind(path) })))
     .filter((item) => !query || `${item.title} ${fileName(item.path)}`.toLowerCase().includes(query))
     .filter((item) => kindFilter === 'all' || item.kind === kindFilter)
     .sort((left, right) => new Date(right.createdAt) - new Date(left.createdAt)), [entries, kindFilter, query]);

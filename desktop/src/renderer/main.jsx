@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { CalendarView } from './components/CalendarView';
+import { CommandPalette } from './components/CommandPalette';
 import { ConflictView } from './components/ConflictView';
 import { EntriesView, RecycleBinView } from './components/EntriesView';
 import { InsightsView } from './components/InsightsView';
@@ -13,7 +14,9 @@ import { SidebarRail } from './components/SidebarRail';
 import { TagsView } from './components/TagsView';
 import { Titlebar } from './components/Titlebar';
 import { TodayView } from './components/TodayView';
+import { ViewTransition } from './components/ViewTransition';
 import { WorkspaceHeader } from './components/WorkspaceHeader';
+import { draftContentText, EDITOR_TYPES, entryContentText, normalizeEditorType, toRichTextContent } from './lib/content';
 import { dateKey, mediaKind } from './lib/format';
 import './styles.css';
 
@@ -91,7 +94,7 @@ const previewDb = {
         if (['image', 'video', 'audio'].includes(options.attachmentKind) && !paths.some((path) => mediaKind(path) === options.attachmentKind)) return false;
       }
       if (!normalizedQuery) return true;
-      return `${entry.title || ''} ${entry.contentText || entry.content || ''} ${entry.category || ''} ${(entry.tags || []).join(' ')}`.toLowerCase().includes(normalizedQuery);
+      return `${entry.title || ''} ${entryContentText(entry)} ${entry.category || ''} ${(entry.tags || []).join(' ')}`.toLowerCase().includes(normalizedQuery);
     }).sort((left, right) => new Date(right.occurredAt || right.createdAt) - new Date(left.occurredAt || left.createdAt));
     const limit = Math.min(500, Math.max(1, Number(options.limit) || 100));
     const offset = Math.max(0, Number(options.offset) || 0);
@@ -254,7 +257,7 @@ function databaseAPI() {
 }
 
 function defaultDraft(date = new Date()) {
-  return { date: dateKey(date), title: '', content: '', category: '生活', mood: '0.7', moodSet: false, tags: [] };
+  return { date: dateKey(date), title: '', content: '', contentText: '', editorType: EDITOR_TYPES.plainText, category: '生活', mood: '0.7', moodSet: false, tags: [] };
 }
 
 const defaultCategories = ['生活', '灵感', '心情', '工作'];
@@ -305,9 +308,11 @@ function App() {
   const [editingId, setEditingId] = useState(null);
   const [attachments, setAttachments] = useState([]);
   const [draft, setDraft] = useState(() => defaultDraft());
+  const [draftStatus, setDraftStatus] = useState('idle');
   const [syncState, setSyncState] = useState({ kind: '', label: '仅本地保存' });
   const [mediaViewer, setMediaViewer] = useState(null);
   const [toast, setToast] = useState({ message: '', action: null });
+  const [commandOpen, setCommandOpen] = useState(false);
   const stateRef = useRef({ entries, searchResults, outbox, conflicts, cursor, serverUrl, deviceId, bootstrapped, syncing: false });
   const toastTimer = useRef(null);
 
@@ -358,12 +363,19 @@ function App() {
 
   useEffect(() => {
     if (!bootstrapped) return undefined;
-    const hasContent = Boolean(draft.content.trim() || draft.title.trim() || attachments.length);
-    if (!hasContent) return undefined;
+    const hasContent = Boolean(draftContentText(draft).trim() || draft.title.trim() || attachments.length);
+    if (!hasContent) {
+      setDraftStatus((status) => status === 'idle' ? status : 'idle');
+      return undefined;
+    }
+    setDraftStatus('saving');
+    let active = true;
     const timer = window.setTimeout(() => {
-      void databaseAPI().saveDraft({ id: 'main', entryId: editingId, payload: { ...draft, attachments, editingId } });
+      void databaseAPI().saveDraft({ id: 'main', entryId: editingId, payload: { ...draft, attachments, editingId } })
+        .then(() => { if (active) setDraftStatus('saved'); })
+        .catch(() => { if (active) setDraftStatus('error'); });
     }, 500);
-    return () => window.clearTimeout(timer);
+    return () => { active = false; window.clearTimeout(timer); };
   }, [bootstrapped, draft, attachments, editingId]);
 
   useEffect(() => {
@@ -400,9 +412,9 @@ function App() {
     return () => { cancelled = true; window.clearTimeout(timer); };
   }, [bootstrapped, search, searchFilters, view, entries]);
 
-  const openComposer = (date = new Date()) => { setEditingId(null); setAttachments([]); setDraft(defaultDraft(date)); setComposerOpen(true); };
+  const openComposer = (date = new Date()) => { setEditingId(null); setAttachments([]); setDraft(defaultDraft(date)); setDraftStatus('idle'); setComposerOpen(true); };
   const findEntry = (id) => stateRef.current.entries.find((item) => item.id === id) || stateRef.current.searchResults?.find((item) => item.id === id);
-  const editEntry = (id) => { const entry = findEntry(id); if (!entry) return; setEditingId(id); setAttachments([...(entry.imagePaths || []), ...(entry.videoPaths || []), ...(entry.audioPaths || [])]); setDraft({ ...defaultDraft(new Date(entry.occurredAt || entry.createdAt)), title: entry.title === '未命名的一刻' ? '' : entry.title, content: entry.contentText || entry.content || '', category: entry.category || '生活', mood: String(entry.mood ?? 0.7), moodSet: entry.moodSet === true || entry.mood !== null, tags: entry.tags || [] }); setComposerOpen(true); };
+  const editEntry = (id) => { const entry = findEntry(id); if (!entry) return; setEditingId(id); setAttachments([...(entry.imagePaths || []), ...(entry.videoPaths || []), ...(entry.audioPaths || [])]); setDraft({ ...defaultDraft(new Date(entry.occurredAt || entry.createdAt)), title: entry.title === '未命名的一刻' ? '' : entry.title, content: entry.content || entry.contentText || '', contentText: entryContentText(entry), editorType: normalizeEditorType(entry.editorType), category: entry.category || '生活', mood: String(entry.mood ?? 0.7), moodSet: entry.moodSet === true || entry.mood !== null, tags: entry.tags || [] }); setDraftStatus('idle'); setComposerOpen(true); };
 
   const syncNow = async () => {
     if (stateRef.current.syncing || !stateRef.current.bootstrapped || !stateRef.current.deviceId) return;
@@ -436,7 +448,8 @@ function App() {
   };
 
   const saveEntry = async ({ inline = false } = {}) => {
-    const contentText = draft.content.trim();
+    const editorType = normalizeEditorType(draft.editorType);
+    const contentText = draftContentText(draft).trim();
     if (!contentText && attachments.length === 0) { showToast('写几句话，或添加一个附件'); document.querySelector('#inline-content-input, #content-input')?.focus(); return; }
     const current = stateRef.current;
     if (!current.bootstrapped || !current.deviceId) { showToast('本地数据库正在准备，请稍后再试'); return; }
@@ -445,7 +458,8 @@ function App() {
     const imagePaths = attachments.filter((path) => mediaKind(path) === 'image');
     const videoPaths = attachments.filter((path) => mediaKind(path) === 'video');
     const audioPaths = attachments.filter((path) => mediaKind(path) === 'audio');
-    const entry = { schemaVersion: 1, id: editingId || createId('entry'), createdAt: existing?.createdAt || buildDateTime(draft.date), occurredAt: buildDateTime(draft.date), updatedAt: now, title: draft.title.trim(), content: contentText, contentText, editorType: 'plain_text', mood: draft.moodSet ? Number(draft.mood) : null, moodSet: draft.moodSet === true, category: draft.category, tags: draft.tags || existing?.tags || [], imagePaths, audioPaths, videoPaths, weather: existing?.weather || [], positions: existing?.positions || [], latitude: existing?.latitude ?? null, longitude: existing?.longitude ?? null, colorValue: existing?.colorValue || 0xffe4e0ed, isFavorite: existing?.isFavorite || false, isInTrash: false };
+    const content = editorType === EDITOR_TYPES.richText ? toRichTextContent(draft.content) : String(draft.content || '').trim();
+    const entry = { schemaVersion: 1, id: editingId || createId('entry'), createdAt: existing?.createdAt || buildDateTime(draft.date), occurredAt: buildDateTime(draft.date), updatedAt: now, title: draft.title.trim(), content, contentText, editorType, mood: draft.moodSet ? Number(draft.mood) : null, moodSet: draft.moodSet === true, category: draft.category, tags: draft.tags || existing?.tags || [], imagePaths, audioPaths, videoPaths, weather: existing?.weather || [], positions: existing?.positions || [], latitude: existing?.latitude ?? null, longitude: existing?.longitude ?? null, colorValue: existing?.colorValue || 0xffe4e0ed, isFavorite: existing?.isFavorite || false, isInTrash: false };
     try {
       const result = await databaseAPI().saveEntry(entry);
       if (!result?.snapshot) throw new Error('本地保存失败');
@@ -609,14 +623,14 @@ function App() {
   const exportBackup = async () => { const action = globalThis.diaryAPI?.backup?.export; if (!action) { showToast('备份功能仅在桌面端运行时可用'); return; } const result = await action(); if (result?.cancelled) return; if (result?.error) { showToast(result.error); return; } showToast(`备份已导出 · ${result.entries} 条记录`); };
   const importBackup = async () => { const action = globalThis.diaryAPI?.backup?.import; if (!action) { showToast('备份功能仅在桌面端运行时可用'); return; } const result = await action(); if (result?.cancelled) return; if (result?.error) { const phaseLabel = { validate: '校验阶段', file: '附件阶段', database: '写入阶段' }[result.phase]; const removed = Number(result.cleanup?.removedFiles || 0); const cleanupNote = removed ? `，已清理 ${removed} 个导入附件` : ''; showToast(`${phaseLabel ? `${phaseLabel}失败：` : ''}${result.error}${cleanupNote}`); return; } applySnapshot(result?.snapshot); showToast(`已合并 ${result?.importedEntries || 0} 条记录`); };
   const handleSearchChange = (value) => { setSearch(value); setSearchError(''); if (value.trim() && view !== 'recycle') setView('all'); };
-  const focusGlobalSearch = () => { if (view === 'timeline' || view === 'media') setView('all'); window.requestAnimationFrame(() => document.querySelector('#global-search-input')?.focus()); };
+  const focusGlobalSearch = () => { if (view !== 'recycle') setView('all'); window.requestAnimationFrame(() => document.querySelector('#global-search-input')?.focus()); };
   useEffect(() => { if (!bootstrapped) return undefined; const timer = window.setTimeout(syncNow, 700); return () => window.clearTimeout(timer); }, [bootstrapped]);
-  useEffect(() => { const onKeyDown = (event) => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'n') { event.preventDefault(); focusInlineComposer(); } if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); focusGlobalSearch(); } if ((event.ctrlKey || event.metaKey) && event.key === ',') { event.preventDefault(); setView('settings'); } if ((event.ctrlKey || event.metaKey) && event.key === 'Enter' && (composerOpen || view === 'timeline')) { event.preventDefault(); saveEntry({ inline: !composerOpen && view === 'timeline' }); } if (event.key === 'Escape' && composerOpen) setComposerOpen(false); }; document.addEventListener('keydown', onKeyDown); return () => document.removeEventListener('keydown', onKeyDown); });
+  useEffect(() => { const onKeyDown = (event) => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'n') { event.preventDefault(); focusInlineComposer(); } if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); setCommandOpen(true); } if ((event.ctrlKey || event.metaKey) && event.key === ',') { event.preventDefault(); setView('settings'); } if ((event.ctrlKey || event.metaKey) && event.key === 'Enter' && (composerOpen || view === 'timeline')) { event.preventDefault(); saveEntry({ inline: !composerOpen && view === 'timeline' }); } if (event.key === 'Escape' && commandOpen) setCommandOpen(false); else if (event.key === 'Escape' && composerOpen) setComposerOpen(false); }; document.addEventListener('keydown', onKeyDown); return () => document.removeEventListener('keydown', onKeyDown); });
 
   const activeEntries = entries.filter((entry) => !entry.isInTrash);
   const tagOptions = taxonomy ? taxonomy.tags || [] : usageOptions(entries, 'tags');
   const categoryOptions = taxonomy ? [...new Set([...(taxonomy.categories || []), ...defaultCategories])] : usageOptions(entries, 'category', defaultCategories);
-  const matchesSearch = (entry) => !search || `${entry.title || ''} ${entry.contentText || entry.content || ''} ${entry.category || ''} ${(entry.tags || []).join(' ')}`.toLowerCase().includes(search.toLowerCase());
+  const matchesSearch = (entry) => !search || `${entry.title || ''} ${entryContentText(entry)} ${entry.category || ''} ${(entry.tags || []).join(' ')}`.toLowerCase().includes(search.toLowerCase());
   const filteredEntries = activeEntries.filter(matchesSearch);
   const trashedEntries = entries.filter((entry) => entry.isInTrash).filter(matchesSearch);
   const searchActive = search.trim().length > 0 || hasSearchFilters(searchFilters);
@@ -632,15 +646,17 @@ function App() {
     setConflicts(Array.isArray(remaining) ? remaining : []);
     showToast('冲突已处理');
   };
+  const commandPalette = <CommandPalette open={commandOpen} theme={theme} onClose={() => setCommandOpen(false)} onNew={focusInlineComposer} onSearch={focusGlobalSearch} onNavigate={setView} onSync={syncNow} onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')} />;
   if (view === 'conflicts') {
-    return <div className="window-shell"><Titlebar theme={theme} onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')} /><div className="app-layout"><SidebarRail view={view} onView={setView} syncKind={syncState.kind} syncLabel={syncState.label} /><main className="main-area"><section className="view-panel"><ConflictView conflicts={conflicts} onResolve={resolveConflictValue} /></section></main></div></div>;
+    return <div className="window-shell"><Titlebar theme={theme} onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')} onOpenCommand={() => setCommandOpen(true)} /><div className="app-layout"><SidebarRail view={view} onView={setView} onNew={focusInlineComposer} syncKind={syncState.kind} syncLabel={syncState.label} /><main className="main-area"><ViewTransition view={view}><section className="view-panel"><ConflictView conflicts={conflicts} onResolve={resolveConflictValue} /></section></ViewTransition></main></div>{commandPalette}</div>;
   }
-  return <div className="window-shell"><Titlebar theme={theme} onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')} /><div className="app-layout"><SidebarRail view={view} onView={setView} syncKind={syncState.kind} syncLabel={syncState.label} /><main className="main-area">{view !== 'timeline' && view !== 'media' && <WorkspaceHeader view={view} entryCount={activeEntries.length} search={search} onSearch={handleSearchChange} onSync={syncNow} onNew={focusInlineComposer} />}{view === 'timeline' && <section className="view-panel desk-view"><TodayView entries={filteredEntries} onEdit={editEntry} onPreview={openMediaViewer} onToggleFavorite={toggleFavorite} onCopy={copyEntry} onTrash={trashEntry} composer={{ draft, setDraft, attachments, setAttachments, editing: false, categoryOptions, tagOptions, onSave: () => saveEntry({ inline: true }), onNotify: showToast }} /></section>}{view === 'all' && <section className="view-panel"><EntriesView entries={visibleAllEntries} hasMore={searchActive ? searchHasMore : entryCount > entries.length} loading={searchLoading || loadingMore} searchError={searchError} search={search} filters={searchFilters} categories={categoryOptions} tags={tagOptions} onFiltersChange={setSearchFilters} onClearFilters={clearSearchFilters} onBatchAction={batchAction} onLoadMore={loadMoreEntries} onEdit={editEntry} onPreview={openMediaViewer} onToggleFavorite={toggleFavorite} onCopy={copyEntry} onTrash={trashEntry} /></section>}{view === 'recycle' && <section className="view-panel"><RecycleBinView entries={visibleTrashEntries} search={search} filters={searchFilters} categories={categoryOptions} tags={tagOptions} searchError={searchError} loading={searchLoading} hasMore={searchActive ? searchHasMore : false} onLoadMore={loadMoreEntries} onFiltersChange={setSearchFilters} onClearFilters={clearSearchFilters} onEdit={editEntry} onPreview={openMediaViewer} onRestore={restoreEntry} onDeletePermanent={permanentlyDelete} /></section>}{view === 'tags' && <section className="view-panel"><TagsView entries={entries} taxonomy={taxonomy} categories={categoryOptions} onSelect={selectTag} onSelectCategory={selectCategory} onRenameTag={renameTagValue} onDeleteTag={deleteTagValue} onRenameCategory={renameCategoryValue} onDeleteCategory={deleteCategoryValue} /></section>}{view === 'calendar' && <section className="view-panel"><CalendarView entries={activeEntries} selectedDate={selectedDate} setSelectedDate={setSelectedDate} onNew={openComposer} onEdit={editEntry} onPreview={openMediaViewer} /></section>}{view === 'media' && <section className="view-panel media-view-panel"><LibraryView entries={activeEntries} search={search} onPreview={openMediaViewer} /></section>}{view === 'insights' && <section className="view-panel"><InsightsView entries={activeEntries} /></section>}{view === 'settings' && <section className="view-panel"><SettingsView serverUrl={serverUrl} setServerUrl={setServerUrl} onSave={saveSettings} attachmentHealth={attachmentHealth} onExportBackup={exportBackup} onImportBackup={importBackup} /></section>}{PLACEHOLDERS[view] && <section className="view-panel"><PlaceholderView title={PLACEHOLDERS[view][0]} description={PLACEHOLDERS[view][1]} onBack={() => setView('timeline')} /></section>}</main></div>{composerOpen && <QuickCapture draft={draft} setDraft={setDraft} attachments={attachments} setAttachments={setAttachments} editing={Boolean(editingId)} categoryOptions={categoryOptions} tagOptions={tagOptions} onSave={saveEntry} onClose={() => setComposerOpen(false)} onNotify={showToast} />}{mediaViewer && <MediaViewer items={mediaViewer.items} activeIndex={mediaViewer.activeIndex} onActiveIndexChange={(activeIndex) => setMediaViewer((current) => current ? { ...current, activeIndex } : null)} onClose={() => setMediaViewer(null)} onOpenEntry={openEntryFromMedia} onRelocate={relocateAttachment} />}<div className={`toast ${toast.message ? 'show' : ''}`} id="toast" role="status"><span>{toast.message}</span>{toast.action && <button type="button" onClick={async () => { const action = toast.action; setToast({ message: '', action: null }); await action.run?.(); }}>{toast.action.label || '撤销'}</button>}</div></div>;
+  return <div className="window-shell"><Titlebar theme={theme} onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')} onOpenCommand={() => setCommandOpen(true)} /><div className="app-layout"><SidebarRail view={view} onView={setView} onNew={focusInlineComposer} syncKind={syncState.kind} syncLabel={syncState.label} /><main className="main-area"><ViewTransition view={view}>{view !== 'timeline' && view !== 'media' && <WorkspaceHeader view={view} entryCount={activeEntries.length} search={search} onSearch={handleSearchChange} onSync={syncNow} onNew={focusInlineComposer} />}{view === 'timeline' && <section className="view-panel desk-view"><TodayView entries={filteredEntries} onEdit={editEntry} onPreview={openMediaViewer} onToggleFavorite={toggleFavorite} onCopy={copyEntry} onTrash={trashEntry} onFocusComposer={focusInlineComposer} composer={{ draft, setDraft, attachments, setAttachments, editing: false, categoryOptions, tagOptions, draftStatus, onSave: () => saveEntry({ inline: true }), onNotify: showToast }} /></section>}{view === 'all' && <section className="view-panel"><EntriesView entries={visibleAllEntries} hasMore={searchActive ? searchHasMore : entryCount > entries.length} loading={searchLoading || loadingMore} searchError={searchError} search={search} filters={searchFilters} categories={categoryOptions} tags={tagOptions} onFiltersChange={setSearchFilters} onClearFilters={clearSearchFilters} onBatchAction={batchAction} onLoadMore={loadMoreEntries} onEdit={editEntry} onPreview={openMediaViewer} onToggleFavorite={toggleFavorite} onCopy={copyEntry} onTrash={trashEntry} /></section>}{view === 'recycle' && <section className="view-panel"><RecycleBinView entries={visibleTrashEntries} search={search} filters={searchFilters} categories={categoryOptions} tags={tagOptions} searchError={searchError} loading={searchLoading} hasMore={searchActive ? searchHasMore : false} onLoadMore={loadMoreEntries} onFiltersChange={setSearchFilters} onClearFilters={clearSearchFilters} onEdit={editEntry} onPreview={openMediaViewer} onRestore={restoreEntry} onDeletePermanent={permanentlyDelete} /></section>}{view === 'tags' && <section className="view-panel"><TagsView entries={entries} taxonomy={taxonomy} categories={categoryOptions} onSelect={selectTag} onSelectCategory={selectCategory} onRenameTag={renameTagValue} onDeleteTag={deleteTagValue} onRenameCategory={renameCategoryValue} onDeleteCategory={deleteCategoryValue} /></section>}{view === 'calendar' && <section className="view-panel"><CalendarView entries={activeEntries} selectedDate={selectedDate} setSelectedDate={setSelectedDate} onNew={openComposer} onEdit={editEntry} onPreview={openMediaViewer} /></section>}{view === 'media' && <section className="view-panel media-view-panel"><LibraryView entries={activeEntries} search={search} onPreview={openMediaViewer} /></section>}{view === 'insights' && <section className="view-panel"><InsightsView entries={activeEntries} /></section>}{view === 'settings' && <section className="view-panel"><SettingsView serverUrl={serverUrl} setServerUrl={setServerUrl} onSave={saveSettings} attachmentHealth={attachmentHealth} onExportBackup={exportBackup} onImportBackup={importBackup} /></section>}{PLACEHOLDERS[view] && <section className="view-panel"><PlaceholderView title={PLACEHOLDERS[view][0]} description={PLACEHOLDERS[view][1]} onBack={() => setView('timeline')} /></section>}</ViewTransition></main></div>{composerOpen && <QuickCapture draft={draft} setDraft={setDraft} attachments={attachments} setAttachments={setAttachments} editing={Boolean(editingId)} categoryOptions={categoryOptions} tagOptions={tagOptions} draftStatus={draftStatus} onSave={saveEntry} onClose={() => setComposerOpen(false)} onNotify={showToast} />}{mediaViewer && <MediaViewer items={mediaViewer.items} activeIndex={mediaViewer.activeIndex} onActiveIndexChange={(activeIndex) => setMediaViewer((current) => current ? { ...current, activeIndex } : null)} onClose={() => setMediaViewer(null)} onOpenEntry={openEntryFromMedia} onRelocate={relocateAttachment} />}{commandPalette}<div className={`toast ${toast.message ? 'show' : ''}`} id="toast" role="status"><span>{toast.message}</span>{toast.action && <button type="button" onClick={async () => { const action = toast.action; setToast({ message: '', action: null }); await action.run?.(); }}>{toast.action.label || '撤销'}</button>}</div></div>;
 }
 
 function QuickCaptureWindow() {
   const [draft, setDraft] = useState(() => defaultDraft());
   const [attachments, setAttachments] = useState([]);
+  const [draftStatus, setDraftStatus] = useState('idle');
   const [usageEntries, setUsageEntries] = useState([]);
   const [taxonomy, setTaxonomy] = useState(null);
   const [notice, setNotice] = useState('');
@@ -680,12 +696,19 @@ function QuickCaptureWindow() {
   }, []);
 
   useEffect(() => {
-    const hasContent = Boolean(draft.content.trim() || draft.title.trim() || attachments.length);
-    if (!hasContent) return undefined;
+    const hasContent = Boolean(draftContentText(draft).trim() || draft.title.trim() || attachments.length);
+    if (!hasContent) {
+      setDraftStatus((status) => status === 'idle' ? status : 'idle');
+      return undefined;
+    }
+    setDraftStatus('saving');
+    let active = true;
     const timer = window.setTimeout(() => {
-      void databaseAPI().saveDraft({ id: 'quick-capture', payload: { ...draft, attachments } });
+      void databaseAPI().saveDraft({ id: 'quick-capture', payload: { ...draft, attachments } })
+        .then(() => { if (active) setDraftStatus('saved'); })
+        .catch(() => { if (active) setDraftStatus('error'); });
     }, 350);
-    return () => window.clearTimeout(timer);
+    return () => { active = false; window.clearTimeout(timer); };
   }, [draft, attachments]);
 
   useEffect(() => {
@@ -704,7 +727,8 @@ function QuickCaptureWindow() {
   });
 
   const saveCapture = async () => {
-    const contentText = draft.content.trim();
+    const editorType = normalizeEditorType(draft.editorType);
+    const contentText = draftContentText(draft).trim();
     if (!contentText && attachments.length === 0) {
       notify('写几句话，或添加一个附件');
       document.querySelector('#content-input')?.focus();
@@ -714,13 +738,15 @@ function QuickCaptureWindow() {
     const imagePaths = attachments.filter((path) => mediaKind(path) === 'image');
     const videoPaths = attachments.filter((path) => mediaKind(path) === 'video');
     const audioPaths = attachments.filter((path) => mediaKind(path) === 'audio');
-    const entry = { schemaVersion: 1, id: createId('entry'), createdAt: buildDateTime(draft.date), occurredAt: buildDateTime(draft.date), updatedAt: now, title: draft.title.trim(), content: contentText, contentText, editorType: 'plain_text', mood: draft.moodSet ? Number(draft.mood) : null, moodSet: draft.moodSet === true, category: draft.category, tags: draft.tags || [], imagePaths, audioPaths, videoPaths, weather: [], positions: [], latitude: null, longitude: null, colorValue: 0xffe4e0ed, isFavorite: false, isInTrash: false };
+    const content = editorType === EDITOR_TYPES.richText ? toRichTextContent(draft.content) : String(draft.content || '').trim();
+    const entry = { schemaVersion: 1, id: createId('entry'), createdAt: buildDateTime(draft.date), occurredAt: buildDateTime(draft.date), updatedAt: now, title: draft.title.trim(), content, contentText, editorType, mood: draft.moodSet ? Number(draft.mood) : null, moodSet: draft.moodSet === true, category: draft.category, tags: draft.tags || [], imagePaths, audioPaths, videoPaths, weather: [], positions: [], latitude: null, longitude: null, colorValue: 0xffe4e0ed, isFavorite: false, isInTrash: false };
     try {
       const result = await databaseAPI().saveEntry(entry);
       if (!result?.snapshot) throw new Error('本地保存失败');
       await databaseAPI().clearDraft('quick-capture');
       setDraft(defaultDraft());
       setAttachments([]);
+      setDraftStatus('idle');
       notify('已保存到日记');
       window.setTimeout(() => globalThis.diaryAPI?.quickCapture?.hide?.(), 80);
     } catch {
@@ -736,7 +762,7 @@ function QuickCaptureWindow() {
       <div><span className="quick-capture-mark">✦</span><strong>此刻速记</strong><span className="quick-capture-subtitle">随手记下，不打断工作</span></div>
       <div className="quick-capture-bar-actions"><span className="quick-capture-shortcut-label">{shortcutLabel}</span><button type="button" aria-label="关闭速记窗口" onClick={close} style={{ WebkitAppRegion: 'no-drag' }}>×</button></div>
     </header>
-    <main className="quick-capture-body"><QuickCapture draft={draft} setDraft={setDraft} attachments={attachments} setAttachments={setAttachments} editing={false} windowed categoryOptions={categoryOptions} tagOptions={tagOptions} onSave={saveCapture} onClose={close} onNotify={notify} /></main>
+    <main className="quick-capture-body"><QuickCapture draft={draft} setDraft={setDraft} attachments={attachments} setAttachments={setAttachments} editing={false} windowed categoryOptions={categoryOptions} tagOptions={tagOptions} draftStatus={draftStatus} onSave={saveCapture} onClose={close} onNotify={notify} /></main>
     {notice && <div className="quick-capture-notice" role="status">{notice}</div>}
   </div>;
 }

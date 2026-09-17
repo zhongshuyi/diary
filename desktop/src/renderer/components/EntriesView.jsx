@@ -49,6 +49,37 @@ function EmptyRecords({ trash = false }) {
   </div>;
 }
 
+function dayKey(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'unknown';
+  return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-');
+}
+
+function dayLabel(key) {
+  if (key === dayKey(new Date())) return '今天';
+  if (key === 'unknown') return '未标注日期';
+  const date = new Date(`${key}T12:00:00`);
+  return new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric', weekday: 'short' }).format(date);
+}
+
+function EntryTimelineGroups({ entries, renderEntry }) {
+  const groups = useMemo(() => {
+    const grouped = new Map();
+    entries.forEach((entry) => {
+      const key = dayKey(entry.occurredAt || entry.createdAt);
+      const group = grouped.get(key) || [];
+      group.push(entry);
+      grouped.set(key, group);
+    });
+    return [...grouped.entries()].map(([key, groupedEntries]) => ({ key, label: dayLabel(key), entries: groupedEntries }));
+  }, [entries]);
+
+  return <div className="records-groups">{groups.map((group) => <section className="record-day-group" key={group.key}>
+    <header className="record-day-header"><time dateTime={group.key === 'unknown' ? undefined : group.key}>{group.label}</time><span>{group.entries.length} 则</span></header>
+    <div className="timeline-list records-list">{group.entries.map(renderEntry)}</div>
+  </section>)}</div>;
+}
+
 export function EntriesView({ entries, hasMore = false, loading = false, searchError = '', search = '', filters, categories, tags, onFiltersChange, onClearFilters, onBatchAction, onLoadMore, onEdit, onPreview, onToggleFavorite, onCopy, onTrash }) {
   const [selectedIds, setSelectedIds] = useState([]);
   useEffect(() => {
@@ -69,7 +100,7 @@ export function EntriesView({ entries, hasMore = false, loading = false, searchE
     {entries.length > 0 && <div className={`batch-toolbar ${selectedIds.length ? 'has-selection' : ''}`}><label className="batch-select-all"><input type="checkbox" checked={allVisibleSelected} onChange={toggleSelectAll} aria-label="选择当前列表全部记录" />{selectedIds.length ? `已选 ${selectedIds.length} 条` : '选择记录'}</label>{selectedIds.length > 0 && <><div className="batch-actions"><button type="button" onClick={() => runBatch({ type: 'favorite', value: !allSelectedFavorite })}>{allSelectedFavorite ? '取消收藏' : '收藏'}</button><button type="button" className="danger" onClick={() => runBatch({ type: 'trash' })}>移入回收站</button></div><div className="batch-organize" aria-label="批量分类和标签"><span className="batch-organize-label">分类</span>{categoryOptions.map((category) => <button type="button" key={category} className="batch-chip" onClick={() => runBatch({ type: 'organize', options: { category } })}>{category}</button>)}{tagOptions.length > 0 && <><span className="batch-organize-label">标签</span>{tagOptions.map((tag) => <button type="button" key={tag} className={`batch-chip ${allSelectedHaveTag(tag) ? 'active' : ''}`} onClick={() => runBatch({ type: 'organize', options: allSelectedHaveTag(tag) ? { removeTags: [tag] } : { addTags: [tag] } })}>{allSelectedHaveTag(tag) ? `− #${tag}` : `+ #${tag}`}</button>)}</>}</div></>}</div>}
     {filters && <SearchFilters filters={filters} categories={categories} tags={tags} onChange={onFiltersChange} onClear={onClearFilters} />}
     {searchError && <div className="records-error" role="alert">搜索失败：{searchError}</div>}
-    <div className="timeline-list records-list">{entries.length ? entries.map((entry) => <EntryCard key={entry.id} entry={entry} highlightQuery={search} selectable selected={selectedIds.includes(entry.id)} onSelect={toggleSelect} onEdit={onEdit} onPreview={onPreview} onToggleFavorite={onToggleFavorite} onCopy={onCopy} onTrash={onTrash} />) : loading ? <div className="records-loading" role="status">正在查找记录…</div> : <EmptyRecords />}</div>
+    {entries.length ? <EntryTimelineGroups entries={entries} renderEntry={(entry) => <EntryCard key={entry.id} entry={entry} highlightQuery={search} selectable selected={selectedIds.includes(entry.id)} onSelect={toggleSelect} onEdit={onEdit} onPreview={onPreview} onToggleFavorite={onToggleFavorite} onCopy={onCopy} onTrash={onTrash} />} /> : <div className="timeline-list records-list">{loading ? <div className="records-loading" role="status">正在查找记录…</div> : <EmptyRecords />}</div>}
     {hasMore && <button type="button" className="load-more-button" onClick={onLoadMore} disabled={loading}>{loading ? '加载中…' : '加载更多记录'}</button>}
   </section>;
 }
@@ -80,7 +111,7 @@ export function RecycleBinView({ entries, search = '', filters, categories, tags
     <div className="trash-notice"><Archive size={15} /><span>永久删除会立即移除正文、搜索索引和待同步 mutation，无法撤销。</span></div>
     {filters && <SearchFilters filters={filters} categories={categories} tags={tags} onChange={onFiltersChange} onClear={onClearFilters} />}
     {searchError && <div className="records-error" role="alert">搜索失败：{searchError}</div>}
-    <div className="timeline-list records-list">{entries.length ? entries.map((entry) => <EntryCard key={entry.id} entry={entry} isTrash highlightQuery={search} onEdit={onEdit} onPreview={onPreview} onRestore={onRestore} onDeletePermanent={onDeletePermanent} />) : loading ? <div className="records-loading" role="status">正在查找记录…</div> : <EmptyRecords trash />}</div>
+    {entries.length ? <EntryTimelineGroups entries={entries} renderEntry={(entry) => <EntryCard key={entry.id} entry={entry} isTrash highlightQuery={search} onEdit={onEdit} onPreview={onPreview} onRestore={onRestore} onDeletePermanent={onDeletePermanent} />} /> : <div className="timeline-list records-list">{loading ? <div className="records-loading" role="status">正在查找记录…</div> : <EmptyRecords trash />}</div>}
     {hasMore && <button type="button" className="load-more-button" onClick={onLoadMore} disabled={loading}>{loading ? '加载中…' : '加载更多记录'}</button>}
   </section>;
 }
