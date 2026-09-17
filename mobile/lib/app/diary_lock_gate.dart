@@ -160,47 +160,53 @@ class _DiaryLockGateState extends State<DiaryLockGate>
     final colors = DiaryThemeColors.of(context);
     return Scaffold(
       backgroundColor: colors.paper,
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                  color: colors.ink,
-                  borderRadius: BorderRadius.circular(24),
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    color: colors.ink,
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  child: Icon(
+                    Icons.lock_outline,
+                    color: colors.onHero,
+                    size: 34,
+                  ),
                 ),
-                child: Icon(Icons.lock_outline, color: colors.onHero, size: 34),
-              ),
-              const SizedBox(height: 20),
-              Text('日记已锁定', style: Theme.of(context).textTheme.headlineSmall),
-              const SizedBox(height: 7),
-              Text(
-                '验证身份后继续阅读你的记录。',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              if (_errorMessage != null) ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: 20),
+                Text('日记已锁定', style: Theme.of(context).textTheme.headlineSmall),
+                const SizedBox(height: 7),
                 Text(
-                  _errorMessage!,
-                  textAlign: TextAlign.center,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(color: colors.terracotta),
+                  '验证身份后继续阅读你的记录。',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                if (_errorMessage != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    _errorMessage!,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(color: colors.terracotta),
+                  ),
+                ],
+                const SizedBox(height: 20),
+                FilledButton.icon(
+                  onPressed: _authenticating || _authenticationAttempted
+                      ? null
+                      : _tryUnlock,
+                  icon: const Icon(Icons.fingerprint),
+                  label: Text(_authenticating ? '等待验证…' : '解锁日记'),
                 ),
               ],
-              const SizedBox(height: 20),
-              FilledButton.icon(
-                onPressed: _authenticating || _authenticationAttempted
-                    ? null
-                    : _tryUnlock,
-                icon: const Icon(Icons.fingerprint),
-                label: Text(_authenticating ? '等待验证…' : '解锁日记'),
-              ),
-            ],
+            ),
           ),
         ),
       ),

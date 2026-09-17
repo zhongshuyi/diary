@@ -144,20 +144,24 @@ class _MobileDiaryShellState extends State<MobileDiaryShell> {
       ),
       child: Scaffold(
         backgroundColor: colors.paper,
-        body: Stack(
-          children: [
-            _AnimatedTabStack(index: _selectedIndex, pages: pages),
-            DraggableQuickCaptureFab(
-              buttonKey: const Key('mobile-quick-capture-fab'),
-              initialPosition: _quickCapturePosition,
-              initialSide: widget.quickCaptureSide,
-              onPositionChanged: (position) {
-                unawaited(_saveQuickCapturePosition(position));
-              },
-              onSubmit: widget.actions.saveQuickCapture,
-              onOpen: _openQuickCapture,
-            ),
-          ],
+        body: SafeArea(
+          top: true,
+          bottom: false,
+          child: Stack(
+            children: [
+              _AnimatedTabStack(index: _selectedIndex, pages: pages),
+              DraggableQuickCaptureFab(
+                buttonKey: const Key('mobile-quick-capture-fab'),
+                initialPosition: _quickCapturePosition,
+                initialSide: widget.quickCaptureSide,
+                onPositionChanged: (position) {
+                  unawaited(_saveQuickCapturePosition(position));
+                },
+                onSubmit: widget.actions.saveQuickCapture,
+                onOpen: _openQuickCapture,
+              ),
+            ],
+          ),
         ),
         bottomNavigationBar: DiaryBottomNavigation(
           selectedIndex: _selectedIndex,
