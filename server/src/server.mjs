@@ -1,6 +1,8 @@
+import { createReadStream } from 'node:fs';
+import { stat } from 'node:fs/promises';
 import { createServer as createHttpServer } from 'node:http';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { dirname, resolve } from 'node:path';
+import { dirname, extname, resolve } from 'node:path';
 import { SyncStore } from './store.mjs';
 import { AssetStore } from './asset-store.mjs';
 import { normalizeV2Request } from './protocol-v2.mjs';
@@ -10,6 +12,8 @@ const serverRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const defaultDataFile = resolve(serverRoot, 'data', 'sync-store.json');
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
 const defaultUpdateManifestFile = resolve(serverRoot, 'data', 'update-manifest.json');
+const defaultReleaseDirectory = resolve(serverRoot, 'data', 'releases');
+const releaseFileNamePattern = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 function jsonResponse(res, status, body) {
   const payload = JSON.stringify(body);
@@ -21,6 +25,34 @@ function jsonResponse(res, status, body) {
 
 function errorBody(code, message, details = []) {
   return { error: { code, message, details } };
+}
+
+function releaseContentType(fileName) {
+  switch (extname(fileName).toLowerCase()) {
+    case '.apk': return 'application/vnd.android.package-archive';
+    case '.exe': return 'application/vnd.microsoft.portable-executable';
+    default: return 'application/octet-stream';
+  }
+}
+
+async function serveReleaseDownload(res, releaseDirectory, fileName) {
+  if (!releaseFileNamePattern.test(fileName)) {
+    jsonResponse(res, 404, errorBody('release_not_found', 'Release file not found'));
+    return;
+  }
+
+  const filePath = resolve(releaseDirectory, fileName);
+  try {
+    const info = await stat(filePath);
+    if (!info.isFile()) throw new Error('not a file');
+    res.statusCode = 200;
+    res.setHeader('Content-Type', releaseContentType(fileName));
+    res.setHeader('Content-Length', info.size);
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    createReadStream(filePath).on('error', () => res.destroy()).pipe(res);
+  } catch {
+    jsonResponse(res, 404, errorBody('release_not_found', 'Release file not found'));
+  }
 }
 
 async function readJson(req) {
@@ -148,9 +180,11 @@ export function createServer({
   storeFile = process.env.SYNC_DATA_FILE || defaultDataFile,
   authToken = process.env.SYNC_AUTH_TOKEN || '',
   updateManifestFile = process.env.UPDATE_MANIFEST_FILE || defaultUpdateManifestFile,
+  releaseDirectory = process.env.RELEASE_DIRECTORY || defaultReleaseDirectory,
 } = {}) {
   const resolvedStoreFile = resolve(serverRoot, storeFile);
   const resolvedUpdateManifestFile = resolve(serverRoot, updateManifestFile);
+  const resolvedReleaseDirectory = resolve(serverRoot, releaseDirectory);
   const store = new SyncStore(resolvedStoreFile);
   const assets = new AssetStore(resolve(dirname(resolvedStoreFile), 'assets'));
   const server = createHttpServer(async (req, res) => {
@@ -171,6 +205,10 @@ export function createServer({
 
     try {
       const requestUrl = new URL(req.url || '/', 'http://diary.local');
+      if (requestUrl.pathname.startsWith('/downloads/') && req.method === 'GET') {
+        await serveReleaseDownload(res, resolvedReleaseDirectory, requestUrl.pathname.slice('/downloads/'.length));
+        return;
+      }
       if (requestUrl.pathname === '/api/v1/update' && req.method === 'GET') {
         const platform = requestUrl.searchParams.get('platform');
         if (!platform) {
