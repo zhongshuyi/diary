@@ -279,12 +279,18 @@ export function createServer({
   return { server, store, assets };
 }
 
+export function resolveListenHost(environment = process.env) {
+  const configuredHost = environment.HOST?.trim();
+  return configuredHost || '127.0.0.1';
+}
+
 export async function startServer() {
   const port = Number(process.env.PORT || 8787);
+  const host = resolveListenHost();
   const { server, store } = createServer();
   await store.init();
-  await new Promise((resolveListen) => server.listen(port, '127.0.0.1', resolveListen));
-  console.log(`Diary sync server listening on http://127.0.0.1:${port}`);
+  await new Promise((resolveListen) => server.listen(port, host, resolveListen));
+  console.log(`Diary sync server listening on http://${host}:${port}`);
   return server;
 }
 
