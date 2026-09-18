@@ -22,11 +22,13 @@ Future<String> loadCurrentAppVersion() async {
 class AboutPage extends StatefulWidget {
   const AboutPage({
     this.updateService,
+    this.updateEndpoint = '',
     this.loadCurrentVersion = loadCurrentAppVersion,
     super.key,
   });
 
   final AppUpdateService? updateService;
+  final String updateEndpoint;
   final AppVersionLoader loadCurrentVersion;
 
   @override
@@ -35,7 +37,10 @@ class AboutPage extends StatefulWidget {
 
 class _AboutPageState extends State<AboutPage> {
   late final AppUpdateService _updateService =
-      widget.updateService ?? AppUpdateService();
+      widget.updateService ??
+      (widget.updateEndpoint.trim().isEmpty
+          ? AppUpdateService()
+          : AppUpdateService(baseUrl: widget.updateEndpoint));
   AppUpdateResult? _update;
   String? _message;
   bool _checking = false;

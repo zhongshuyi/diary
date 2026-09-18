@@ -52,10 +52,25 @@ class SettingsController extends ChangeNotifier {
       _update(_settings.copyWith(biometricLock: value));
 
   Future<void> setSyncEndpoint(String value) =>
-      _update(_settings.copyWith(syncEndpoint: value.trim()));
+      _update(_settings.copyWith(syncEndpoint: _normalizeEndpoint(value)));
 
   Future<void> setSyncToken(String value) =>
       _update(_settings.copyWith(syncToken: value));
+
+  Future<void> saveConnectionSettings({
+    required String syncEndpoint,
+    required String syncToken,
+    required String updateEndpoint,
+  }) => _update(
+    _settings.copyWith(
+      syncEndpoint: _normalizeEndpoint(syncEndpoint),
+      syncToken: syncToken,
+      updateEndpoint: _normalizeEndpoint(updateEndpoint),
+    ),
+  );
+
+  Future<void> setUpdateEndpoint(String value) =>
+      _update(_settings.copyWith(updateEndpoint: _normalizeEndpoint(value)));
 
   Future<void> _update(DiarySettings next) async {
     _settings = next;
@@ -68,3 +83,6 @@ class SettingsController extends ChangeNotifier {
     }
   }
 }
+
+String _normalizeEndpoint(String value) =>
+    value.trim().replaceFirst(RegExp(r'/+$'), '');

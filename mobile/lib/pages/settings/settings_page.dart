@@ -290,6 +290,7 @@ class _SyncSettings extends StatefulWidget {
 class _SyncSettingsState extends State<_SyncSettings> {
   late final TextEditingController _endpoint;
   late final TextEditingController _token;
+  late final TextEditingController _updateEndpoint;
 
   @override
   void initState() {
@@ -298,12 +299,16 @@ class _SyncSettingsState extends State<_SyncSettings> {
       text: widget.controller.settings.syncEndpoint,
     );
     _token = TextEditingController(text: widget.controller.settings.syncToken);
+    _updateEndpoint = TextEditingController(
+      text: widget.controller.settings.updateEndpoint,
+    );
   }
 
   @override
   void dispose() {
     _endpoint.dispose();
     _token.dispose();
+    _updateEndpoint.dispose();
     super.dispose();
   }
 
@@ -333,12 +338,25 @@ class _SyncSettingsState extends State<_SyncSettings> {
           decoration: const InputDecoration(labelText: '访问令牌（可选）'),
         ),
         const SizedBox(height: 10),
+        TextField(
+          controller: _updateEndpoint,
+          keyboardType: TextInputType.url,
+          decoration: const InputDecoration(
+            labelText: '更新地址（公开）',
+            hintText: 'https://updates.example.com',
+            helperText: '仅用于检查更新和打开下载链接，不会发送访问令牌。',
+          ),
+        ),
+        const SizedBox(height: 10),
         Align(
           alignment: Alignment.centerRight,
           child: FilledButton.tonalIcon(
             onPressed: () async {
-              await widget.controller.setSyncEndpoint(_endpoint.text);
-              await widget.controller.setSyncToken(_token.text);
+              await widget.controller.saveConnectionSettings(
+                syncEndpoint: _endpoint.text,
+                syncToken: _token.text,
+                updateEndpoint: _updateEndpoint.text,
+              );
               if (context.mounted)
                 ScaffoldMessenger.of(
                   context,

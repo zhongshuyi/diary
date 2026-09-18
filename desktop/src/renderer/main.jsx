@@ -26,6 +26,9 @@ const STORAGE = {
   cursor: 'diary.desktop.cursor.v1',
   deviceId: 'diary.desktop.device-id.v1',
   theme: 'diary.desktop.theme.v1',
+  syncEndpoint: 'diary.desktop.sync-endpoint.v1',
+  syncToken: 'diary.desktop.sync-token.v1',
+  updateEndpoint: 'diary.desktop.update-endpoint.v1',
   serverUrl: 'diary.desktop.server-url.v1',
 };
 const PREVIEW_DRAFT = 'diary.desktop.preview-draft.v1';
@@ -64,7 +67,12 @@ function previewSnapshot() {
     outbox: loadJson(STORAGE.outbox, []),
     cursor: localStorage.getItem(STORAGE.cursor) || '0',
     deviceId: localStorage.getItem(STORAGE.deviceId) || createId('preview'),
-    settings: { theme: localStorage.getItem(STORAGE.theme) || 'light', serverUrl: localStorage.getItem(STORAGE.serverUrl) || 'http://127.0.0.1:8787' },
+    settings: {
+      theme: localStorage.getItem(STORAGE.theme) || 'light',
+      syncEndpoint: localStorage.getItem(STORAGE.syncEndpoint) || localStorage.getItem(STORAGE.serverUrl) || 'http://127.0.0.1:8787',
+      syncToken: localStorage.getItem(STORAGE.syncToken) || '',
+      updateEndpoint: localStorage.getItem(STORAGE.updateEndpoint) || '',
+    },
     draft: loadJson(PREVIEW_DRAFT, null),
   };
 }
@@ -121,7 +129,13 @@ const previewDb = {
   async saveDraft(draft) { localStorage.setItem(previewDraftKey(draft?.id), JSON.stringify(draft)); return previewSnapshot(); },
   async loadDraft(id = 'main') { return loadJson(previewDraftKey(id), null); },
   async clearDraft(id = 'main') { localStorage.removeItem(previewDraftKey(id)); return previewSnapshot(); },
-  async saveSetting(key, value) { if (key === 'theme') localStorage.setItem(STORAGE.theme, value); if (key === 'serverUrl') localStorage.setItem(STORAGE.serverUrl, value); return previewSnapshot(); },
+  async saveSetting(key, value) {
+    if (key === 'theme') localStorage.setItem(STORAGE.theme, value);
+    if (key === 'syncEndpoint') localStorage.setItem(STORAGE.syncEndpoint, value);
+    if (key === 'syncToken') localStorage.setItem(STORAGE.syncToken, value);
+    if (key === 'updateEndpoint') localStorage.setItem(STORAGE.updateEndpoint, value);
+    return previewSnapshot();
+  },
   async applySync({ changes = [], conflicts = [], acknowledgedMutationIds = [], cursor = null } = {}) {
     const current = previewSnapshot();
     let entries = [...current.entries];
@@ -292,7 +306,9 @@ function App() {
   const [cursor, setCursor] = useState('0');
   const [deviceId, setDeviceId] = useState('');
   const [theme, setTheme] = useState(() => localStorage.getItem(STORAGE.theme) || 'light');
-  const [serverUrl, setServerUrl] = useState(() => localStorage.getItem(STORAGE.serverUrl) || 'http://127.0.0.1:8787');
+  const [syncEndpoint, setSyncEndpoint] = useState(() => localStorage.getItem(STORAGE.syncEndpoint) || localStorage.getItem(STORAGE.serverUrl) || 'http://127.0.0.1:8787');
+  const [syncToken, setSyncToken] = useState(() => localStorage.getItem(STORAGE.syncToken) || '');
+  const [updateEndpoint, setUpdateEndpoint] = useState(() => localStorage.getItem(STORAGE.updateEndpoint) || '');
   const [bootstrapped, setBootstrapped] = useState(false);
   const [view, setView] = useState('timeline');
   const [search, setSearch] = useState('');
@@ -313,10 +329,10 @@ function App() {
   const [mediaViewer, setMediaViewer] = useState(null);
   const [toast, setToast] = useState({ message: '', action: null });
   const [commandOpen, setCommandOpen] = useState(false);
-  const stateRef = useRef({ entries, searchResults, outbox, conflicts, cursor, serverUrl, deviceId, bootstrapped, syncing: false });
+  const stateRef = useRef({ entries, searchResults, outbox, conflicts, cursor, syncEndpoint, syncToken, updateEndpoint, deviceId, bootstrapped, syncing: false });
   const toastTimer = useRef(null);
 
-  useEffect(() => { stateRef.current = { entries, searchResults, outbox, conflicts, cursor, serverUrl, deviceId, bootstrapped, syncing: stateRef.current.syncing }; }, [entries, searchResults, outbox, conflicts, cursor, serverUrl, deviceId, bootstrapped]);
+  useEffect(() => { stateRef.current = { entries, searchResults, outbox, conflicts, cursor, syncEndpoint, syncToken, updateEndpoint, deviceId, bootstrapped, syncing: stateRef.current.syncing }; }, [entries, searchResults, outbox, conflicts, cursor, syncEndpoint, syncToken, updateEndpoint, deviceId, bootstrapped]);
   useEffect(() => { document.body.classList.toggle('dark', theme === 'dark'); if (bootstrapped) void databaseAPI().saveSetting('theme', theme); }, [theme, bootstrapped]);
   useEffect(() => { if (outbox.length) setSyncState({ kind: 'error', label: `${outbox.length} 条待同步` }); }, [outbox.length]);
   useEffect(() => {
@@ -335,7 +351,12 @@ function App() {
       outbox: loadJson(STORAGE.outbox, []),
       cursor: localStorage.getItem(STORAGE.cursor) || '0',
       deviceId: localStorage.getItem(STORAGE.deviceId) || createId('desktop'),
-      settings: { theme: localStorage.getItem(STORAGE.theme) || 'light', serverUrl: localStorage.getItem(STORAGE.serverUrl) || 'http://127.0.0.1:8787' },
+      settings: {
+        theme: localStorage.getItem(STORAGE.theme) || 'light',
+        syncEndpoint: localStorage.getItem(STORAGE.syncEndpoint) || localStorage.getItem(STORAGE.serverUrl) || 'http://127.0.0.1:8787',
+        syncToken: localStorage.getItem(STORAGE.syncToken) || '',
+        updateEndpoint: localStorage.getItem(STORAGE.updateEndpoint) || '',
+      },
     };
     databaseAPI().bootstrap(legacyState).then((result) => {
       if (!active || !result?.snapshot) return;
@@ -346,7 +367,14 @@ function App() {
       setCursor(snapshot.cursor || '0');
       setDeviceId(snapshot.deviceId || legacyState.deviceId);
       if (snapshot.settings?.theme) setTheme(snapshot.settings.theme);
-      if (snapshot.settings?.serverUrl) setServerUrl(snapshot.settings.serverUrl);
+      const savedSettings = snapshot.settings || {};
+      const migratedSyncEndpoint = String(savedSettings.syncEndpoint || savedSettings.serverUrl || '').trim().replace(/\/$/, '');
+      if (migratedSyncEndpoint) {
+        setSyncEndpoint(migratedSyncEndpoint);
+        if (!savedSettings.syncEndpoint) void databaseAPI().saveSetting('syncEndpoint', migratedSyncEndpoint);
+      }
+      if (typeof savedSettings.syncToken === 'string') setSyncToken(savedSettings.syncToken);
+      if (typeof savedSettings.updateEndpoint === 'string') setUpdateEndpoint(savedSettings.updateEndpoint);
       if (snapshot.draft?.payload) {
         const recovered = snapshot.draft.payload;
         setDraft({ ...defaultDraft(), ...recovered });
@@ -419,19 +447,25 @@ function App() {
   const syncNow = async () => {
     if (stateRef.current.syncing || !stateRef.current.bootstrapped || !stateRef.current.deviceId) return;
     const persisted = await databaseAPI().snapshot();
-    const current = { ...stateRef.current, ...(persisted || {}) };
+    const persistedSettings = persisted?.settings || {};
+    const current = {
+      ...stateRef.current,
+      ...(persisted || {}),
+      syncEndpoint: persistedSettings.syncEndpoint || persistedSettings.serverUrl || stateRef.current.syncEndpoint,
+      syncToken: typeof persistedSettings.syncToken === 'string' ? persistedSettings.syncToken : stateRef.current.syncToken,
+    };
     if (persisted) {
       setEntries(persisted.entries || []);
       setOutbox(persisted.outbox || []);
       setConflicts(persisted.conflicts || await databaseAPI().listConflicts?.() || []);
       setCursor(persisted.cursor || current.cursor);
-      stateRef.current = { ...stateRef.current, ...persisted };
+      stateRef.current = { ...stateRef.current, ...persisted, syncEndpoint: current.syncEndpoint, syncToken: current.syncToken };
     }
     stateRef.current.syncing = true;
     setSyncState({ kind: 'syncing', label: '正在同步…' });
     try {
       if (!globalThis.diaryAPI?.sync) return;
-      const result = await globalThis.diaryAPI.sync({ baseUrl: current.serverUrl, body: { protocolVersion: 2, deviceId: current.deviceId, cursor: current.cursor, limit: 100, client: { platform: 'desktop', appVersion: globalThis.diaryAPI.appVersion || 'preview' }, changes: current.outbox } });
+      const result = await globalThis.diaryAPI.sync({ baseUrl: current.syncEndpoint, token: current.syncToken, body: { protocolVersion: 2, deviceId: current.deviceId, cursor: current.cursor, limit: 100, client: { platform: 'desktop', appVersion: globalThis.diaryAPI.appVersion || 'preview' }, changes: current.outbox } });
       if (!result.ok) throw new Error(result.body?.error?.message || '同步服务不可用');
       const data = result.body.data;
       const done = new Set([...(data.appliedMutationIds || []), ...(data.conflicts || []).map((conflict) => conflict.mutationId)]);
@@ -619,7 +653,23 @@ function App() {
     return true;
   };
 
-  const saveSettings = async () => { const nextUrl = serverUrl.trim().replace(/\/$/, '') || 'http://127.0.0.1:8787'; setServerUrl(nextUrl); await databaseAPI().saveSetting('serverUrl', nextUrl); showToast('设置已保存'); window.setTimeout(syncNow, 0); };
+  const saveSettings = async ({ syncToken: savedSyncToken = syncToken, updateEndpoint: savedUpdateEndpoint = updateEndpoint } = {}) => {
+    const nextSyncEndpoint = syncEndpoint.trim().replace(/\/$/, '') || 'http://127.0.0.1:8787';
+    const nextSyncToken = String(savedSyncToken || '').trim();
+    const nextUpdateEndpoint = String(savedUpdateEndpoint || '').trim().replace(/\/$/, '');
+    setSyncEndpoint(nextSyncEndpoint);
+    setSyncToken(nextSyncToken);
+    setUpdateEndpoint(nextUpdateEndpoint);
+    await Promise.all([
+      databaseAPI().saveSetting('syncEndpoint', nextSyncEndpoint),
+      databaseAPI().saveSetting('syncToken', nextSyncToken),
+      databaseAPI().saveSetting('updateEndpoint', nextUpdateEndpoint),
+    ]);
+    showToast('设置已保存');
+    window.setTimeout(syncNow, 0);
+  };
+  const serverUrl = syncEndpoint;
+  const setServerUrl = setSyncEndpoint;
   const exportBackup = async () => { const action = globalThis.diaryAPI?.backup?.export; if (!action) { showToast('备份功能仅在桌面端运行时可用'); return; } const result = await action(); if (result?.cancelled) return; if (result?.error) { showToast(result.error); return; } showToast(`备份已导出 · ${result.entries} 条记录`); };
   const importBackup = async () => { const action = globalThis.diaryAPI?.backup?.import; if (!action) { showToast('备份功能仅在桌面端运行时可用'); return; } const result = await action(); if (result?.cancelled) return; if (result?.error) { const phaseLabel = { validate: '校验阶段', file: '附件阶段', database: '写入阶段' }[result.phase]; const removed = Number(result.cleanup?.removedFiles || 0); const cleanupNote = removed ? `，已清理 ${removed} 个导入附件` : ''; showToast(`${phaseLabel ? `${phaseLabel}失败：` : ''}${result.error}${cleanupNote}`); return; } applySnapshot(result?.snapshot); showToast(`已合并 ${result?.importedEntries || 0} 条记录`); };
   const handleSearchChange = (value) => { setSearch(value); setSearchError(''); if (value.trim() && view !== 'recycle') setView('all'); };

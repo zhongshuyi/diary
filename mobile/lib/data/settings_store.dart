@@ -18,6 +18,7 @@ class SharedPreferencesDiarySettingsStore implements DiarySettingsStore {
   static const _biometricLockKey = 'diary.settings.biometric_lock';
   static const _syncEndpointKey = 'diary.settings.sync_endpoint';
   static const _syncTokenKey = 'diary.settings.sync_token';
+  static const _updateEndpointKey = 'diary.settings.update_endpoint';
   static const _quickCaptureSideKey = 'diary.settings.quick_capture_side';
 
   @override
@@ -36,6 +37,7 @@ class SharedPreferencesDiarySettingsStore implements DiarySettingsStore {
       biometricLock: preferences.getBool(_biometricLockKey) ?? false,
       syncEndpoint: preferences.getString(_syncEndpointKey) ?? '',
       syncToken: preferences.getString(_syncTokenKey) ?? '',
+      updateEndpoint: preferences.getString(_updateEndpointKey) ?? '',
       quickCaptureSide: QuickCaptureSideCodec.fromWireValue(
         preferences.getString(_quickCaptureSideKey),
       ),
@@ -56,6 +58,7 @@ class SharedPreferencesDiarySettingsStore implements DiarySettingsStore {
     await preferences.setBool(_biometricLockKey, settings.biometricLock);
     await preferences.setString(_syncEndpointKey, settings.syncEndpoint);
     await preferences.setString(_syncTokenKey, settings.syncToken);
+    await preferences.setString(_updateEndpointKey, settings.updateEndpoint);
     await preferences.setString(
       _quickCaptureSideKey,
       settings.quickCaptureSide.name,

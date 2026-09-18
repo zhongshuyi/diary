@@ -6,6 +6,7 @@ const { createDiaryStore } = require('./main/database/store.cjs');
 const { DEFAULT_QUICK_CAPTURE_ACCELERATOR, formatAccelerator, normalizeAccelerator } = require('./main/shortcut.cjs');
 const { restoreQuickCaptureBounds } = require('./main/window-bounds.cjs');
 const { checkForUpdate, isSafeExternalUrl } = require('./main/update-check.cjs');
+const { createSyncRequest, createUpdateCheck } = require('./main/connection-settings.cjs');
 const { getDesktopIconPath } = require('./main/app-icon.cjs');
 
 let mainWindow;
@@ -358,21 +359,17 @@ ipcMain.handle('assets:read', async (_event, assetPath, options = {}) => {
 });
 
 ipcMain.handle('sync:request', async (_event, payload = {}) => {
-  const configuredBaseUrl = String(payload.baseUrl || process.env.DIARY_SYNC_URL || 'http://127.0.0.1:8787')
-    .trim()
-    .replace(/\/$/, '');
-  const url = configuredBaseUrl.endsWith('/sync')
-    ? configuredBaseUrl
-    : `${configuredBaseUrl}/api/v2/sync`;
-  const token = String(payload.token || process.env.SYNC_AUTH_TOKEN || '');
+  const request = createSyncRequest({
+    baseUrl: payload.baseUrl || process.env.DIARY_SYNC_URL,
+    token: payload.token || process.env.SYNC_AUTH_TOKEN,
+    body: payload.body,
+  });
 
   try {
-    const headers = { 'Content-Type': 'application/json' };
-    if (token) headers.Authorization = `Bearer ${token}`;
-    const response = await fetch(url, {
+    const response = await fetch(request.url, {
       method: 'POST',
-      headers,
-      body: JSON.stringify(payload.body || {}),
+      headers: request.headers,
+      body: request.body,
     });
     const text = await response.text();
     let body;
@@ -393,8 +390,11 @@ ipcMain.handle('sync:request', async (_event, payload = {}) => {
 
 ipcMain.handle('updates:check', async (_event, { baseUrl } = {}) => {
   try {
+    const update = createUpdateCheck({
+      updateEndpoint: baseUrl || process.env.DIARY_UPDATE_URL || 'http://127.0.0.1:8787',
+    });
     const data = await checkForUpdate({
-      baseUrl: baseUrl || process.env.DIARY_SYNC_URL || 'http://127.0.0.1:8787',
+      baseUrl: update.baseUrl,
       platform: 'desktop',
       currentVersion: app.getVersion(),
     });

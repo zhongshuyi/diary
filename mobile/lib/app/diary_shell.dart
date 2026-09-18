@@ -122,6 +122,7 @@ class DiaryShell extends StatefulWidget {
 class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
   late final DiaryController _controller;
   SyncEngine? _syncEngine;
+  _SyncConnection? _syncConnection;
   SyncState _syncState = const SyncState();
 
   List<DiaryEntry> get _entries => _controller.entries;
@@ -148,7 +149,7 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
       ..dispose();
     widget.settingsController.removeListener(_onSettingsChanged);
     WidgetsBinding.instance.removeObserver(this);
-    _syncEngine?.stop();
+    _resetSyncEngine();
     super.dispose();
   }
 
@@ -162,25 +163,37 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
   }
 
   void _configureSync() {
-    if (_syncEngine != null) return;
     final settings = widget.settingsController.settings;
     const envUrl = String.fromEnvironment('DIARY_SYNC_URL');
     final endpoint = settings.syncEndpoint.trim().isNotEmpty
         ? settings.syncEndpoint.trim()
         : envUrl;
-    if (endpoint.isEmpty) return;
+    if (endpoint.isEmpty) {
+      _resetSyncEngine();
+      return;
+    }
+    final connection = _SyncConnection(
+      endpoint: endpoint,
+      token: settings.syncToken.isNotEmpty
+          ? settings.syncToken
+          : const String.fromEnvironment('DIARY_SYNC_TOKEN'),
+    );
+    if (_syncEngine != null && _syncConnection == connection) return;
+    _resetSyncEngine();
+    _syncConnection = connection;
     _syncEngine = SyncEngine(
       repository: widget.repository,
-      client: SyncClient(
-        baseUrl: endpoint,
-        token: settings.syncToken.isNotEmpty
-            ? settings.syncToken
-            : const String.fromEnvironment('DIARY_SYNC_TOKEN'),
-      ),
+      client: SyncClient(baseUrl: connection.endpoint, token: connection.token),
       onStateChanged: _onSyncStateChanged,
     )..start();
     unawaited(_syncNow());
     if (mounted) setState(() {});
+  }
+
+  void _resetSyncEngine() {
+    _syncEngine?.stop();
+    _syncEngine = null;
+    _syncConnection = null;
   }
 
   @override
@@ -476,7 +489,9 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         settings: const RouteSettings(name: AppRoutes.about),
-        builder: (_) => const AboutPage(),
+        builder: (_) => AboutPage(
+          updateEndpoint: widget.settingsController.settings.updateEndpoint,
+        ),
       ),
     );
   }
@@ -488,6 +503,22 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
         : DiaryThemeMode.dark;
     await widget.settingsController.setThemeMode(next);
   }
+}
+
+class _SyncConnection {
+  const _SyncConnection({required this.endpoint, required this.token});
+
+  final String endpoint;
+  final String token;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _SyncConnection &&
+      other.endpoint == endpoint &&
+      other.token == token;
+
+  @override
+  int get hashCode => Object.hash(endpoint, token);
 }
 
 class _LoadingView extends StatelessWidget {

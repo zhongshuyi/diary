@@ -43,6 +43,7 @@ class DiarySettings {
     this.biometricLock = false,
     this.syncEndpoint = '',
     this.syncToken = '',
+    this.updateEndpoint = '',
     this.quickCaptureSide = QuickCaptureSide.right,
   });
 
@@ -54,6 +55,7 @@ class DiarySettings {
   final bool biometricLock;
   final String syncEndpoint;
   final String syncToken;
+  final String updateEndpoint;
   final QuickCaptureSide quickCaptureSide;
 
   DiarySettings copyWith({
@@ -65,6 +67,7 @@ class DiarySettings {
     bool? biometricLock,
     String? syncEndpoint,
     String? syncToken,
+    String? updateEndpoint,
     QuickCaptureSide? quickCaptureSide,
   }) {
     return DiarySettings(
@@ -76,6 +79,7 @@ class DiarySettings {
       biometricLock: biometricLock ?? this.biometricLock,
       syncEndpoint: syncEndpoint ?? this.syncEndpoint,
       syncToken: syncToken ?? this.syncToken,
+      updateEndpoint: updateEndpoint ?? this.updateEndpoint,
       quickCaptureSide: quickCaptureSide ?? this.quickCaptureSide,
     );
   }

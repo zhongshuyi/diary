@@ -29,6 +29,35 @@ void main() {
   );
 
   test(
+    'settings keep the public update endpoint separate from sync credentials',
+    () async {
+      final store = _MemorySettingsStore();
+      final controller = SettingsController(store: store);
+      final observedConnections = <DiarySettings>[];
+
+      await controller.initialize();
+      controller.addListener(
+        () => observedConnections.add(controller.settings),
+      );
+      await controller.saveConnectionSettings(
+        syncEndpoint: 'https://sync.example.com/',
+        syncToken: 'private-sync-token',
+        updateEndpoint: 'https://updates.example.com/',
+      );
+
+      expect(controller.settings.syncEndpoint, 'https://sync.example.com');
+      expect(controller.settings.syncToken, 'private-sync-token');
+      expect(controller.settings.updateEndpoint, 'https://updates.example.com');
+      expect(observedConnections, hasLength(1));
+      expect(observedConnections.single.syncToken, 'private-sync-token');
+
+      final reopened = SettingsController(store: store);
+      await reopened.initialize();
+      expect(reopened.settings.updateEndpoint, 'https://updates.example.com');
+    },
+  );
+
+  test(
     'quick capture defaults to the right and survives controller reload',
     () async {
       final store = _MemorySettingsStore();

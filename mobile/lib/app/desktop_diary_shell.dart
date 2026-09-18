@@ -278,7 +278,12 @@ class _DesktopDiaryShellState extends State<DesktopDiaryShell> {
   }
 
   Future<void> _openAbout() async {
-    await _pushOrReplaceWorkspacePage('关于此刻', (context) => const AboutPage());
+    await _pushOrReplaceWorkspacePage(
+      '关于此刻',
+      (context) => AboutPage(
+        updateEndpoint: widget.settingsController.settings.updateEndpoint,
+      ),
+    );
   }
 
   Future<void> _openRecycle() async {
