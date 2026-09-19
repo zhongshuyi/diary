@@ -16,6 +16,7 @@ import 'package:diary/data/quick_audio_recorder.dart';
 import 'package:diary/domain/diary_entry.dart';
 import 'package:diary/widgets/desktop_window_bar.dart';
 import 'package:diary/widgets/diary_audio_player.dart';
+import 'package:diary/widgets/diary_video_player.dart';
 import 'package:diary/widgets/hold_to_record_button.dart';
 import 'package:diary/widgets/in_app_photo_picker.dart';
 import 'package:diary/widgets/local_media_preview.dart';
@@ -159,8 +160,9 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
   }
 
   Future<void> _restoreDraft() async {
-    if (!mounted || widget.draftId == null || widget.onLoadDraft == null)
+    if (!mounted || widget.draftId == null || widget.onLoadDraft == null) {
       return;
+    }
     final draft = await widget.onLoadDraft!(widget.draftId!);
     if (!mounted || draft == null) return;
     final payload = draft.payload;
@@ -189,10 +191,13 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
     }
     _tagsController.text = '${payload['tags'] ?? ''}';
     final category = '${payload['category'] ?? ''}';
-    if (category.isNotEmpty && widget.categories.contains(category))
+    if (category.isNotEmpty && widget.categories.contains(category)) {
       _category = category;
+    }
     final mood = '${payload['mood'] ?? ''}';
-    if (_moods.contains(mood)) _selectedMood = mood;
+    if (_moods.contains(mood)) {
+      _selectedMood = mood;
+    }
     final attachments = payload['attachments'] ?? payload['imagePaths'];
     if (attachments is List) {
       _attachments = attachments.whereType<String>().toList(growable: false);
@@ -564,8 +569,15 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
     final audioFiles = otherFiles
         .where((path) => diaryMediaKindForPath(path) == DiaryMediaKind.audio)
         .toList(growable: false);
+    final videoFiles = otherFiles
+        .where((path) => diaryMediaKindForPath(path) == DiaryMediaKind.video)
+        .toList(growable: false);
     final nonAudioFiles = otherFiles
-        .where((path) => diaryMediaKindForPath(path) != DiaryMediaKind.audio)
+        .where(
+          (path) =>
+              diaryMediaKindForPath(path) != DiaryMediaKind.audio &&
+              diaryMediaKindForPath(path) != DiaryMediaKind.video,
+        )
         .toList(growable: false);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -620,6 +632,61 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
                     _scheduleDraftSave();
                   },
                 ),
+              ),
+            ),
+          ],
+          if (videoFiles.isNotEmpty) ...[
+            if (photos.isNotEmpty || audioFiles.isNotEmpty)
+              const SizedBox(height: 8),
+            SizedBox(
+              height: 102,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: videoFiles.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 12),
+                itemBuilder: (context, index) {
+                  final path = videoFiles[index];
+                  return SizedBox(
+                    width: 154,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Positioned.fill(
+                          child: DiaryVideoPreview(
+                            key: Key('editor-video-$index'),
+                            path: path,
+                            label: videoFiles.length == 1
+                                ? '待保存视频'
+                                : '待保存视频 ${index + 1}',
+                            compact: true,
+                          ),
+                        ),
+                        Positioned(
+                          top: -6,
+                          right: -6,
+                          child: IconButton.filledTonal(
+                            tooltip: '移除视频 ${index + 1}',
+                            visualDensity: VisualDensity.compact,
+                            constraints: const BoxConstraints(
+                              minWidth: 30,
+                              minHeight: 30,
+                            ),
+                            iconSize: 16,
+                            onPressed: () {
+                              setState(
+                                () =>
+                                    _attachments = [..._attachments]
+                                      ..remove(path),
+                              );
+                              _scheduleDraftSave();
+                            },
+                            icon: const Icon(Icons.close),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
               ),
             ),
           ],
@@ -848,11 +915,23 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
                 title: const Text('拍照'),
                 onTap: () => Navigator.pop(context, 'camera'),
               ),
+            if (!widget.desktopLayout)
+              ListTile(
+                leading: const Icon(Icons.video_camera_back_outlined),
+                title: const Text('录制视频'),
+                onTap: () => Navigator.pop(context, 'video-camera'),
+              ),
             ListTile(
               leading: const Icon(Icons.image_outlined),
               title: const Text('从相册选择图片'),
               onTap: () => Navigator.pop(context, 'image'),
             ),
+            if (!widget.desktopLayout)
+              ListTile(
+                leading: const Icon(Icons.video_library_outlined),
+                title: const Text('从相册选择视频'),
+                onTap: () => Navigator.pop(context, 'video-gallery'),
+              ),
             ListTile(
               leading: const Icon(Icons.attach_file),
               title: const Text('选择文件'),
@@ -900,6 +979,37 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
         }
       } finally {
         if (externalPicker) widget.onExternalActivityEnd?.call();
+        if (mounted) setState(() => _pickingAttachment = false);
+      }
+      return;
+    }
+    if (choice == 'video-camera' || choice == 'video-gallery') {
+      widget.onExternalActivityStart?.call();
+      try {
+        final video = await ImagePicker().pickVideo(
+          source: choice == 'video-camera'
+              ? ImageSource.camera
+              : ImageSource.gallery,
+        );
+        if (video == null) return;
+        final imported =
+            await widget.onImportPhotos?.call([video.path]) ?? [video.path];
+        if (!mounted) return;
+        setState(() {
+          _attachments = [
+            ..._attachments,
+            ...imported.where((path) => !_attachments.contains(path)),
+          ];
+        });
+        _scheduleDraftSave();
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('视频没有添加成功，请重试')));
+        }
+      } finally {
+        widget.onExternalActivityEnd?.call();
         if (mounted) setState(() => _pickingAttachment = false);
       }
       return;

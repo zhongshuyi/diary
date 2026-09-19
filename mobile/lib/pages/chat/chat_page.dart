@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -12,6 +11,7 @@ import 'package:diary/domain/diary_settings.dart';
 import 'package:diary/widgets/diary_audio_player.dart';
 import 'package:diary/widgets/diary_chat_background.dart';
 import 'package:diary/widgets/diary_image_viewer.dart';
+import 'package:diary/widgets/diary_video_player.dart';
 import 'package:diary/widgets/hold_to_record_button.dart';
 import 'package:diary/widgets/in_app_photo_picker.dart';
 import 'package:diary/widgets/selected_photo_strip.dart';
@@ -505,6 +505,11 @@ class _ChatEntryBubble extends StatelessWidget {
         entry.imagePaths.isEmpty &&
         entry.videoPaths.isEmpty &&
         entry.audioPaths.isNotEmpty;
+    final hasBubbleContent =
+        content.isNotEmpty ||
+        mood != null ||
+        entry.imagePaths.isNotEmpty ||
+        entry.audioPaths.isNotEmpty;
     if (isMoodOnly) {
       return _ChatMoodEvent(
         mood: mood,
@@ -533,69 +538,82 @@ class _ChatEntryBubble extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Material(
-                  color: isVoiceOnly ? colors.terracotta : textBubbleColor,
-                  borderRadius: BorderRadius.circular(18),
-                  child: InkWell(
+                if (hasBubbleContent)
+                  Material(
+                    color: isVoiceOnly ? colors.terracotta : textBubbleColor,
                     borderRadius: BorderRadius.circular(18),
-                    onTap: onOpen,
-                    onLongPress: onLongPress,
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (mood != null) ...[
-                            _ChatMoodBadge(mood: mood),
-                            if (content.isNotEmpty || entry.hasMedia)
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(18),
+                      onTap: onOpen,
+                      onLongPress: onLongPress,
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (mood != null) ...[
+                              _ChatMoodBadge(mood: mood),
+                              if (content.isNotEmpty ||
+                                  entry.imagePaths.isNotEmpty ||
+                                  entry.audioPaths.isNotEmpty)
+                                const SizedBox(height: 8),
+                            ],
+                            if (content.isNotEmpty)
+                              Text(
+                                content,
+                                style: Theme.of(context).textTheme.bodyLarge
+                                    ?.copyWith(
+                                      color: colors.ink,
+                                      fontWeight: FontWeight.w500,
+                                      height: 1.45,
+                                    ),
+                              ),
+                            if (content.isNotEmpty &&
+                                (entry.imagePaths.isNotEmpty ||
+                                    entry.audioPaths.isNotEmpty))
+                              const SizedBox(height: 10),
+                            if (entry.imagePaths.isNotEmpty)
+                              _ChatImageGrid(entry: entry),
+                            if (entry.imagePaths.isNotEmpty &&
+                                entry.audioPaths.isNotEmpty)
                               const SizedBox(height: 8),
+                            for (
+                              var index = 0;
+                              index < entry.audioPaths.length;
+                              index++
+                            ) ...[
+                              DiaryAudioPlayer(
+                                path: entry.audioPaths[index],
+                                compact: true,
+                                chatStyle: true,
+                                chatStyleHighContrast: isVoiceOnly,
+                              ),
+                              if (index < entry.audioPaths.length - 1)
+                                const SizedBox(height: 8),
+                            ],
                           ],
-                          if (content.isNotEmpty)
-                            Text(
-                              content,
-                              style: Theme.of(context).textTheme.bodyLarge
-                                  ?.copyWith(
-                                    color: colors.ink,
-                                    fontWeight: FontWeight.w500,
-                                    height: 1.45,
-                                  ),
-                            ),
-                          if (content.isNotEmpty && entry.hasMedia)
-                            const SizedBox(height: 10),
-                          if (entry.imagePaths.isNotEmpty)
-                            _ChatImageGrid(entry: entry),
-                          if (entry.imagePaths.isNotEmpty &&
-                              (entry.audioPaths.isNotEmpty ||
-                                  entry.videoPaths.isNotEmpty))
-                            const SizedBox(height: 8),
-                          for (
-                            var index = 0;
-                            index < entry.audioPaths.length;
-                            index++
-                          ) ...[
-                            DiaryAudioPlayer(
-                              path: entry.audioPaths[index],
-                              compact: true,
-                              chatStyle: true,
-                              chatStyleHighContrast: isVoiceOnly,
-                            ),
-                            if (index < entry.audioPaths.length - 1 ||
-                                entry.videoPaths.isNotEmpty)
-                              const SizedBox(height: 8),
-                          ],
-                          for (
-                            var index = 0;
-                            index < entry.videoPaths.length;
-                            index++
-                          ) ...[
-                            _ChatVideoAttachment(onTap: onOpen),
-                            const SizedBox(height: 8),
-                          ],
-                        ],
+                        ),
                       ),
                     ),
                   ),
-                ),
+                if (hasBubbleContent && entry.videoPaths.isNotEmpty)
+                  const SizedBox(height: 8),
+                for (
+                  var index = 0;
+                  index < entry.videoPaths.length;
+                  index++
+                ) ...[
+                  DiaryVideoPreview(
+                    key: Key('chat-video-${entry.id}-$index'),
+                    path: entry.videoPaths[index],
+                    label: entry.videoPaths.length == 1
+                        ? '视频'
+                        : '视频 ${index + 1}',
+                    onLongPress: onLongPress,
+                  ),
+                  if (index < entry.videoPaths.length - 1)
+                    const SizedBox(height: 8),
+                ],
               ],
             ),
           ),
@@ -842,36 +860,6 @@ class _ChatImageStackLayer extends StatelessWidget {
   }
 }
 
-class _ChatVideoAttachment extends StatelessWidget {
-  const _ChatVideoAttachment({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = DiaryThemeColors.of(context);
-    return Material(
-      color: colors.surface,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.play_circle_outline),
-              SizedBox(width: 8),
-              Text('视频'),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _ChatComposer extends StatefulWidget {
   const _ChatComposer({
     required this.onSend,
@@ -938,8 +926,15 @@ class _ChatComposerState extends State<_ChatComposer> {
             ),
             ListTile(
               leading: const Icon(Icons.videocam_outlined),
-              title: const Text('视频'),
-              onTap: () => Navigator.pop(context, _ChatAttachmentAction.video),
+              title: const Text('从相册添加视频'),
+              onTap: () =>
+                  Navigator.pop(context, _ChatAttachmentAction.videoGallery),
+            ),
+            ListTile(
+              leading: const Icon(Icons.video_camera_back_outlined),
+              title: const Text('录制视频'),
+              onTap: () =>
+                  Navigator.pop(context, _ChatAttachmentAction.videoCamera),
             ),
             ListTile(
               leading: const Icon(Icons.mic_none_outlined),
@@ -961,8 +956,11 @@ class _ChatComposerState extends State<_ChatComposer> {
       case _ChatAttachmentAction.image:
         await _pickImages();
         break;
-      case _ChatAttachmentAction.video:
-        await _pickVideos();
+      case _ChatAttachmentAction.videoGallery:
+        await _pickVideo(ImageSource.gallery);
+        break;
+      case _ChatAttachmentAction.videoCamera:
+        await _pickVideo(ImageSource.camera);
         break;
       case _ChatAttachmentAction.audio:
         await _recordVoice();
@@ -1003,17 +1001,10 @@ class _ChatComposerState extends State<_ChatComposer> {
     return files.map((file) => file.path).toList(growable: false);
   }
 
-  Future<void> _pickVideos() async {
+  Future<void> _pickVideo(ImageSource source) async {
     await _importExternal(() async {
-      final result = await FilePicker.pickFiles(
-        type: FileType.video,
-        allowMultiple: true,
-      );
-      return result?.files
-              .map((file) => file.path)
-              .whereType<String>()
-              .toList(growable: false) ??
-          const [];
+      final video = await ImagePicker().pickVideo(source: source);
+      return video == null ? const [] : [video.path];
     }, _videoPaths);
   }
 
@@ -1490,17 +1481,49 @@ class _AttachmentPreview extends StatelessWidget {
             const SizedBox(height: 8),
           ],
           if (videoPaths.isNotEmpty)
-            Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              children: [
-                for (final path in videoPaths)
-                  InputChip(
-                    avatar: const Icon(Icons.videocam_outlined, size: 18),
-                    label: const Text('视频'),
-                    onDeleted: () => onRemoveVideo(path),
-                  ),
-              ],
+            SizedBox(
+              height: 86,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: videoPaths.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 10),
+                itemBuilder: (context, index) {
+                  final path = videoPaths[index];
+                  return SizedBox(
+                    width: 132,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Positioned.fill(
+                          child: DiaryVideoPreview(
+                            key: Key('chat-selected-video-$index'),
+                            path: path,
+                            label: videoPaths.length == 1
+                                ? '待发送视频'
+                                : '待发送视频 ${index + 1}',
+                            compact: true,
+                          ),
+                        ),
+                        Positioned(
+                          top: -6,
+                          right: -6,
+                          child: IconButton.filledTonal(
+                            tooltip: '移除视频 ${index + 1}',
+                            visualDensity: VisualDensity.compact,
+                            constraints: const BoxConstraints(
+                              minWidth: 30,
+                              minHeight: 30,
+                            ),
+                            iconSize: 16,
+                            onPressed: () => onRemoveVideo(path),
+                            icon: const Icon(Icons.close),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
             ),
         ],
       ),
@@ -1559,6 +1582,6 @@ class _ChatDay {
 
 enum _ChatEntryAction { edit, delete }
 
-enum _ChatAttachmentAction { image, video, audio, entry }
+enum _ChatAttachmentAction { image, videoGallery, videoCamera, audio, entry }
 
 enum ChatPageDestination { timeline, calendar, media, insights, profile }

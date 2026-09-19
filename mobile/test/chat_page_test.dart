@@ -5,6 +5,7 @@ import 'package:diary/domain/diary_entry.dart';
 import 'package:diary/domain/diary_settings.dart';
 import 'package:diary/pages/chat/chat_page.dart';
 import 'package:diary/widgets/diary_audio_player.dart';
+import 'package:diary/widgets/diary_video_player.dart';
 
 void main() {
   testWidgets('sends a text message through the shared diary callback', (
@@ -215,6 +216,27 @@ void main() {
       find.byKey(const Key('diary-image-thumbnail-image-only-entry-0')),
       findsOneWidget,
     );
+  });
+
+  testWidgets('renders a playable video cover in the conversation', (
+    tester,
+  ) async {
+    final entry = DiaryEntry(
+      id: 'video-entry',
+      createdAt: DateTime(2026, 9, 19, 19, 15),
+      updatedAt: DateTime(2026, 9, 19, 19, 15),
+      title: '街边的风',
+      content: '',
+      contentText: '',
+      category: '生活',
+      videoPaths: const ['street.mp4'],
+    );
+    await tester.pumpWidget(_ChatHarness(entries: [entry]));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(DiaryVideoPreview), findsOneWidget);
+    expect(find.byKey(const Key('chat-video-video-entry-0')), findsOneWidget);
+    expect(find.text('视频'), findsOneWidget);
   });
 
   testWidgets('stacks multiple chat photos and labels their count', (

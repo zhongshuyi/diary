@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:diary/app/app_theme.dart';
 import 'package:diary/domain/diary_entry.dart';
 import 'package:diary/widgets/diary_audio_player.dart';
+import 'package:diary/widgets/diary_video_player.dart';
 import 'package:diary/widgets/local_media_preview.dart';
 import 'package:diary/widgets/page_intro.dart';
 
@@ -308,25 +309,31 @@ class _MediaCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: item.kind == DiaryMediaKind.audio
-                      ? Padding(
-                          padding: const EdgeInsets.all(10),
-                          child: DiaryAudioPlayer(
-                            path: item.path,
-                            label: '语音',
-                            compact: true,
-                            loadMetadata: false,
-                            loadWaveform: false,
-                          ),
-                        )
-                      : SizedBox.expand(
-                          child: LocalMediaPreview(
-                            path: item.path,
-                            kind: item.kind,
-                            showRetry: true,
-                            cacheWidth: cacheWidth,
-                          ),
-                        ),
+                  child: switch (item.kind) {
+                    DiaryMediaKind.audio => Padding(
+                      padding: const EdgeInsets.all(10),
+                      child: DiaryAudioPlayer(
+                        path: item.path,
+                        label: '语音',
+                        compact: true,
+                        loadMetadata: false,
+                        loadWaveform: false,
+                      ),
+                    ),
+                    DiaryMediaKind.video => DiaryVideoPreview(
+                      path: item.path,
+                      label: '视频片段',
+                      compact: true,
+                    ),
+                    _ => SizedBox.expand(
+                      child: LocalMediaPreview(
+                        path: item.path,
+                        kind: item.kind,
+                        showRetry: true,
+                        cacheWidth: cacheWidth,
+                      ),
+                    ),
+                  },
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
@@ -344,6 +351,8 @@ class _MediaCard extends StatelessWidget {
                       Text(
                         item.kind == DiaryMediaKind.audio
                             ? '语音'
+                            : item.kind == DiaryMediaKind.video
+                            ? '视频片段'
                             : fileName.isEmpty
                             ? '未命名附件'
                             : fileName,

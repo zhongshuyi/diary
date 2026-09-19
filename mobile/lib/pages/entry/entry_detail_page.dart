@@ -5,6 +5,7 @@ import 'package:diary/app/app_theme.dart';
 import 'package:diary/domain/diary_entry.dart';
 import 'package:diary/widgets/diary_audio_player.dart';
 import 'package:diary/widgets/diary_image_viewer.dart';
+import 'package:diary/widgets/diary_video_player.dart';
 import 'package:diary/widgets/rich_text_viewer.dart';
 
 class EntryDetailPage extends StatefulWidget {
@@ -145,7 +146,11 @@ class _EntryDetailPageState extends State<EntryDetailPage> {
                     index < _entry.videoPaths.length;
                     index++
                   ) ...[
-                    _VideoAttachmentCard(entryId: _entry.id, index: index),
+                    DiaryVideoPreview(
+                      key: Key('entry-detail-video-${_entry.id}-$index'),
+                      path: _entry.videoPaths[index],
+                      label: '视频片段 ${index + 1}',
+                    ),
                     if (index < _entry.videoPaths.length - 1)
                       const SizedBox(height: 10),
                   ],
@@ -527,71 +532,6 @@ class _ContentSurface extends StatelessWidget {
         border: Border.all(color: colors.line),
       ),
       child: child,
-    );
-  }
-}
-
-class _VideoAttachmentCard extends StatelessWidget {
-  const _VideoAttachmentCard({required this.entryId, required this.index});
-
-  final String entryId;
-  final int index;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = DiaryThemeColors.of(context);
-    return Semantics(
-      label: '视频片段 ${index + 1}',
-      child: AspectRatio(
-        aspectRatio: 16 / 9,
-        child: Container(
-          key: Key('entry-detail-video-$entryId-$index'),
-          decoration: BoxDecoration(
-            color: colors.hero,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Stack(
-            children: [
-              Center(
-                child: Container(
-                  width: 58,
-                  height: 58,
-                  decoration: BoxDecoration(
-                    color: colors.onHero.withValues(alpha: .14),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.play_arrow_rounded,
-                    size: 37,
-                    color: colors.onHero,
-                  ),
-                ),
-              ),
-              Positioned(
-                left: 14,
-                bottom: 13,
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.videocam_outlined,
-                      size: 17,
-                      color: colors.onHero,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      '视频片段 ${index + 1}',
-                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: colors.onHero,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
