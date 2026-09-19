@@ -9,7 +9,10 @@ import 'package:image_picker/image_picker.dart';
 import 'package:diary/app/app_theme.dart';
 import 'package:diary/app/diary_motion.dart';
 import 'package:diary/data/diary_repository.dart';
+import 'package:diary/data/quick_audio_recorder.dart';
+import 'package:diary/widgets/diary_audio_player.dart';
 import 'package:diary/widgets/in_app_photo_picker.dart';
+import 'package:diary/widgets/hold_to_record_button.dart';
 import 'package:diary/widgets/media_kind.dart';
 import 'package:diary/widgets/selected_photo_strip.dart';
 
@@ -18,6 +21,8 @@ class QuickCaptureSheet extends StatefulWidget {
     required this.onSave,
     required this.onOpenEditor,
     required this.importPhotos,
+    this.onSaveWithAudio,
+    this.audioRecorder,
     this.pickPhotos,
     this.onExternalActivityStart,
     this.onExternalActivityEnd,
@@ -28,6 +33,13 @@ class QuickCaptureSheet extends StatefulWidget {
   });
 
   final Future<void> Function(String content, List<String> imagePaths) onSave;
+  final Future<void> Function(
+    String content,
+    List<String> imagePaths,
+    List<String> audioPaths,
+  )?
+  onSaveWithAudio;
+  final QuickAudioRecorder? audioRecorder;
   final Future<void> Function(String content, List<String> imagePaths)
   onOpenEditor;
   final Future<List<String>> Function(List<String> paths) importPhotos;
@@ -47,15 +59,18 @@ class _QuickCaptureSheetState extends State<QuickCaptureSheet> {
   final _controller = TextEditingController();
   final _focusNode = FocusNode();
   final List<String> _imagePaths = [];
+  final List<String> _audioPaths = [];
   Timer? _draftTimer;
   bool _restoring = false;
   bool _completed = false;
   bool _saving = false;
   bool _picking = false;
+  bool _recordingActive = false;
   bool _draftDirty = false;
   int _draftRevision = 0;
   String _persistedContent = '';
   List<String> _persistedImagePaths = const [];
+  List<String> _persistedAudioPaths = const [];
   String? _errorMessage;
 
   @override
@@ -95,7 +110,8 @@ class _QuickCaptureSheetState extends State<QuickCaptureSheet> {
     if (!mounted ||
         draft == null ||
         _controller.text.isNotEmpty ||
-        _imagePaths.isNotEmpty)
+        _imagePaths.isNotEmpty ||
+        _audioPaths.isNotEmpty)
       return;
     _restoring = true;
     final content = '${draft.payload['content'] ?? ''}';
@@ -119,8 +135,17 @@ class _QuickCaptureSheetState extends State<QuickCaptureSheet> {
         ),
       );
     }
+    final savedAudioPaths = draft.payload['audioPaths'];
+    if (savedAudioPaths is List) {
+      _audioPaths.addAll(
+        savedAudioPaths.whereType<String>().where(
+          (path) => diaryMediaKindForPath(path) == DiaryMediaKind.audio,
+        ),
+      );
+    }
     _persistedContent = _controller.text;
     _persistedImagePaths = List.of(_imagePaths);
+    _persistedAudioPaths = List.of(_audioPaths);
     _restoring = false;
     setState(() {});
   }
@@ -128,7 +153,8 @@ class _QuickCaptureSheetState extends State<QuickCaptureSheet> {
   void _scheduleDraftSave() {
     if (_restoring) return;
     if (_controller.text == _persistedContent &&
-        listEquals(_imagePaths, _persistedImagePaths)) {
+        listEquals(_imagePaths, _persistedImagePaths) &&
+        listEquals(_audioPaths, _persistedAudioPaths)) {
       _draftDirty = false;
       _draftTimer?.cancel();
       return;
@@ -148,29 +174,35 @@ class _QuickCaptureSheetState extends State<QuickCaptureSheet> {
     final revision = _draftRevision;
     final content = _controller.text;
     final paths = List<String>.of(_imagePaths);
-    if (content.trim().isEmpty && paths.isEmpty) {
+    final audioPaths = List<String>.of(_audioPaths);
+    if (content.trim().isEmpty && paths.isEmpty && audioPaths.isEmpty) {
       await widget.onClearDraft?.call(_draftId);
       return;
     }
     await widget.onSaveDraft!(
       DraftPayload(
         id: _draftId,
-        payload: {'content': content, 'imagePaths': paths},
+        payload: {
+          'content': content,
+          'imagePaths': paths,
+          'audioPaths': audioPaths,
+        },
         updatedAt: DateTime.now(),
       ),
     );
     if (revision == _draftRevision) {
       _persistedContent = content;
       _persistedImagePaths = paths;
+      _persistedAudioPaths = audioPaths;
       _draftDirty = false;
     }
   }
 
   Future<void> _save() async {
     final content = _controller.text.trim();
-    if (_saving || _picking) return;
-    if (content.isEmpty && _imagePaths.isEmpty) {
-      setState(() => _errorMessage = '先写一句或添加照片');
+    if (_saving || _picking || _recordingActive) return;
+    if (content.isEmpty && _imagePaths.isEmpty && _audioPaths.isEmpty) {
+      setState(() => _errorMessage = '先写一句、添加照片或录一段声音');
       return;
     }
     setState(() {
@@ -178,7 +210,13 @@ class _QuickCaptureSheetState extends State<QuickCaptureSheet> {
       _errorMessage = null;
     });
     try {
-      await widget.onSave(content, List.unmodifiable(_imagePaths));
+      final List<String> imagePaths = List.unmodifiable(_imagePaths);
+      final List<String> audioPaths = List.unmodifiable(_audioPaths);
+      if (widget.onSaveWithAudio != null) {
+        await widget.onSaveWithAudio!(content, imagePaths, audioPaths);
+      } else {
+        await widget.onSave(content, imagePaths);
+      }
       _draftTimer?.cancel();
       _completed = true;
       try {
@@ -196,14 +234,14 @@ class _QuickCaptureSheetState extends State<QuickCaptureSheet> {
   }
 
   Future<void> _openFullEditor() async {
-    if (_picking || _saving) return;
+    if (_picking || _saving || _recordingActive) return;
     _draftTimer?.cancel();
     await _persistDraft();
     if (!mounted) return;
     final content = _controller.text;
-    final imagePaths = List<String>.of(_imagePaths);
+    final attachmentPaths = [..._imagePaths, ..._audioPaths];
     Navigator.pop(context);
-    await widget.onOpenEditor(content, imagePaths);
+    await widget.onOpenEditor(content, attachmentPaths);
   }
 
   Future<void> _addPhotos(ImageSource source) async {
@@ -247,6 +285,24 @@ class _QuickCaptureSheetState extends State<QuickCaptureSheet> {
     return pickDiaryPhotos(context, maxAssets: 9 - _imagePaths.length);
   }
 
+  Future<void> _addRecordedAudio(String path) async {
+    if (!mounted) return;
+    setState(() {
+      if (!_audioPaths.contains(path)) _audioPaths.add(path);
+    });
+    _scheduleDraftSave();
+    await _persistDraft();
+  }
+
+  void _setRecordingActivity(bool active) {
+    if (!mounted || _recordingActive == active) return;
+    setState(() => _recordingActive = active);
+  }
+
+  void _showRecordingError(String message) {
+    if (mounted) setState(() => _errorMessage = message);
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = DiaryThemeColors.of(context);
@@ -270,7 +326,9 @@ class _QuickCaptureSheetState extends State<QuickCaptureSheet> {
                   ),
                   IconButton(
                     tooltip: '关闭速记',
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: _recordingActive
+                        ? null
+                        : () => Navigator.pop(context),
                     icon: const Icon(Icons.close),
                   ),
                 ],
@@ -332,7 +390,7 @@ class _QuickCaptureSheetState extends State<QuickCaptureSheet> {
               Row(
                 children: [
                   OutlinedButton.icon(
-                    onPressed: _picking
+                    onPressed: _picking || _recordingActive
                         ? null
                         : () => _addPhotos(ImageSource.camera),
                     icon: const Icon(Icons.photo_camera_outlined, size: 18),
@@ -340,7 +398,8 @@ class _QuickCaptureSheetState extends State<QuickCaptureSheet> {
                   ),
                   const SizedBox(width: 8),
                   OutlinedButton.icon(
-                    onPressed: _picking || _imagePaths.length >= 9
+                    onPressed:
+                        _picking || _recordingActive || _imagePaths.length >= 9
                         ? null
                         : () => _addPhotos(ImageSource.gallery),
                     icon: const Icon(Icons.photo_library_outlined, size: 18),
@@ -356,6 +415,15 @@ class _QuickCaptureSheetState extends State<QuickCaptureSheet> {
                   ],
                 ],
               ),
+              const SizedBox(height: 10),
+              HoldToRecordButton(
+                buttonKey: const Key('quick-capture-hold-record'),
+                enabled: !_picking && !_saving,
+                onActivityChanged: _setRecordingActivity,
+                onError: _showRecordingError,
+                onRecorded: _addRecordedAudio,
+                recorder: widget.audioRecorder,
+              ),
               if (_imagePaths.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 SelectedPhotoStrip(
@@ -367,16 +435,42 @@ class _QuickCaptureSheetState extends State<QuickCaptureSheet> {
                   },
                 ),
               ],
+              if (_audioPaths.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text('已添加录音', style: Theme.of(context).textTheme.labelLarge),
+                const SizedBox(height: 7),
+                ...List.generate(
+                  _audioPaths.length,
+                  (index) => Padding(
+                    padding: EdgeInsets.only(
+                      bottom: index == _audioPaths.length - 1 ? 0 : 7,
+                    ),
+                    child: DiaryAudioPlayer(
+                      path: _audioPaths[index],
+                      label: '录音 ${index + 1}',
+                      compact: true,
+                      onRemove: () {
+                        setState(() => _audioPaths.removeAt(index));
+                        _scheduleDraftSave();
+                      },
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 16),
               Row(
                 children: [
                   TextButton(
-                    onPressed: _picking || _saving ? null : _openFullEditor,
+                    onPressed: _picking || _saving || _recordingActive
+                        ? null
+                        : _openFullEditor,
                     child: const Text('写完整日记'),
                   ),
                   const Spacer(),
                   FilledButton.icon(
-                    onPressed: _saving || _picking ? null : _save,
+                    onPressed: _saving || _picking || _recordingActive
+                        ? null
+                        : _save,
                     icon: _saving
                         ? const SizedBox(
                             width: 16,

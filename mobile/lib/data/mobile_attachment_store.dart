@@ -131,6 +131,9 @@ class MobileAttachmentStore {
       '.mov': 'video/quicktime',
       '.mp3': 'audio/mpeg',
       '.wav': 'audio/wav',
+      '.m4a': 'audio/mp4',
+      '.aac': 'audio/aac',
+      '.ogg': 'audio/ogg',
     };
     return known[extension] ??
         (kind == AttachmentKind.file

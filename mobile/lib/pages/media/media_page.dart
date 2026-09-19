@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:diary/app/app_theme.dart';
 import 'package:diary/domain/diary_entry.dart';
+import 'package:diary/widgets/diary_audio_player.dart';
 import 'package:diary/widgets/local_media_preview.dart';
 import 'package:diary/widgets/page_intro.dart';
 
@@ -307,14 +308,25 @@ class _MediaCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: SizedBox.expand(
-                    child: LocalMediaPreview(
-                      path: item.path,
-                      kind: item.kind,
-                      showRetry: true,
-                      cacheWidth: cacheWidth,
-                    ),
-                  ),
+                  child: item.kind == DiaryMediaKind.audio
+                      ? Padding(
+                          padding: const EdgeInsets.all(10),
+                          child: DiaryAudioPlayer(
+                            path: item.path,
+                            label: '语音',
+                            compact: true,
+                            loadMetadata: false,
+                            loadWaveform: false,
+                          ),
+                        )
+                      : SizedBox.expand(
+                          child: LocalMediaPreview(
+                            path: item.path,
+                            kind: item.kind,
+                            showRetry: true,
+                            cacheWidth: cacheWidth,
+                          ),
+                        ),
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
@@ -330,7 +342,11 @@ class _MediaCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        fileName.isEmpty ? '未命名附件' : fileName,
+                        item.kind == DiaryMediaKind.audio
+                            ? '语音'
+                            : fileName.isEmpty
+                            ? '未命名附件'
+                            : fileName,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.titleMedium,

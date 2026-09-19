@@ -10,6 +10,7 @@ import 'package:image_picker/image_picker.dart';
 
 import 'package:diary/domain/diary_entry.dart';
 import 'package:diary/data/diary_repository.dart';
+import 'package:diary/data/quick_audio_recorder.dart';
 import 'package:diary/data/settings_store.dart';
 import 'package:diary/domain/diary_settings.dart';
 import 'package:diary/main.dart';
@@ -18,6 +19,7 @@ import 'package:diary/pages/entry/entry_detail_page.dart';
 import 'package:diary/pages/entry/entry_editor_page.dart';
 import 'package:diary/pages/entry/quick_capture_sheet.dart';
 import 'package:diary/pages/home/home_page.dart';
+import 'package:diary/widgets/diary_audio_player.dart';
 import 'package:diary/widgets/diary_image_viewer.dart';
 import 'package:diary/widgets/diary_navigation.dart';
 import 'package:diary/widgets/entry_card.dart';
@@ -159,6 +161,40 @@ void main() {
 
     await tester.pump(const Duration(milliseconds: 1));
     expect(field().focusNode!.hasFocus, isTrue);
+  });
+
+  testWidgets('quick capture saves a held recording as audio', (tester) async {
+    final recorder = _FakeQuickAudioRecorder();
+    List<String>? savedAudio;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: QuickCaptureSheet(
+            onSave: (_, _) async {},
+            onSaveWithAudio: (_, _, audioPaths) async {
+              savedAudio = audioPaths;
+            },
+            onOpenEditor: (_, _) async {},
+            importPhotos: (paths) async => paths,
+            audioRecorder: recorder,
+          ),
+        ),
+      ),
+    );
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byKey(const Key('quick-capture-hold-record'))),
+    );
+    await tester.pump();
+    expect(recorder.started, isTrue);
+
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(find.text('录音 1'), findsOneWidget);
+
+    await tester.tap(find.text('记下'));
+    await tester.pumpAndSettle();
+    expect(savedAudio, const ['stored-recording.m4a']);
   });
 
   testWidgets('quick capture saves an imported photo without text', (
@@ -590,6 +626,36 @@ void main() {
     await tester.pumpAndSettle();
     expect(saved?.imagePaths, ['stored.jpg']);
     expect(saved?.contentText, '');
+  });
+
+  testWidgets('full editor saves a held recording as audio', (tester) async {
+    final recorder = _FakeQuickAudioRecorder();
+    DiaryEntry? saved;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: EntryEditorPage(
+          categories: const ['生活'],
+          onSave: (entry) async => saved = entry,
+          audioRecorder: recorder,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final recordButton = find.byKey(const Key('entry-hold-record'));
+    await tester.ensureVisible(recordButton);
+
+    final gesture = await tester.startGesture(tester.getCenter(recordButton));
+    await tester.pump();
+    expect(recorder.started, isTrue);
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(recorder.stopCalls, 1);
+    expect(find.text('语音'), findsOneWidget);
+    expect(find.text('stored-recording.m4a'), findsNothing);
+
+    await tester.tap(find.text('保存日记'));
+    await tester.pumpAndSettle();
+    expect(saved?.audioPaths, const ['stored-recording.m4a']);
   });
 
   testWidgets('quick handoff keeps text when rich text is the default', (
@@ -1382,6 +1448,40 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets('renders an in-app player for a saved voice attachment', (
+    tester,
+  ) async {
+    final now = DateTime(2026, 9, 15);
+    final entry = DiaryEntry(
+      id: 'voice-entry',
+      createdAt: now,
+      updatedAt: now,
+      title: '一段录音',
+      content: '',
+      contentText: '',
+      category: '生活',
+      audioPaths: const ['attachments/voice-note.m4a'],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: EntryDetailPage(
+          entry: entry,
+          onEdit: (_) async => null,
+          onShare: () {},
+          onDelete: () {},
+          onToggleFavorite: () {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(DiaryAudioPlayer), findsOneWidget);
+    expect(find.text('语音'), findsOneWidget);
+    expect(find.text('voice-note.m4a'), findsNothing);
+    expect(find.byTooltip('播放'), findsOneWidget);
+  });
 }
 
 class _TestSettingsStore implements DiarySettingsStore {
@@ -1392,4 +1492,29 @@ class _TestSettingsStore implements DiarySettingsStore {
 
   @override
   Future<void> save(DiarySettings settings) async => value = settings;
+}
+
+class _FakeQuickAudioRecorder implements QuickAudioRecorder {
+  bool started = false;
+  int stopCalls = 0;
+
+  @override
+  Future<void> cancel() async => started = false;
+
+  @override
+  Future<void> dispose() async {}
+
+  @override
+  Future<bool> start() async {
+    started = true;
+    return true;
+  }
+
+  @override
+  Future<String?> stop() async {
+    stopCalls++;
+    if (!started) return null;
+    started = false;
+    return 'stored-recording.m4a';
+  }
 }

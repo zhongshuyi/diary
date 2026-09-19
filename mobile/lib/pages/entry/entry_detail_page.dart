@@ -3,6 +3,7 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
 import 'package:diary/app/app_theme.dart';
 import 'package:diary/domain/diary_entry.dart';
+import 'package:diary/widgets/diary_audio_player.dart';
 import 'package:diary/widgets/diary_image_viewer.dart';
 import 'package:diary/widgets/local_media_preview.dart';
 import 'package:diary/widgets/rich_text_viewer.dart';
@@ -132,22 +133,27 @@ class _EntryDetailPageState extends State<EntryDetailPage> {
                   Text('其他附件', style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 9),
                   ..._attachments.map(
-                    (attachment) => Card(
-                      clipBehavior: Clip.antiAlias,
-                      child: ListTile(
-                        leading: SizedBox(
-                          width: 46,
-                          height: 46,
-                          child: LocalMediaPreview(
-                            path: attachment.path,
-                            kind: attachment.kind,
-                          ),
-                        ),
-                        title: Text(attachment.fileName),
-                        subtitle: Text(
-                          '${diaryMediaKindLabel(attachment.kind)} · 本地附件',
-                        ),
-                      ),
+                    (attachment) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: attachment.kind == DiaryMediaKind.audio
+                          ? DiaryAudioPlayer(path: attachment.path, label: '语音')
+                          : Card(
+                              clipBehavior: Clip.antiAlias,
+                              child: ListTile(
+                                leading: SizedBox(
+                                  width: 46,
+                                  height: 46,
+                                  child: LocalMediaPreview(
+                                    path: attachment.path,
+                                    kind: attachment.kind,
+                                  ),
+                                ),
+                                title: Text(attachment.fileName),
+                                subtitle: Text(
+                                  '${diaryMediaKindLabel(attachment.kind)} · 本地附件',
+                                ),
+                              ),
+                            ),
                     ),
                   ),
                 ],

@@ -50,6 +50,7 @@ class DiaryShellActions {
     required this.moveToTrash,
     required this.saveQuickCapture,
     required this.saveQuickCaptureWithPhotos,
+    required this.saveQuickCaptureWithMedia,
     required this.importQuickPhotos,
     required this.loadDraft,
     required this.saveDraft,
@@ -81,6 +82,12 @@ class DiaryShellActions {
   final Future<void> Function(String content) saveQuickCapture;
   final Future<void> Function(String content, List<String> imagePaths)
   saveQuickCaptureWithPhotos;
+  final Future<void> Function(
+    String content,
+    List<String> imagePaths,
+    List<String> audioPaths,
+  )
+  saveQuickCaptureWithMedia;
   final Future<List<String>> Function(List<String> paths) importQuickPhotos;
   final Future<DraftPayload?> Function(String id) loadDraft;
   final Future<void> Function(DraftPayload draft) saveDraft;
@@ -217,6 +224,7 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
           moveToTrash: _moveToTrash,
           saveQuickCapture: _saveQuickCapture,
           saveQuickCaptureWithPhotos: _saveQuickCaptureWithPhotos,
+          saveQuickCaptureWithMedia: _saveQuickCaptureWithMedia,
           importQuickPhotos: importQuickPhotos,
           loadDraft: widget.repository.loadDraft,
           saveDraft: widget.repository.saveDraft,
@@ -314,9 +322,15 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
   Future<void> _saveQuickCaptureWithPhotos(
     String content,
     List<String> imagePaths,
+  ) => _saveQuickCaptureWithMedia(content, imagePaths, const []);
+
+  Future<void> _saveQuickCaptureWithMedia(
+    String content,
+    List<String> imagePaths,
+    List<String> audioPaths,
   ) async {
     final text = content.trim();
-    if (text.isEmpty && imagePaths.isEmpty) return;
+    if (text.isEmpty && imagePaths.isEmpty && audioPaths.isEmpty) return;
     final now = DateTime.now();
     final timeLabel = diaryTimeLabel(now);
     await _controller.save(
@@ -324,11 +338,16 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
         id: now.microsecondsSinceEpoch.toString(),
         createdAt: now,
         updatedAt: now,
-        title: text.isEmpty ? '$timeLabel 的照片' : '$timeLabel 的一个念头',
+        title: text.isEmpty
+            ? imagePaths.isNotEmpty
+                  ? '$timeLabel 的照片'
+                  : '$timeLabel 的录音'
+            : '$timeLabel 的一个念头',
         content: text,
         contentText: text,
         category: '生活',
         imagePaths: imagePaths,
+        audioPaths: audioPaths,
       ),
     );
     unawaited(_syncNow());

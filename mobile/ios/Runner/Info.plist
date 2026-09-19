@@ -30,6 +30,8 @@
 	<string>拍照后将图片添加到你的日记。</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>选择照片后将图片添加到你的日记。</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>录制声音后将音频添加到你的日记。</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

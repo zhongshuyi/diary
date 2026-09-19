@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:diary/domain/diary_entry.dart';
 import 'package:diary/pages/home/home_page.dart';
 import 'package:diary/pages/media/media_page.dart';
+import 'package:diary/widgets/diary_audio_player.dart';
 
 DiaryEntry _entry({
   required String id,
@@ -11,6 +12,7 @@ DiaryEntry _entry({
   required String category,
   bool isFavorite = false,
   List<String> imagePaths = const [],
+  List<String> audioPaths = const [],
 }) {
   final now = DateTime(2026, 9, 17, 10, 0);
   return DiaryEntry(
@@ -23,6 +25,7 @@ DiaryEntry _entry({
     category: category,
     isFavorite: isFavorite,
     imagePaths: imagePaths,
+    audioPaths: audioPaths,
   );
 }
 
@@ -90,6 +93,34 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('没有找到匹配的附件'), findsOneWidget);
+  });
+
+  testWidgets('shows direct audio controls in the media library', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: MediaPage(
+            entries: [
+              _entry(
+                id: 'voice',
+                title: '声音',
+                category: '生活',
+                audioPaths: const ['attachments/voice-note.m4a'],
+              ),
+            ],
+            onOpenEntry: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(DiaryAudioPlayer), findsOneWidget);
+    expect(find.text('语音'), findsWidgets);
+    expect(find.text('voice-note.m4a'), findsNothing);
+    expect(find.byTooltip('播放'), findsOneWidget);
   });
 
   testWidgets('shows a missing media state with a retry affordance', (

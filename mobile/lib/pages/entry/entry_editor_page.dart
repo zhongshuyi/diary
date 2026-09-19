@@ -12,8 +12,11 @@ import 'package:image_picker/image_picker.dart';
 import 'package:diary/app/app_theme.dart';
 import 'package:diary/application/diary_draft_store.dart';
 import 'package:diary/data/diary_repository.dart';
+import 'package:diary/data/quick_audio_recorder.dart';
 import 'package:diary/domain/diary_entry.dart';
 import 'package:diary/widgets/desktop_window_bar.dart';
+import 'package:diary/widgets/diary_audio_player.dart';
+import 'package:diary/widgets/hold_to_record_button.dart';
 import 'package:diary/widgets/in_app_photo_picker.dart';
 import 'package:diary/widgets/local_media_preview.dart';
 import 'package:diary/widgets/media_kind.dart';
@@ -27,6 +30,7 @@ class EntryEditorPage extends StatefulWidget {
     this.onExternalActivityStart,
     this.onExternalActivityEnd,
     this.onImportPhotos,
+    this.audioRecorder,
     this.pickGalleryPhotos,
     this.entry,
     this.initialContent = '',
@@ -55,6 +59,7 @@ class EntryEditorPage extends StatefulWidget {
   final VoidCallback? onExternalActivityStart;
   final VoidCallback? onExternalActivityEnd;
   final Future<List<String>> Function(List<String> paths)? onImportPhotos;
+  final QuickAudioRecorder? audioRecorder;
   final Future<List<String>> Function()? pickGalleryPhotos;
   final bool desktopLayout;
   final bool showDesktopWindowBar;
@@ -82,6 +87,7 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
   List<String> _attachments = const [];
   bool _saving = false;
   bool _pickingAttachment = false;
+  bool _recordingActive = false;
   Timer? _draftTimer;
   bool _restoringDraft = false;
 
@@ -352,7 +358,9 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
                 ),
                 actions: [
                   IconButton(
-                    onPressed: _saving || _pickingAttachment ? null : _save,
+                    onPressed: _saving || _pickingAttachment || _recordingActive
+                        ? null
+                        : _save,
                     tooltip: '保存（Ctrl + Enter）',
                     icon: const Icon(Icons.check),
                   ),
@@ -377,7 +385,9 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
                 onBack: () => Navigator.pop(context),
                 actions: [
                   IconButton(
-                    onPressed: _saving || _pickingAttachment ? null : _save,
+                    onPressed: _saving || _pickingAttachment || _recordingActive
+                        ? null
+                        : _save,
                     tooltip: '保存（Ctrl + Enter）',
                     icon: const Icon(Icons.check),
                   ),
@@ -551,13 +561,38 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
     final otherFiles = _attachments
         .where((path) => diaryMediaKindForPath(path) != DiaryMediaKind.image)
         .toList(growable: false);
+    final audioFiles = otherFiles
+        .where((path) => diaryMediaKindForPath(path) == DiaryMediaKind.audio)
+        .toList(growable: false);
+    final nonAudioFiles = otherFiles
+        .where((path) => diaryMediaKindForPath(path) != DiaryMediaKind.audio)
+        .toList(growable: false);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        OutlinedButton.icon(
-          onPressed: _pickingAttachment ? null : _addAttachment,
-          icon: const Icon(Icons.add_photo_alternate_outlined, size: 18),
-          label: const Text('添加附件'),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            OutlinedButton.icon(
+              onPressed: _pickingAttachment || _recordingActive
+                  ? null
+                  : _addAttachment,
+              icon: const Icon(Icons.add_photo_alternate_outlined, size: 18),
+              label: const Text('添加附件'),
+            ),
+            SizedBox(
+              width: 180,
+              child: HoldToRecordButton(
+                buttonKey: const Key('entry-hold-record'),
+                enabled: !_pickingAttachment && !_saving,
+                onActivityChanged: _setRecordingActivity,
+                onError: _showRecordingError,
+                onRecorded: _addRecordedAudio,
+                recorder: widget.audioRecorder,
+              ),
+            ),
+          ],
         ),
         if (_attachments.isNotEmpty) ...[
           const SizedBox(height: 10),
@@ -569,27 +604,47 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
               _scheduleDraftSave();
             },
           ),
-          Wrap(
-            spacing: 7,
-            runSpacing: 7,
-            children: otherFiles
-                .map(
-                  (path) => InputChip(
-                    label: Text(
-                      _fileName(path),
-                      overflow: TextOverflow.ellipsis,
+          if (audioFiles.isNotEmpty) ...[
+            if (photos.isNotEmpty) const SizedBox(height: 8),
+            ...audioFiles.map(
+              (path) => Padding(
+                padding: const EdgeInsets.only(bottom: 7),
+                child: DiaryAudioPlayer(
+                  path: path,
+                  label: '语音',
+                  compact: true,
+                  onRemove: () {
+                    setState(
+                      () => _attachments = [..._attachments]..remove(path),
+                    );
+                    _scheduleDraftSave();
+                  },
+                ),
+              ),
+            ),
+          ],
+          if (nonAudioFiles.isNotEmpty)
+            Wrap(
+              spacing: 7,
+              runSpacing: 7,
+              children: nonAudioFiles
+                  .map(
+                    (path) => InputChip(
+                      label: Text(
+                        _fileName(path),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      avatar: const Icon(Icons.attach_file, size: 15),
+                      onDeleted: () {
+                        setState(
+                          () => _attachments = [..._attachments]..remove(path),
+                        );
+                        _scheduleDraftSave();
+                      },
                     ),
-                    avatar: const Icon(Icons.attach_file, size: 15),
-                    onDeleted: () {
-                      setState(
-                        () => _attachments = [..._attachments]..remove(path),
-                      );
-                      _scheduleDraftSave();
-                    },
-                  ),
-                )
-                .toList(),
-          ),
+                  )
+                  .toList(),
+            ),
         ],
       ],
     );
@@ -620,7 +675,9 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
                 ),
               ),
               FilledButton.icon(
-                onPressed: _saving || _pickingAttachment ? null : _save,
+                onPressed: _saving || _pickingAttachment || _recordingActive
+                    ? null
+                    : _save,
                 icon: _saving
                     ? SizedBox(
                         width: 17,
@@ -778,7 +835,7 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
   }
 
   Future<void> _addAttachment() async {
-    if (_pickingAttachment || _saving) return;
+    if (_pickingAttachment || _saving || _recordingActive) return;
     final choice = await showModalBottomSheet<String>(
       context: context,
       builder: (context) => SafeArea(
@@ -868,8 +925,28 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
   Future<List<String>> _pickGalleryPhotos() =>
       widget.pickGalleryPhotos?.call() ?? pickDiaryPhotos(context);
 
+  Future<void> _addRecordedAudio(String path) async {
+    if (!mounted) return;
+    setState(() {
+      if (!_attachments.contains(path)) _attachments = [..._attachments, path];
+    });
+    _scheduleDraftSave();
+  }
+
+  void _setRecordingActivity(bool active) {
+    if (!mounted || _recordingActive == active) return;
+    setState(() => _recordingActive = active);
+  }
+
+  void _showRecordingError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
   Future<void> _save() async {
-    if (_saving || _pickingAttachment) return;
+    if (_saving || _pickingAttachment || _recordingActive) return;
     final title = _titleController.text.trim();
     final plainText = _editorType == DiaryEditorType.richText
         ? _quillController.document.toPlainText().trim()
@@ -887,7 +964,16 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
       id: widget.entry?.id ?? now.microsecondsSinceEpoch.toString(),
       createdAt: widget.entry?.createdAt ?? now,
       updatedAt: now,
-      title: title.isEmpty ? (_attachments.isEmpty ? '无题' : '此刻的照片') : title,
+      title: title.isEmpty
+          ? (_attachments.isEmpty
+                ? '无题'
+                : _attachments.any(
+                    (path) =>
+                        diaryMediaKindForPath(path) == DiaryMediaKind.audio,
+                  )
+                ? '此刻的录音'
+                : '此刻的照片')
+          : title,
       content: _editorType == DiaryEditorType.richText
           ? jsonEncode(_quillController.document.toDelta().toJson())
           : plainText,

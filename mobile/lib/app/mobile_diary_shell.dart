@@ -84,6 +84,7 @@ class _MobileDiaryShellState extends State<MobileDiaryShell> {
       backgroundColor: DiaryThemeColors.of(context).surface,
       builder: (_) => QuickCaptureSheet(
         onSave: widget.actions.saveQuickCaptureWithPhotos,
+        onSaveWithAudio: widget.actions.saveQuickCaptureWithMedia,
         importPhotos: widget.actions.importQuickPhotos,
         onLoadDraft: widget.actions.loadDraft,
         onSaveDraft: widget.actions.saveDraft,
