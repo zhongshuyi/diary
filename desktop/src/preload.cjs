@@ -21,6 +21,10 @@ contextBridge.exposeInMainWorld('diaryAPI', {
       return () => ipcRenderer.removeListener('quick-capture:open', listener);
     },
   },
+  connectionConfig: {
+    copy: (settings) => ipcRenderer.invoke('connection-config:copy', settings),
+    paste: () => ipcRenderer.invoke('connection-config:paste'),
+  },
   assets: {
     pickMedia: () => ipcRenderer.invoke('assets:pickMedia'),
     saveClipboard: (payload) => ipcRenderer.invoke('assets:saveClipboard', payload),
@@ -54,6 +58,11 @@ contextBridge.exposeInMainWorld('diaryAPI', {
     saveDraft: (draft) => ipcRenderer.invoke('db:saveDraft', draft),
     loadDraft: (id) => ipcRenderer.invoke('db:loadDraft', id),
     clearDraft: (id) => ipcRenderer.invoke('db:clearDraft', id),
+    onQuickCaptureSaved: (handler) => {
+      const listener = () => handler?.();
+      ipcRenderer.on('db:quick-capture-saved', listener);
+      return () => ipcRenderer.removeListener('db:quick-capture-saved', listener);
+    },
     saveSetting: (key, value) => ipcRenderer.invoke('db:saveSetting', { key, value }),
     applySync: (payload) => ipcRenderer.invoke('db:applySync', payload),
     trashEntry: (id) => ipcRenderer.invoke('db:trashEntry', id),

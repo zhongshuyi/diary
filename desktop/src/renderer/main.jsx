@@ -519,6 +519,30 @@ function App() {
     stateRef.current = { ...stateRef.current, entries: snapshot.entries || [], outbox: snapshot.outbox || [], conflicts: snapshot.conflicts || [], cursor: snapshot.cursor || stateRef.current.cursor };
   };
 
+  useEffect(() => {
+    const subscribe = globalThis.diaryAPI?.db?.onQuickCaptureSaved;
+    if (!subscribe) return undefined;
+    return subscribe(() => {
+      void databaseAPI().snapshot().then((snapshot) => {
+        if (!snapshot) return;
+        applySnapshot(snapshot);
+        setEntryCount(snapshot.entryCount ?? snapshot.entries?.length ?? 0);
+        window.setTimeout(syncNow, 0);
+      });
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!bootstrapped) return undefined;
+    const syncWhenFocused = () => { void syncNow(); };
+    const timer = window.setInterval(syncWhenFocused, 3000);
+    window.addEventListener('focus', syncWhenFocused);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', syncWhenFocused);
+    };
+  }, [bootstrapped]);
+
   const updateTaxonomy = async (action, successMessage) => {
     try {
       const result = await action();

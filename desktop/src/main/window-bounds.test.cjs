@@ -14,5 +14,12 @@ test('keeps saved quick-capture bounds when a monitor still contains them', () =
 });
 
 test('centers quick capture on the primary display when saved bounds are off-screen', () => {
-  assert.deepEqual(restoreQuickCaptureBounds({ x: -3000, y: -1800, width: 560, height: 520 }, displays), { x: 680, y: 280, width: 560, height: 520 });
+  assert.deepEqual(restoreQuickCaptureBounds({ x: -3000, y: -1800, width: 560, height: 520 }, displays), { x: 580, y: 200, width: 760, height: 680 });
+});
+
+test('enforces the quick-capture compact layout minimum size', () => {
+  assert.deepEqual(
+    restoreQuickCaptureBounds({ x: 40, y: 40, width: 120, height: 150 }, displays),
+    { x: 40, y: 40, width: 560, height: 500 },
+  );
 });

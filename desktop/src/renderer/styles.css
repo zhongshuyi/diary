@@ -776,7 +776,7 @@ body.dark .writing-desk .entry-card-dot { background: var(--background); }
 .detail-editor .composer-footer { padding-top: 14px; margin-top: 13px; }
 body.dark .composer-dialog.detail-editor { box-shadow: 0 22px 66px rgba(0, 0, 0, .42); }
 
-.quick-capture-shell { min-height: 100vh; display: flex; flex-direction: column; color: var(--foreground); background: var(--background); }
+.quick-capture-shell { height: 100vh; min-height: 0; display: flex; flex-direction: column; color: var(--foreground); background: var(--background); }
 .quick-capture-bar { min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 0 13px 0 17px; color: var(--muted); border-bottom: 1px solid var(--border); background: var(--surface); user-select: none; }
 .quick-capture-bar > div:first-child { min-width: 0; display: flex; align-items: center; gap: 8px; }
 .quick-capture-bar strong { color: var(--foreground); font-size: 12px; font-weight: 650; letter-spacing: -.025em; }
@@ -787,11 +787,24 @@ body.dark .composer-dialog.detail-editor { box-shadow: 0 22px 66px rgba(0, 0, 0,
 .quick-capture-bar-actions kbd { min-width: 22px; padding: 3px 5px; color: var(--muted); border: 1px solid var(--border); border-radius: 4px; background: var(--surface-muted); font: inherit; text-align: center; }
 .quick-capture-bar-actions button { width: 27px; height: 27px; display: grid; place-items: center; margin-left: 8px; color: var(--muted); border-radius: 5px; background: transparent; font-size: 18px; line-height: 1; }
 .quick-capture-bar-actions button:hover { color: var(--foreground); background: var(--surface-muted); }
-.quick-capture-body { min-height: 0; flex: 1; overflow: auto; padding: 0; }
-.quick-capture-body .composer-dialog.detail-editor { width: auto; max-height: none; min-height: calc(100vh - 48px); overflow: visible; padding: 20px 24px 18px; border: 0; border-radius: 0; box-shadow: none; background: var(--background); }
-.quick-capture-body .detail-editor .composer-content { min-height: 220px; }
-.quick-capture-body .detail-editor .composer-footer { margin-top: 16px; }
+.quick-capture-body { min-height: 0; flex: 1 1 auto; display: block; overflow-x: hidden; overflow-y: auto; padding: 0; }
+.quick-capture-body .quick-capture-editor { width: auto; min-height: 100%; max-height: none; display: flex; flex-direction: column; overflow: visible; padding: 16px 20px 14px; border: 0; border-radius: 0; box-shadow: none; background: var(--background); }
+.quick-capture-editor .composer-header { min-height: 36px; flex: 0 0 auto; align-items: center; gap: 10px; padding-bottom: 10px; }
+.quick-capture-editor .detail-editor-heading { min-width: 0; flex: 0 1 auto; gap: 8px; white-space: nowrap; }
+.quick-capture-editor .detail-editor-heading > span:first-child { white-space: nowrap; }
+.quick-capture-editor .detail-editor-heading > .editor-type-hint { display: none; }
+.quick-capture-editor .editor-header-actions { min-width: 0; flex: 1 1 auto; gap: 5px; }
+.quick-capture-editor .editor-mode-switch button { gap: 4px; padding: 0 6px; }
+.quick-capture-editor .composer-content { min-height: 120px; flex: 1 1 auto; padding: 14px 0; resize: none; }
+.quick-capture-editor .editor-format-note { flex: 0 0 auto; margin-top: 2px; }
+.quick-capture-editor .composer-controls { flex: 0 0 auto; padding-top: 10px; }
+.quick-capture-editor .composer-footer { flex: 0 0 auto; margin-top: 12px; padding-top: 11px; }
+.quick-capture-editor .rich-text-editor, .quick-capture-editor .milkdown-editor { min-height: 150px; flex: 1 1 auto; margin-top: 10px; }
+.quick-capture-editor .rich-text-editor .ql-container.ql-snow, .quick-capture-editor .rich-text-editor .ql-editor, .quick-capture-editor .milkdown-editor [data-milkdown-root], .quick-capture-editor .milkdown-editor .milkdown-theme-nord, .quick-capture-editor .milkdown-editor .ProseMirror { min-height: 120px; }
+.quick-capture-editor .attachment-list { flex: 0 0 auto; }
 .quick-capture-notice { position: fixed; right: 16px; bottom: 14px; z-index: 20; padding: 8px 11px; color: var(--foreground); border: 1px solid var(--border); border-radius: 6px; background: var(--surface); box-shadow: var(--shadow); font-size: 10px; }
+.setting-transfer-status { width: 100%; color: var(--green); font-size: 10px; }
+.setting-transfer-status.error { color: var(--danger); }
 body.dark .quick-capture-bar { background: var(--surface-raised); }
 
 @media (max-width: 1180px) {

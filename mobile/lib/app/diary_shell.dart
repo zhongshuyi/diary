@@ -227,7 +227,7 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
           openBackup: _openBackup,
           openAbout: _openAbout,
           toggleTheme: _toggleTheme,
-          saveEntry: (entry) => _controller.save(entry),
+          saveEntry: _saveEntryAndSync,
           beginExternalActivity: widget.lockCoordinator.beginExternalActivity,
           endExternalActivity: widget.lockCoordinator.endExternalActivity,
           replaceEntries: (entries) => _controller.replaceAll(entries),
@@ -273,6 +273,11 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
 
   Future<void> _syncNow() async {
     await _syncEngine?.syncNow();
+  }
+
+  Future<void> _saveEntryAndSync(DiaryEntry entry) async {
+    await _controller.save(entry);
+    unawaited(_syncNow());
   }
 
   @override
@@ -326,6 +331,7 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
         imagePaths: imagePaths,
       ),
     );
+    unawaited(_syncNow());
     if (!mounted) return;
     ScaffoldMessenger.of(
       context,
@@ -360,7 +366,7 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
           onExternalActivityEnd: widget.lockCoordinator.endExternalActivity,
           onImportPhotos: importQuickPhotos,
           onSave: (saved) async {
-            await _controller.save(saved);
+            await _saveEntryAndSync(saved);
             if (initialContent.isNotEmpty || initialImagePaths.isNotEmpty) {
               await widget.repository.clearDraft('mobile-quick-capture');
             }

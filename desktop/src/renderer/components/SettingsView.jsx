@@ -8,6 +8,7 @@ export function SettingsView({ serverUrl, setServerUrl, onSave, attachmentHealth
   const [syncToken, setSyncToken] = useState('');
   const [updateEndpoint, setUpdateEndpoint] = useState('');
   const [updateState, setUpdateState] = useState({ status: 'idle', message: '未检查', result: null });
+  const [connectionTransferState, setConnectionTransferState] = useState({ status: 'idle', message: '' });
 
   useEffect(() => {
     const result = globalThis.diaryAPI?.quickCapture?.status?.();
@@ -66,6 +67,33 @@ export function SettingsView({ serverUrl, setServerUrl, onSave, attachmentHealth
     if (url) void globalThis.diaryAPI?.updates?.open?.(url);
   };
 
+  const copyConnectionConfig = async () => {
+    const action = globalThis.diaryAPI?.connectionConfig?.copy;
+    if (!action) {
+      setConnectionTransferState({ status: 'error', message: '桌面运行时可用' });
+      return;
+    }
+    const result = await action({ syncEndpoint: serverUrl, syncToken, updateEndpoint });
+    setConnectionTransferState(result?.ok ? { status: 'success', message: '已复制，内容包含访问令牌' } : { status: 'error', message: result?.error || '复制连接配置失败' });
+  };
+
+  const pasteConnectionConfig = async () => {
+    const action = globalThis.diaryAPI?.connectionConfig?.paste;
+    if (!action) {
+      setConnectionTransferState({ status: 'error', message: '桌面运行时可用' });
+      return;
+    }
+    const result = await action();
+    if (!result?.ok || !result.settings) {
+      setConnectionTransferState({ status: 'error', message: result?.error || '导入连接配置失败' });
+      return;
+    }
+    setServerUrl(result.settings.syncEndpoint);
+    setSyncToken(result.settings.syncToken);
+    setUpdateEndpoint(result.settings.updateEndpoint);
+    setConnectionTransferState({ status: 'success', message: '已导入，请保存设置' });
+  };
+
   const healthLabel = attachmentHealth
     ? `${attachmentHealth.ready} 个可用${attachmentHealth.missing ? ` · ${attachmentHealth.missing} 个缺失` : ''}${attachmentHealth.orphaned ? ` · ${attachmentHealth.orphaned} 个待清理` : ''}`
     : '检查中…';
@@ -88,6 +116,10 @@ export function SettingsView({ serverUrl, setServerUrl, onSave, attachmentHealth
         <span className="setting-label"><RefreshCw size={17} /><span><strong>公开更新地址</strong><small>仅用于读取版本信息和打开下载链接。</small></span></span>
         <input className="text-input" value={updateEndpoint} onChange={(event) => setUpdateEndpoint(event.target.value)} />
       </label>
+      <div className="setting-row">
+        <span className="setting-label"><Server size={17} /><span><strong>跨设备连接配置</strong><small>包含访问令牌，仅在自己的受信设备间传递。</small></span></span>
+        <div className="setting-action-group"><button className="outline-button compact" type="button" onClick={copyConnectionConfig}>复制连接配置</button><button className="outline-button compact" type="button" onClick={pasteConnectionConfig}>粘贴并导入</button>{connectionTransferState.message && <small className={`setting-transfer-status ${connectionTransferState.status === 'error' ? 'error' : ''}`}>{connectionTransferState.message}</small>}</div>
+      </div>
       <div className="setting-row">
         <span className="setting-label"><RefreshCw size={17} /><span><strong>应用更新</strong><small>当前版本 {globalThis.diaryAPI?.appVersion || 'preview'}</small></span></span>
         <div className="update-setting-control"><span className={`status-badge ${updateState.status === 'error' ? 'warning' : updateState.status === 'idle' ? 'muted' : ''}`}>{updateState.message}</span><button className="outline-button compact" type="button" onClick={checkForUpdate} disabled={updateState.status === 'checking'}>{updateState.status === 'checking' ? '检查中…' : '检查更新'}</button>{updateState.result?.hasUpdate && <button className="outline-button compact" type="button" onClick={openUpdate}><ExternalLink size={13} />前往下载</button>}{updateState.result?.hasUpdate && updateState.result.notes && <small className="setting-update-notes">{updateState.result.notes}</small>}</div>

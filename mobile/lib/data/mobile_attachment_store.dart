@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:crypto/crypto.dart';
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -20,7 +20,7 @@ class MobileAttachmentStore {
     final bytes = await source.readAsBytes();
     if (bytes.length > 128 * 1024 * 1024)
       throw const FileSystemException('附件不能超过 128 MB');
-    final hash = sha256.convert(bytes).toString();
+    final hash = crypto.sha256.convert(bytes).toString();
     final root =
         rootDirectory ??
         Directory(
@@ -58,6 +58,54 @@ class MobileAttachmentStore {
     if (attachment.localPath == null)
       throw const FileSystemException('附件本地路径不存在');
     return File(attachment.localPath!).readAsBytes();
+  }
+
+  Future<String> storeDownloadedBytes({
+    required String sha256,
+    required String extension,
+    required List<int> bytes,
+  }) async {
+    final normalizedHash = sha256.toLowerCase();
+    if (!RegExp(r'^[a-f0-9]{64}$').hasMatch(normalizedHash) ||
+        bytes.length > 128 * 1024 * 1024) {
+      throw const FileSystemException('附件内容无效');
+    }
+    if (crypto.sha256.convert(bytes).toString() != normalizedHash) {
+      throw const FileSystemException('附件校验失败');
+    }
+    final root =
+        rootDirectory ??
+        Directory(
+          p.join(
+            (await getApplicationDocumentsDirectory()).path,
+            'diary',
+            'attachments',
+          ),
+        );
+    await root.create(recursive: true);
+    final safeExtension = RegExp(r'^\.[a-z0-9]{1,16}$').hasMatch(extension)
+        ? extension.toLowerCase()
+        : '.bin';
+    final destination = File(
+      p.join(root.path, '$normalizedHash$safeExtension'),
+    );
+    if (await destination.exists()) {
+      if (crypto.sha256.convert(await destination.readAsBytes()).toString() !=
+          normalizedHash) {
+        throw const FileSystemException('附件校验失败');
+      }
+      return destination.path;
+    }
+    final staging = File(
+      '${destination.path}.${DateTime.now().microsecondsSinceEpoch}.tmp',
+    );
+    try {
+      await staging.writeAsBytes(bytes, flush: true);
+      await staging.rename(destination.path);
+      return destination.path;
+    } finally {
+      if (await staging.exists()) await staging.delete();
+    }
   }
 
   AttachmentKind _kindFor(String path) {

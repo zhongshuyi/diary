@@ -43,7 +43,12 @@
     "directories": {
       "output": "release"
     },
+    "files": [
+      "**/*",
+      "!release*/**"
+    ],
     "win": {
+      "icon": "resources/diary.ico",
       "target": [
         {
           "target": "nsis",

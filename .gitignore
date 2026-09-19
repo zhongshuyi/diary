@@ -1,6 +1,7 @@
 # Workspace-level generated files
 .DS_Store
 *.log
+artifacts/
 
 # Flutter mobile app
 mobile/.dart_tool/

@@ -174,8 +174,70 @@ function createDiaryStore({ userDataPath }) {
     return snapshot();
   }
 
+  function listEntryAssets(entryId) {
+    if (typeof entryId !== 'string' || !entryId.trim()) return [];
+    const rows = db.prepare(`SELECT a.id, a.sha256, a.kind, a.mime_type, a.byte_size, a.original_name, a.relative_path, a.state
+      FROM attachments a JOIN entry_attachments ea ON ea.attachment_id = a.id
+      WHERE ea.entry_id = ? ORDER BY ea.sort_order ASC`).all(entryId);
+    return rows.map((row) => ({
+      id: row.id,
+      sha256: row.sha256,
+      kind: row.kind,
+      mimeType: row.mime_type,
+      byteSize: Number(row.byte_size),
+      originalName: row.original_name,
+      relativePath: row.relative_path,
+      state: row.state,
+      localPath: path.resolve(userDataPath, row.relative_path),
+    })).filter((asset) => isWithin(userDataPath, asset.localPath));
+  }
+
+  function storeDownloadedAsset({ sha256, extension = '', bytes } = {}) {
+    const normalizedHash = String(sha256 || '').toLowerCase();
+    if (!/^[a-f0-9]{64}$/.test(normalizedHash)) throw new TypeError('附件哈希无效');
+    if (!Buffer.isBuffer(bytes) || bytes.byteLength > 128 * 1024 * 1024) throw new TypeError('附件内容无效');
+    const actualHash = crypto.createHash('sha256').update(bytes).digest('hex');
+    if (actualHash !== normalizedHash) throw new Error('附件校验失败');
+    const normalizedExtension = /^\.[a-z0-9]{1,16}$/i.test(String(extension || '')) ? String(extension).toLowerCase() : '.bin';
+    const destination = path.join(mediaRoot, 'managed', `${normalizedHash}${normalizedExtension}`);
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    if (fs.existsSync(destination)) {
+      const existingHash = crypto.createHash('sha256').update(fs.readFileSync(destination)).digest('hex');
+      if (existingHash !== normalizedHash) throw new Error('附件校验失败');
+      return destination;
+    }
+    const temporary = `${destination}.${process.pid}.${Date.now()}.tmp`;
+    try {
+      fs.writeFileSync(temporary, bytes, { flag: 'wx' });
+      fs.renameSync(temporary, destination);
+      return destination;
+    } catch (error) {
+      try { fs.unlinkSync(temporary); } catch { /* keep the original write failure */ }
+      throw error;
+    }
+  }
+
   function applySync(payload) {
-    applySyncResult(db, payload);
+    const prepareChange = (change) => {
+      if (!change?.entry || typeof change.entry !== 'object') return change;
+      const prepared = prepareEntryAssets(change.entry);
+      return { ...change, entry: prepared.entry, assets: prepared.assets };
+    };
+    const prepareConflict = (conflict) => {
+      if (!conflict || typeof conflict !== 'object') return conflict;
+      const serverPrepared = conflict.serverEntry && typeof conflict.serverEntry === 'object' ? prepareEntryAssets(conflict.serverEntry) : null;
+      const entryPrepared = conflict.entry && typeof conflict.entry === 'object' ? prepareEntryAssets(conflict.entry) : null;
+      return {
+        ...conflict,
+        ...(serverPrepared ? { serverEntry: serverPrepared.entry, serverAssets: serverPrepared.assets } : {}),
+        ...(entryPrepared ? { entry: entryPrepared.entry } : {}),
+      };
+    };
+    applySyncResult(db, {
+      ...payload,
+      changes: (Array.isArray(payload?.changes) ? payload.changes : []).map(prepareChange),
+      conflicts: (Array.isArray(payload?.conflicts) ? payload.conflicts : []).map(prepareConflict),
+    });
     return snapshot();
   }
 
@@ -616,6 +678,8 @@ function createDiaryStore({ userDataPath }) {
     importBackup,
     cleanupOrphanedAttachments,
     createRollingBackup,
+    listEntryAssets,
+    storeDownloadedAsset,
     saveEntry,
     saveDraft: saveDraftValue,
     loadDraft: (id = 'main') => loadDraft(db, id),

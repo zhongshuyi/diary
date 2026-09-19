@@ -37,4 +37,36 @@ void main() {
       );
     },
   );
+
+  test(
+    'accepts a downloaded asset only when its digest matches the reference',
+    () async {
+      final sandbox = await Directory.systemTemp.createTemp(
+        'diary-downloaded-photo-test-',
+      );
+      addTearDown(() => sandbox.delete(recursive: true));
+      final store = MobileAttachmentStore(
+        rootDirectory: Directory(p.join(sandbox.path, 'app-attachments')),
+      );
+      const bytes = [1, 2, 3, 4];
+      const sha256 =
+          '9f64a747e1b97f131fabb6b447296c9b6f0201e79fb3c5356e6c77e89b6a806a';
+
+      final savedPath = await store.storeDownloadedBytes(
+        sha256: sha256,
+        extension: '.png',
+        bytes: bytes,
+      );
+
+      expect(await File(savedPath).readAsBytes(), bytes);
+      expect(
+        () => store.storeDownloadedBytes(
+          sha256: sha256,
+          extension: '.png',
+          bytes: const [9],
+        ),
+        throwsA(isA<FileSystemException>()),
+      );
+    },
+  );
 }

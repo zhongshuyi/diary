@@ -1,13 +1,24 @@
-const { app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, nativeImage, screen, shell, Tray } = require('electron');
+const { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, Menu, nativeImage, screen, shell, Tray } = require('electron');
 const crypto = require('node:crypto');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { createDiaryStore } = require('./main/database/store.cjs');
 const { DEFAULT_QUICK_CAPTURE_ACCELERATOR, formatAccelerator, normalizeAccelerator } = require('./main/shortcut.cjs');
-const { restoreQuickCaptureBounds } = require('./main/window-bounds.cjs');
+const {
+  QUICK_CAPTURE_HEIGHT,
+  QUICK_CAPTURE_MIN_HEIGHT,
+  QUICK_CAPTURE_MIN_WIDTH,
+  QUICK_CAPTURE_WIDTH,
+  restoreQuickCaptureBounds,
+} = require('./main/window-bounds.cjs');
 const { checkForUpdate, isSafeExternalUrl } = require('./main/update-check.cjs');
 const { createSyncRequest, createUpdateCheck } = require('./main/connection-settings.cjs');
+const { decodeConnectionSettings, encodeConnectionSettings } = require('./main/connection-transfer.cjs');
 const { getDesktopIconPath } = require('./main/app-icon.cjs');
+const { shouldRefreshMainAfterSave } = require('./main/quick-capture-events.cjs');
+const { hydrateSyncData, prepareSyncBody } = require('./main/sync-asset-transfer.cjs');
+
+if (process.platform === 'win32') app.setAppUserModelId('com.ling.diary.desktop');
 
 let mainWindow;
 let quickCaptureWindow;
@@ -105,10 +116,10 @@ function createWindow() {
 
 function createQuickCaptureWindow() {
   quickCaptureWindow = new BrowserWindow({
-    width: 560,
-    height: 520,
-    minWidth: 420,
-    minHeight: 360,
+    width: QUICK_CAPTURE_WIDTH,
+    height: QUICK_CAPTURE_HEIGHT,
+    minWidth: QUICK_CAPTURE_MIN_WIDTH,
+    minHeight: QUICK_CAPTURE_MIN_HEIGHT,
     show: false,
     frame: false,
     resizable: true,
@@ -298,6 +309,23 @@ ipcMain.handle('quick-capture:show', () => {
 ipcMain.handle('quick-capture:status', () => ({ accelerator: quickCaptureAccelerator, label: formatAccelerator(quickCaptureAccelerator), registered: quickCaptureRegistered }));
 ipcMain.handle('quick-capture:set-shortcut', (_event, value) => setQuickCaptureShortcut(value));
 
+ipcMain.handle('connection-config:copy', (_event, settings) => {
+  try {
+    clipboard.writeText(encodeConnectionSettings(settings));
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: error.message || '复制连接配置失败' };
+  }
+});
+
+ipcMain.handle('connection-config:paste', () => {
+  try {
+    return { ok: true, settings: decodeConnectionSettings(clipboard.readText()) };
+  } catch (error) {
+    return { ok: false, error: error.message || '导入连接配置失败' };
+  }
+});
+
 ipcMain.handle('assets:pickMedia', async () => {
   if (!mainWindow) return [];
   const result = await dialog.showOpenDialog(mainWindow, {
@@ -366,10 +394,44 @@ ipcMain.handle('sync:request', async (_event, payload = {}) => {
   });
 
   try {
+    const assetUrl = (sha256) => new URL(`assets/${sha256}`, request.url).toString();
+    const assetHeaders = request.headers.Authorization ? { Authorization: request.headers.Authorization } : {};
+    const uploadedAssets = new Map();
+    const uploadAsset = async (asset) => {
+      const key = String(asset.sha256 || '').toLowerCase();
+      if (uploadedAssets.has(key)) return uploadedAssets.get(key);
+      const task = (async () => {
+        const bytes = await fs.readFile(asset.localPath);
+        if (!bytes.length || bytes.byteLength > 128 * 1024 * 1024) throw new Error('附件文件无效或超过 128 MB 限制');
+        const actualHash = crypto.createHash('sha256').update(bytes).digest('hex');
+        if (actualHash !== key) throw new Error('附件本地校验失败');
+        const endpoint = assetUrl(key);
+        const exists = await fetch(endpoint, { method: 'HEAD', headers: assetHeaders });
+        if (exists.ok) return;
+        if (exists.status !== 404) throw new Error('无法检查附件同步状态');
+        const uploaded = await fetch(endpoint, {
+          method: 'PUT',
+          headers: {
+            ...assetHeaders,
+            'Content-Type': asset.mimeType || 'application/octet-stream',
+            'Content-Length': String(bytes.byteLength),
+            'X-Asset-Kind': asset.kind || 'file',
+          },
+          body: bytes,
+        });
+        if (!uploaded.ok) throw new Error('附件上传失败');
+      })();
+      uploadedAssets.set(key, task);
+      return task;
+    };
+    const syncBody = await prepareSyncBody(payload.body, {
+      listAssets: (entryId) => diaryStore?.listEntryAssets(entryId) || [],
+      uploadAsset,
+    });
     const response = await fetch(request.url, {
       method: 'POST',
       headers: request.headers,
-      body: request.body,
+      body: JSON.stringify(syncBody),
     });
     const text = await response.text();
     let body;
@@ -377,6 +439,16 @@ ipcMain.handle('sync:request', async (_event, payload = {}) => {
       body = JSON.parse(text);
     } catch {
       body = { error: { code: 'invalid_response', message: 'Sync server returned invalid JSON' } };
+    }
+    if (response.ok && body?.data) {
+      body.data = await hydrateSyncData(body.data, {
+        downloadAsset: async (asset) => {
+          const downloaded = await fetch(assetUrl(asset.sha256), { headers: assetHeaders });
+          if (!downloaded.ok) throw new Error('附件下载失败');
+          const bytes = Buffer.from(await downloaded.arrayBuffer());
+          return diaryStore?.storeDownloadedAsset({ ...asset, bytes });
+        },
+      });
     }
     return { ok: response.ok, status: response.status, body };
   } catch (error) {
@@ -423,7 +495,13 @@ ipcMain.handle('db:snapshot', () => diaryStore?.snapshot() || null);
 ipcMain.handle('db:listEntries', (_event, options) => diaryStore?.listEntries(options) || []);
 ipcMain.handle('db:taxonomyUsage', () => diaryStore?.taxonomyUsage() || { categories: [], tags: [] });
 ipcMain.handle('db:attachmentHealth', () => diaryStore?.attachmentHealth() || { total: 0, ready: 0, missing: 0, orphaned: 0 });
-ipcMain.handle('db:saveEntry', (_event, entry) => diaryStore?.saveEntry(entry) || null);
+ipcMain.handle('db:saveEntry', (event, entry) => {
+  const result = diaryStore?.saveEntry(entry) || null;
+  if (result && shouldRefreshMainAfterSave({ senderId: event.sender.id, quickCaptureWindowId: quickCaptureWindow?.webContents.id ?? null })) {
+    mainWindow?.webContents.send('db:quick-capture-saved');
+  }
+  return result;
+});
 ipcMain.handle('db:saveDraft', (_event, draft) => diaryStore?.saveDraft(draft) || null);
 ipcMain.handle('db:loadDraft', (_event, id) => diaryStore?.loadDraft(id) || null);
 ipcMain.handle('db:clearDraft', (_event, id) => diaryStore?.clearDraft(id) || null);

@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -96,6 +97,43 @@ test('registers external attachments into managed storage with hash metadata', (
   } finally {
     store.close();
     try { fs.unlinkSync(sourcePath); } catch {}
+  }
+});
+
+test('returns ready managed attachments for a pending entry sync', () => {
+  const userDataPath = fs.mkdtempSync(path.join(os.tmpdir(), 'diary-store-sync-asset-'));
+  const sourcePath = path.join(userDataPath, '..', `diary-sync-source-${Date.now()}.png`);
+  fs.writeFileSync(sourcePath, Buffer.from('syncable-image'));
+  const store = createDiaryStore({ userDataPath });
+  try {
+    store.saveEntry({ ...legacyEntry('sync-asset-entry', '待同步图片'), imagePaths: [sourcePath] });
+    const assets = store.listEntryAssets('sync-asset-entry');
+    assert.equal(assets.length, 1);
+    assert.equal(assets[0].kind, 'image');
+    assert.equal(assets[0].state, 'ready');
+    assert.equal(fs.existsSync(assets[0].localPath), true);
+    assert.equal(assets[0].id, `asset-${assets[0].sha256}`);
+  } finally {
+    store.close();
+    try { fs.unlinkSync(sourcePath); } catch {}
+  }
+});
+
+test('stores a downloaded asset only after its hash is verified', () => {
+  const userDataPath = fs.mkdtempSync(path.join(os.tmpdir(), 'diary-store-download-'));
+  const store = createDiaryStore({ userDataPath });
+  try {
+    const bytes = Buffer.from('downloaded-image');
+    const sha256 = crypto.createHash('sha256').update(bytes).digest('hex');
+    const savedPath = store.storeDownloadedAsset({ sha256, extension: '.png', bytes });
+    assert.match(savedPath, /media[\\/]managed[\\/]/);
+    assert.deepEqual(fs.readFileSync(savedPath), bytes);
+    assert.throws(
+      () => store.storeDownloadedAsset({ sha256, extension: '.png', bytes: Buffer.from('wrong') }),
+      /附件校验失败/,
+    );
+  } finally {
+    store.close();
   }
 });
 

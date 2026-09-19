@@ -1,9 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'package:diary/app/app_theme.dart';
 import 'package:diary/application/settings_controller.dart';
+import 'package:diary/domain/connection_settings_transfer.dart';
 import 'package:diary/domain/diary_entry.dart';
 import 'package:diary/domain/diary_settings.dart';
 
@@ -312,6 +314,46 @@ class _SyncSettingsState extends State<_SyncSettings> {
     super.dispose();
   }
 
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _copyConnectionSettings() async {
+    try {
+      final value = ConnectionSettingsTransfer(
+        syncEndpoint: _endpoint.text.trim().replaceFirst(RegExp(r'/+$'), ''),
+        syncToken: _token.text.trim(),
+        updateEndpoint: _updateEndpoint.text.trim().replaceFirst(
+          RegExp(r'/+$'),
+          '',
+        ),
+      ).encode();
+      await Clipboard.setData(ClipboardData(text: value));
+      if (mounted) _showMessage('连接配置已复制，内容包含访问令牌');
+    } on FormatException catch (error) {
+      if (mounted) _showMessage(error.message.toString());
+    }
+  }
+
+  Future<void> _pasteConnectionSettings() async {
+    try {
+      final clipboard = await Clipboard.getData(Clipboard.kTextPlain);
+      final source = clipboard?.text;
+      if (source == null || source.trim().isEmpty) {
+        throw const FormatException('剪贴板中没有连接配置');
+      }
+      final settings = ConnectionSettingsTransfer.decode(source);
+      _endpoint.text = settings.syncEndpoint;
+      _token.text = settings.syncToken;
+      _updateEndpoint.text = settings.updateEndpoint;
+      if (mounted) _showMessage('连接配置已导入，请保存连接');
+    } on FormatException catch (error) {
+      if (mounted) _showMessage(error.message.toString());
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = DiaryThemeColors.of(context);
@@ -346,6 +388,28 @@ class _SyncSettingsState extends State<_SyncSettings> {
             hintText: 'https://updates.example.com',
             helperText: '仅用于检查更新和打开下载链接，不会发送访问令牌。',
           ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          '跨设备连接配置包含访问令牌，仅在自己的受信设备间传递。',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            OutlinedButton.icon(
+              onPressed: _copyConnectionSettings,
+              icon: const Icon(Icons.copy_outlined),
+              label: const Text('复制连接配置'),
+            ),
+            OutlinedButton.icon(
+              onPressed: _pasteConnectionSettings,
+              icon: const Icon(Icons.content_paste_outlined),
+              label: const Text('粘贴并导入'),
+            ),
+          ],
         ),
         const SizedBox(height: 10),
         Align(

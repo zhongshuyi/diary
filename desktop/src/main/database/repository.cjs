@@ -569,14 +569,14 @@ function acknowledgeMutations(db, mutationIds) {
 }
 
 function applySyncResult(db, { changes = [], conflicts = [], acknowledgedMutationIds = [], cursor = null } = {}) {
-  const candidates = Array.isArray(changes) ? changes.map((change) => change?.entry).filter(Boolean) : [];
+  const candidates = Array.isArray(changes) ? changes.filter((change) => change?.entry) : [];
   return withTransaction(db, () => {
-    for (const remote of candidates) {
-      const normalized = normalizeEntry(remote);
+    for (const candidate of candidates) {
+      const normalized = normalizeEntry(candidate.entry);
       if (normalized.isConflict) continue;
       const local = db.prepare('SELECT updated_at FROM entries WHERE id = ?').get(normalized.id);
       if (!local || Date.parse(normalized.updatedAt) >= Date.parse(local.updated_at)) {
-        writeEntryRecord(db, normalized, { enqueue: false });
+        writeEntryRecord(db, normalized, { enqueue: false, assets: candidate.assets });
       }
     }
     const addConflict = db.prepare(`INSERT INTO conflicts(conflict_id, entry_id, entry_json, server_entry_json, source_device_id, source_mutation_id, created_at, status)
@@ -587,7 +587,7 @@ function applySyncResult(db, { changes = [], conflicts = [], acknowledgedMutatio
         if (conflict?.serverEntry) {
           const normalized = normalizeEntry(conflict.serverEntry);
           const local = db.prepare('SELECT updated_at FROM entries WHERE id = ?').get(normalized.id);
-          if (!local || Date.parse(normalized.updatedAt) >= Date.parse(local.updated_at)) writeEntryRecord(db, normalized, { enqueue: false });
+          if (!local || Date.parse(normalized.updatedAt) >= Date.parse(local.updated_at)) writeEntryRecord(db, normalized, { enqueue: false, assets: conflict.serverAssets });
         }
         return;
       }
@@ -597,7 +597,7 @@ function applySyncResult(db, { changes = [], conflicts = [], acknowledgedMutatio
       if (conflict.serverEntry) {
         const normalized = normalizeEntry(conflict.serverEntry);
         const local = db.prepare('SELECT updated_at FROM entries WHERE id = ?').get(normalized.id);
-        if (!local || Date.parse(normalized.updatedAt) >= Date.parse(local.updated_at)) writeEntryRecord(db, normalized, { enqueue: false });
+        if (!local || Date.parse(normalized.updatedAt) >= Date.parse(local.updated_at)) writeEntryRecord(db, normalized, { enqueue: false, assets: conflict.serverAssets });
       }
     });
     const ids = [...new Set((Array.isArray(acknowledgedMutationIds) ? acknowledgedMutationIds : []).filter((id) => typeof id === 'string' && id))];
