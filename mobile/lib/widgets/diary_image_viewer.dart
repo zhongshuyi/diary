@@ -117,6 +117,7 @@ class DiaryImageGallery extends StatelessWidget {
     required this.imagePaths,
     this.maxGridHeight = 260,
     this.heroScope = 'detail',
+    this.showHeader = true,
     super.key,
   });
 
@@ -124,6 +125,7 @@ class DiaryImageGallery extends StatelessWidget {
   final List<String> imagePaths;
   final double maxGridHeight;
   final String heroScope;
+  final bool showHeader;
 
   @override
   Widget build(BuildContext context) {
@@ -133,19 +135,21 @@ class DiaryImageGallery extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Text('照片', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(width: 7),
-            Text(
-              '${imagePaths.length} 张',
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(color: colors.mutedInk),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
+        if (showHeader) ...[
+          Row(
+            children: [
+              Text('照片', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(width: 7),
+              Text(
+                '${imagePaths.length} 张',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: colors.mutedInk),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+        ],
         LayoutBuilder(
           builder: (context, constraints) {
             if (isSingleImage) {

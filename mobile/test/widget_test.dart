@@ -1499,9 +1499,86 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(DiaryAudioPlayer), findsOneWidget);
-    expect(find.text('语音'), findsOneWidget);
+    expect(find.text('语音片段'), findsOneWidget);
     expect(find.text('voice-note.m4a'), findsNothing);
     expect(find.byTooltip('播放'), findsOneWidget);
+  });
+
+  testWidgets('detail gives mixed media their own reading sections', (
+    tester,
+  ) async {
+    final now = DateTime(2026, 9, 19, 20, 18);
+    final entry = DiaryEntry(
+      id: 'mixed-detail',
+      createdAt: now,
+      updatedAt: now,
+      title: '晚上的片段',
+      content: '今天的风很舒服。',
+      contentText: '今天的风很舒服。',
+      category: '生活',
+      mood: .9,
+      moodLabel: '明亮',
+      imagePaths: const ['sunset.jpg'],
+      audioPaths: const ['voice.m4a'],
+      videoPaths: const ['street.mp4'],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: EntryDetailPage(
+          entry: entry,
+          onEdit: (_) async => null,
+          onShare: () {},
+          onDelete: () {},
+          onToggleFavorite: () {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('entry-detail-header')), findsOneWidget);
+    expect(find.text('此刻心情 · 明亮'), findsOneWidget);
+    expect(find.text('文字'), findsOneWidget);
+    expect(find.text('照片'), findsOneWidget);
+    expect(find.text('声音'), findsOneWidget);
+    await tester.ensureVisible(
+      find.byKey(const Key('entry-detail-video-mixed-detail-0')),
+    );
+    expect(find.text('视频'), findsOneWidget);
+    expect(find.text('视频片段 1'), findsOneWidget);
+  });
+
+  testWidgets('a mood-only detail reads as a focused moment', (tester) async {
+    final now = DateTime(2026, 9, 19, 21);
+    final entry = DiaryEntry(
+      id: 'mood-only-detail',
+      createdAt: now,
+      updatedAt: now,
+      title: '21:00 的心情',
+      content: '',
+      contentText: '',
+      category: '生活',
+      mood: .7,
+      moodLabel: '平静',
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: EntryDetailPage(
+          entry: entry,
+          onEdit: (_) async => null,
+          onShare: () {},
+          onDelete: () {},
+          onToggleFavorite: () {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('此刻的心情'), findsOneWidget);
+    expect(find.text('平静'), findsOneWidget);
+    expect(find.text('文字'), findsNothing);
+    expect(find.text('照片'), findsNothing);
   });
 }
 

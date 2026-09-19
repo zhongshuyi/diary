@@ -5,7 +5,6 @@ import 'package:diary/app/app_theme.dart';
 import 'package:diary/domain/diary_entry.dart';
 import 'package:diary/widgets/diary_audio_player.dart';
 import 'package:diary/widgets/diary_image_viewer.dart';
-import 'package:diary/widgets/local_media_preview.dart';
 import 'package:diary/widgets/rich_text_viewer.dart';
 
 class EntryDetailPage extends StatefulWidget {
@@ -81,81 +80,75 @@ class _EntryDetailPageState extends State<EntryDetailPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  diaryDateLabel(_entry.effectiveOccurredAt),
-                  style: Theme.of(
-                    context,
-                  ).textTheme.labelSmall?.copyWith(color: colors.terracotta),
+                _DetailHeader(
+                  entry: _entry,
+                  showWordCount: widget.showWordCount,
                 ),
-                const SizedBox(height: 14),
-                Text(
-                  _entry.title.isEmpty ? '无题' : _entry.title,
-                  style: Theme.of(context).textTheme.displaySmall,
-                ),
-                const SizedBox(height: 13),
-                Wrap(
-                  spacing: 7,
-                  runSpacing: 7,
-                  children: [
-                    _MetaChip(
-                      label: _entry.category,
-                      icon: Icons.folder_open_outlined,
-                    ),
-                    _MetaChip(
-                      label: diaryMoodLabel(_entry.mood),
-                      icon: Icons.wb_sunny_outlined,
-                    ),
-                    ..._entry.tags.map(
-                      (tag) =>
-                          _MetaChip(label: '#$tag', icon: Icons.sell_outlined),
-                    ),
-                  ],
-                ),
-                if (widget.showWordCount) ...[
-                  const SizedBox(height: 10),
-                  Text(
-                    '${_entry.wordCount} 字 · 更新于 ${diaryTimeLabel(_entry.updatedAt)}',
-                    style: Theme.of(context).textTheme.bodyMedium,
+                if (_entry.contentText.isNotEmpty ||
+                    _entry.content.isNotEmpty) ...[
+                  const SizedBox(height: 26),
+                  const _DetailSectionTitle(
+                    icon: Icons.subject_rounded,
+                    title: '文字',
                   ),
-                ],
-                const SizedBox(height: 25),
-                if (_entry.contentText.isNotEmpty || _entry.content.isNotEmpty)
+                  const SizedBox(height: 10),
                   _Content(entry: _entry),
+                ],
                 if (_entry.imagePaths.isNotEmpty) ...[
-                  const SizedBox(height: 25),
+                  const SizedBox(height: 26),
+                  _DetailSectionTitle(
+                    icon: Icons.photo_library_outlined,
+                    title: '照片',
+                    count: _entry.imagePaths.length,
+                  ),
+                  const SizedBox(height: 10),
                   DiaryImageGallery(
                     entryId: _entry.id,
                     imagePaths: _entry.imagePaths,
+                    showHeader: false,
+                    maxGridHeight: 340,
                   ),
                 ],
-                if (_attachments.isNotEmpty) ...[
-                  const SizedBox(height: 25),
-                  Text('其他附件', style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 9),
-                  ..._attachments.map(
-                    (attachment) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: attachment.kind == DiaryMediaKind.audio
-                          ? DiaryAudioPlayer(path: attachment.path, label: '语音')
-                          : Card(
-                              clipBehavior: Clip.antiAlias,
-                              child: ListTile(
-                                leading: SizedBox(
-                                  width: 46,
-                                  height: 46,
-                                  child: LocalMediaPreview(
-                                    path: attachment.path,
-                                    kind: attachment.kind,
-                                  ),
-                                ),
-                                title: Text(attachment.fileName),
-                                subtitle: Text(
-                                  '${diaryMediaKindLabel(attachment.kind)} · 本地附件',
-                                ),
-                              ),
-                            ),
-                    ),
+                if (_entry.audioPaths.isNotEmpty) ...[
+                  const SizedBox(height: 26),
+                  _DetailSectionTitle(
+                    icon: Icons.graphic_eq_rounded,
+                    title: '声音',
+                    count: _entry.audioPaths.length,
                   ),
+                  const SizedBox(height: 10),
+                  for (
+                    var index = 0;
+                    index < _entry.audioPaths.length;
+                    index++
+                  ) ...[
+                    DiaryAudioPlayer(
+                      path: _entry.audioPaths[index],
+                      label: _entry.audioPaths.length == 1
+                          ? '语音片段'
+                          : '语音片段 ${index + 1}',
+                    ),
+                    if (index < _entry.audioPaths.length - 1)
+                      const SizedBox(height: 10),
+                  ],
+                ],
+                if (_entry.videoPaths.isNotEmpty) ...[
+                  const SizedBox(height: 26),
+                  _DetailSectionTitle(
+                    icon: Icons.play_circle_outline_rounded,
+                    title: '视频',
+                    count: _entry.videoPaths.length,
+                  ),
+                  const SizedBox(height: 10),
+                  for (
+                    var index = 0;
+                    index < _entry.videoPaths.length;
+                    index++
+                  ) ...[
+                    _VideoAttachmentCard(entryId: _entry.id, index: index),
+                    if (index < _entry.videoPaths.length - 1)
+                      const SizedBox(height: 10),
+                  ],
                 ],
                 const SizedBox(height: 28),
                 Row(
@@ -199,23 +192,6 @@ class _EntryDetailPageState extends State<EntryDetailPage> {
     widget.onDelete();
     Navigator.pop(context);
   }
-
-  List<_EntryAttachment> get _attachments =>
-      [..._entry.audioPaths, ..._entry.videoPaths]
-          .map(
-            (path) =>
-                _EntryAttachment(path: path, kind: diaryMediaKindForPath(path)),
-          )
-          .toList(growable: false);
-}
-
-class _EntryAttachment {
-  const _EntryAttachment({required this.path, required this.kind});
-
-  final String path;
-  final DiaryMediaKind kind;
-
-  String get fileName => path.split(RegExp(r'[\\/]')).last;
 }
 
 class _Content extends StatelessWidget {
@@ -227,7 +203,7 @@ class _Content extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = DiaryThemeColors.of(context);
     if (entry.editorType == DiaryEditorType.markdown) {
-      return Card(
+      return _ContentSurface(
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: MarkdownBody(
@@ -242,15 +218,377 @@ class _Content extends StatelessWidget {
         fallbackText: entry.contentText,
       );
     }
-    return Card(
+    return _ContentSurface(
       child: Padding(
         padding: const EdgeInsets.all(20),
-        child: Text(
+        child: SelectableText(
           entry.contentText,
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
             color: colors.ink,
             height: 1.8,
             fontSize: 16,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DetailHeader extends StatelessWidget {
+  const _DetailHeader({required this.entry, required this.showWordCount});
+
+  final DiaryEntry entry;
+  final bool showWordCount;
+
+  bool get _isMoodOnly =>
+      entry.moodLabel != null &&
+      entry.contentText.trim().isEmpty &&
+      entry.content.trim().isEmpty &&
+      !entry.hasMedia;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
+    final occurredAt = entry.effectiveOccurredAt;
+    final mood = _EntryMood.resolve(
+      entry.moodLabel ?? diaryMoodLabel(entry.mood),
+    );
+    return Container(
+      key: const Key('entry-detail-header'),
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 19, 20, 18),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: colors.line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.calendar_today_outlined,
+                size: 16,
+                color: colors.terracotta,
+              ),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  '${occurredAt.year}年 · ${diaryDateLabel(occurredAt)}',
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: colors.terracotta,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              Text(
+                diaryTimeLabel(occurredAt),
+                style: Theme.of(
+                  context,
+                ).textTheme.labelLarge?.copyWith(color: colors.mutedInk),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (_isMoodOnly)
+            _MoodOnlyHeader(mood: mood)
+          else ...[
+            Text(
+              entry.title.trim().isEmpty ? '无题片段' : entry.title.trim(),
+              style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                color: colors.ink,
+                height: 1.18,
+              ),
+            ),
+            const SizedBox(height: 14),
+            _MoodLine(mood: mood, explicit: entry.moodLabel != null),
+            const SizedBox(height: 13),
+            Wrap(
+              spacing: 7,
+              runSpacing: 7,
+              children: [
+                _MetaChip(
+                  label: entry.category,
+                  icon: Icons.folder_open_outlined,
+                ),
+                if (entry.moodLabel == null)
+                  _MetaChip(label: mood.label, icon: mood.icon),
+                ...entry.weather.map(
+                  (weather) =>
+                      _MetaChip(label: weather, icon: Icons.wb_sunny_outlined),
+                ),
+                ...entry.positions.map(
+                  (position) => _MetaChip(
+                    label: position,
+                    icon: Icons.location_on_outlined,
+                  ),
+                ),
+                ...entry.tags.map(
+                  (tag) => _MetaChip(label: '#$tag', icon: Icons.sell_outlined),
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 14),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: colors.paper,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+              child: Row(
+                children: [
+                  Icon(Icons.history_rounded, size: 15, color: colors.mutedInk),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      '更新于 ${diaryTimeLabel(entry.updatedAt)}',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.labelSmall?.copyWith(color: colors.mutedInk),
+                    ),
+                  ),
+                  if (showWordCount)
+                    Text(
+                      '${entry.wordCount} 字',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.labelSmall?.copyWith(color: colors.mutedInk),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MoodOnlyHeader extends StatelessWidget {
+  const _MoodOnlyHeader({required this.mood});
+
+  final _EntryMood mood;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
+    return Center(
+      child: Column(
+        children: [
+          Container(
+            width: 58,
+            height: 58,
+            decoration: BoxDecoration(
+              color: mood.backgroundColor(colors),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(mood.icon, size: 30, color: colors.terracotta),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            '此刻的心情',
+            style: Theme.of(
+              context,
+            ).textTheme.labelLarge?.copyWith(color: colors.mutedInk),
+          ),
+          const SizedBox(height: 2),
+          Text(mood.label, style: Theme.of(context).textTheme.headlineSmall),
+        ],
+      ),
+    );
+  }
+}
+
+class _MoodLine extends StatelessWidget {
+  const _MoodLine({required this.mood, required this.explicit});
+
+  final _EntryMood mood;
+  final bool explicit;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+      decoration: BoxDecoration(
+        color: mood.backgroundColor(colors),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(mood.icon, size: 18, color: colors.terracotta),
+          const SizedBox(width: 7),
+          Text(
+            explicit ? '此刻心情 · ${mood.label}' : mood.label,
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: colors.ink,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EntryMood {
+  const _EntryMood({
+    required this.label,
+    required this.icon,
+    required this.tint,
+  });
+
+  final String label;
+  final IconData icon;
+  final Color Function(DiaryThemeColors colors) tint;
+
+  Color backgroundColor(DiaryThemeColors colors) => tint(colors);
+
+  static _EntryMood resolve(String label) {
+    return switch (label) {
+      '阴天' => _EntryMood(
+        label: label,
+        icon: Icons.cloud_outlined,
+        tint: (colors) => colors.lavender,
+      ),
+      '低落' => _EntryMood(
+        label: label,
+        icon: Icons.sentiment_dissatisfied_outlined,
+        tint: (colors) => colors.lavender,
+      ),
+      '平静' => _EntryMood(
+        label: label,
+        icon: Icons.sentiment_satisfied_alt_outlined,
+        tint: (colors) => colors.sage,
+      ),
+      '明亮' => _EntryMood(
+        label: label,
+        icon: Icons.wb_sunny_outlined,
+        tint: (colors) => colors.butter,
+      ),
+      _ => _EntryMood(
+        label: label,
+        icon: Icons.sentiment_neutral_outlined,
+        tint: (colors) => colors.terracottaSoft,
+      ),
+    };
+  }
+}
+
+class _DetailSectionTitle extends StatelessWidget {
+  const _DetailSectionTitle({
+    required this.icon,
+    required this.title,
+    this.count,
+  });
+
+  final IconData icon;
+  final String title;
+  final int? count;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
+    return Row(
+      children: [
+        Icon(icon, size: 19, color: colors.terracotta),
+        const SizedBox(width: 8),
+        Text(title, style: Theme.of(context).textTheme.titleMedium),
+        if (count != null) ...[
+          const SizedBox(width: 7),
+          Text(
+            '$count ${title == '照片' ? '张' : '段'}',
+            style: Theme.of(
+              context,
+            ).textTheme.labelLarge?.copyWith(color: colors.mutedInk),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _ContentSurface extends StatelessWidget {
+  const _ContentSurface({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: colors.line),
+      ),
+      child: child,
+    );
+  }
+}
+
+class _VideoAttachmentCard extends StatelessWidget {
+  const _VideoAttachmentCard({required this.entryId, required this.index});
+
+  final String entryId;
+  final int index;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
+    return Semantics(
+      label: '视频片段 ${index + 1}',
+      child: AspectRatio(
+        aspectRatio: 16 / 9,
+        child: Container(
+          key: Key('entry-detail-video-$entryId-$index'),
+          decoration: BoxDecoration(
+            color: colors.hero,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Stack(
+            children: [
+              Center(
+                child: Container(
+                  width: 58,
+                  height: 58,
+                  decoration: BoxDecoration(
+                    color: colors.onHero.withValues(alpha: .14),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.play_arrow_rounded,
+                    size: 37,
+                    color: colors.onHero,
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 14,
+                bottom: 13,
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.videocam_outlined,
+                      size: 17,
+                      color: colors.onHero,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '视频片段 ${index + 1}',
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        color: colors.onHero,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),

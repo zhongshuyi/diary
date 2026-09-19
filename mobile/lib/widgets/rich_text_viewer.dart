@@ -51,16 +51,20 @@ class _DiaryRichTextViewerState extends State<DiaryRichTextViewer> {
     if (controller == null) {
       return _FallbackContent(text: widget.fallbackText);
     }
-    return Card(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 120, maxHeight: 420),
-        child: quill.QuillEditor.basic(
-          controller: controller,
-          config: quill.QuillEditorConfig(
-            padding: const EdgeInsets.all(20),
-            scrollable: true,
-            embedBuilders: FlutterQuillEmbeds.defaultEditorBuilders(),
-          ),
+    final colors = DiaryThemeColors.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: colors.line),
+      ),
+      child: quill.QuillEditor.basic(
+        controller: controller,
+        config: quill.QuillEditorConfig(
+          padding: const EdgeInsets.all(20),
+          minHeight: 120,
+          scrollable: false,
+          embedBuilders: FlutterQuillEmbeds.defaultEditorBuilders(),
         ),
       ),
     );
@@ -95,7 +99,12 @@ class _FallbackContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = DiaryThemeColors.of(context);
-    return Card(
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: colors.line),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
