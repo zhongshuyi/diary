@@ -55,6 +55,17 @@ void main() {
     expect(find.byKey(const Key('desktop-window-bar')), findsNothing);
   });
 
+  testWidgets('opens the saved chat homepage by default', (tester) async {
+    final store = _TestSettingsStore()
+      ..value = const DiarySettings(defaultHomeMode: DiaryHomeMode.chat);
+    await tester.pumpWidget(MyApp(settingsStore: store));
+    await tester.pumpAndSettle();
+
+    expect(find.text('我的日记'), findsOneWidget);
+    expect(find.byKey(const Key('mobile-quick-capture-fab')), findsNothing);
+    expect(find.byType(DiaryBottomNavigation), findsNothing);
+  });
+
   testWidgets('quick action follows the saved left or right setting', (
     tester,
   ) async {
@@ -69,7 +80,14 @@ void main() {
     await tester.ensureVisible(find.text('偏好设置'));
     await tester.tap(find.text('偏好设置'));
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.text('左侧'), 250);
+    final quickCaptureSetting = find.byKey(
+      const Key('settings-quick-capture-side'),
+    );
+    await tester.scrollUntilVisible(quickCaptureSetting, 250);
+    await tester.ensureVisible(quickCaptureSetting);
+    await tester.pumpAndSettle();
+    await tester.tap(quickCaptureSetting);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('左侧'));
     await tester.pumpAndSettle();
     expect(store.value.quickCaptureSide, QuickCaptureSide.left);
@@ -818,13 +836,13 @@ void main() {
         await tester.tap(find.text('应用设置'));
         await tester.pumpAndSettle();
 
-        expect(find.text('偏好设置'), findsNWidgets(2));
+        expect(find.text('设置'), findsOneWidget);
         await tester.scrollUntilVisible(
-          find.text('应用工具'),
+          find.text('管理与关于'),
           300,
           scrollable: find.byType(Scrollable).first,
         );
-        expect(find.text('应用工具'), findsOneWidget);
+        expect(find.text('管理与关于'), findsOneWidget);
         expect(find.byTooltip('返回'), findsOneWidget);
 
         await tester.tap(find.byTooltip('返回'));
@@ -1361,14 +1379,17 @@ void main() {
     expect(find.text('2026年 9月'), findsOneWidget);
   });
 
-  testWidgets('opens the media library tab', (tester) async {
+  testWidgets('opens the media library from profile tools', (tester) async {
     await tester.pumpWidget(const MyApp());
     await tester.pumpAndSettle();
 
+    await tester.tap(find.text('我的'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('媒体库'), 250);
     await tester.tap(find.text('媒体库'));
     await tester.pumpAndSettle();
 
-    expect(find.text('媒体库'), findsNWidgets(2));
+    expect(find.text('媒体库'), findsOneWidget);
     expect(find.text('你的媒体库还是空的'), findsOneWidget);
   });
 

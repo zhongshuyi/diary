@@ -11,6 +11,16 @@ abstract interface class DiarySettingsStore {
 
 class SharedPreferencesDiarySettingsStore implements DiarySettingsStore {
   static const _themeModeKey = 'diary.settings.theme_mode';
+  static const _themePresetKey = 'diary.settings.theme_preset';
+  static const _customThemeColorKey = 'diary.settings.custom_theme_color';
+  static const _chatBackgroundPathKey = 'diary.settings.chat_background_path';
+  static const _chatBackgroundScaleKey = 'diary.settings.chat_background_scale';
+  static const _chatBackgroundAlignmentXKey =
+      'diary.settings.chat_background_alignment_x';
+  static const _chatBackgroundAlignmentYKey =
+      'diary.settings.chat_background_alignment_y';
+  static const _chatBackgroundOpacityKey =
+      'diary.settings.chat_background_opacity';
   static const _fontScaleKey = 'diary.settings.font_scale';
   static const _editorTypeKey = 'diary.settings.default_editor';
   static const _showWordCountKey = 'diary.settings.show_word_count';
@@ -20,6 +30,8 @@ class SharedPreferencesDiarySettingsStore implements DiarySettingsStore {
   static const _syncTokenKey = 'diary.settings.sync_token';
   static const _updateEndpointKey = 'diary.settings.update_endpoint';
   static const _quickCaptureSideKey = 'diary.settings.quick_capture_side';
+  static const _defaultHomeModeKey = 'diary.settings.default_home_mode';
+  static const _chatTitleKey = 'diary.settings.chat_title';
 
   @override
   Future<DiarySettings> load() async {
@@ -28,6 +40,37 @@ class SharedPreferencesDiarySettingsStore implements DiarySettingsStore {
       themeMode: DiaryThemeModeCodec.fromWireValue(
         preferences.getString(_themeModeKey),
       ),
+      themePreset: DiaryThemePresetCodec.fromWireValue(
+        preferences.getString(_themePresetKey),
+      ),
+      customThemeColor: preferences.getInt(_customThemeColorKey),
+      chatBackground: DiaryChatBackground(
+        imagePath: preferences.getString(_chatBackgroundPathKey),
+        scale: _safeRange(
+          preferences.getDouble(_chatBackgroundScaleKey),
+          fallback: 1,
+          minimum: 1,
+          maximum: 2.5,
+        ),
+        alignmentX: _safeRange(
+          preferences.getDouble(_chatBackgroundAlignmentXKey),
+          fallback: 0,
+          minimum: -1,
+          maximum: 1,
+        ),
+        alignmentY: _safeRange(
+          preferences.getDouble(_chatBackgroundAlignmentYKey),
+          fallback: 0,
+          minimum: -1,
+          maximum: 1,
+        ),
+        opacity: _safeRange(
+          preferences.getDouble(_chatBackgroundOpacityKey),
+          fallback: .22,
+          minimum: .08,
+          maximum: .5,
+        ),
+      ).normalized(),
       fontScale: _safeScale(preferences.getDouble(_fontScaleKey)),
       defaultEditorType: DiaryEditorTypeCodec.fromWireValue(
         preferences.getString(_editorTypeKey),
@@ -41,6 +84,10 @@ class SharedPreferencesDiarySettingsStore implements DiarySettingsStore {
       quickCaptureSide: QuickCaptureSideCodec.fromWireValue(
         preferences.getString(_quickCaptureSideKey),
       ),
+      defaultHomeMode: DiaryHomeModeCodec.fromWireValue(
+        preferences.getString(_defaultHomeModeKey),
+      ),
+      chatTitle: preferences.getString(_chatTitleKey) ?? diaryDefaultChatTitle,
     );
   }
 
@@ -48,6 +95,47 @@ class SharedPreferencesDiarySettingsStore implements DiarySettingsStore {
   Future<void> save(DiarySettings settings) async {
     final preferences = await SharedPreferences.getInstance();
     await preferences.setString(_themeModeKey, settings.themeMode.wireValue);
+    await preferences.setString(
+      _themePresetKey,
+      settings.themePreset.wireValue,
+    );
+    if (settings.customThemeColor == null) {
+      await preferences.remove(_customThemeColorKey);
+    } else {
+      await preferences.setInt(
+        _customThemeColorKey,
+        settings.customThemeColor!,
+      );
+    }
+    final chatBackground = settings.chatBackground.normalized();
+    if (!chatBackground.hasImage) {
+      await preferences.remove(_chatBackgroundPathKey);
+      await preferences.remove(_chatBackgroundScaleKey);
+      await preferences.remove(_chatBackgroundAlignmentXKey);
+      await preferences.remove(_chatBackgroundAlignmentYKey);
+      await preferences.remove(_chatBackgroundOpacityKey);
+    } else {
+      await preferences.setString(
+        _chatBackgroundPathKey,
+        chatBackground.imagePath!,
+      );
+      await preferences.setDouble(
+        _chatBackgroundScaleKey,
+        chatBackground.scale,
+      );
+      await preferences.setDouble(
+        _chatBackgroundAlignmentXKey,
+        chatBackground.alignmentX,
+      );
+      await preferences.setDouble(
+        _chatBackgroundAlignmentYKey,
+        chatBackground.alignmentY,
+      );
+      await preferences.setDouble(
+        _chatBackgroundOpacityKey,
+        chatBackground.opacity,
+      );
+    }
     await preferences.setDouble(_fontScaleKey, settings.fontScale);
     await preferences.setString(
       _editorTypeKey,
@@ -63,10 +151,25 @@ class SharedPreferencesDiarySettingsStore implements DiarySettingsStore {
       _quickCaptureSideKey,
       settings.quickCaptureSide.name,
     );
+    await preferences.setString(
+      _defaultHomeModeKey,
+      settings.defaultHomeMode.wireValue,
+    );
+    await preferences.setString(_chatTitleKey, settings.chatTitle);
   }
 }
 
 double _safeScale(double? value) {
   if (value == null || value.isNaN || value.isInfinite) return 1;
   return value.clamp(.85, 1.3);
+}
+
+double _safeRange(
+  double? value, {
+  required double fallback,
+  required double minimum,
+  required double maximum,
+}) {
+  if (value == null || value.isNaN || value.isInfinite) return fallback;
+  return value.clamp(minimum, maximum);
 }

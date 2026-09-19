@@ -56,6 +56,7 @@ class DiaryEntry {
     required this.category,
     this.editorType = DiaryEditorType.plainText,
     this.mood = 0.5,
+    this.moodLabel,
     this.tags = const [],
     this.attachmentIds = const [],
     this.imagePaths = const [],
@@ -85,6 +86,7 @@ class DiaryEntry {
   final String contentText;
   final DiaryEditorType editorType;
   final double mood;
+  final String? moodLabel;
   final String category;
   final List<String> tags;
   final List<String> attachmentIds;
@@ -140,6 +142,7 @@ class DiaryEntry {
     String? contentText,
     DiaryEditorType? editorType,
     double? mood,
+    String? moodLabel,
     String? category,
     List<String>? tags,
     List<String>? attachmentIds,
@@ -177,6 +180,7 @@ class DiaryEntry {
       contentText: contentText ?? this.contentText,
       editorType: editorType ?? this.editorType,
       mood: mood ?? this.mood,
+      moodLabel: moodLabel ?? this.moodLabel,
       category: category ?? this.category,
       tags: tags ?? this.tags,
       attachmentIds: attachmentIds ?? this.attachmentIds,
@@ -211,6 +215,7 @@ class DiaryEntry {
       'contentText': contentText,
       'editorType': editorType.wireValue,
       'mood': mood,
+      'moodLabel': moodLabel,
       'category': category,
       'tags': tags,
       'attachmentIds': attachmentIds,
@@ -273,6 +278,7 @@ class DiaryEntry {
         json['editorType'] as String?,
       ),
       mood: _readDouble(json['mood'], fallback: 0.5).clamp(0, 1),
+      moodLabel: _readNullableString(json['moodLabel']),
       category: _readString(json['category'], fallback: '生活'),
       tags: _readStringList(json['tags']),
       attachmentIds: _readStringList(json['attachmentIds']),
@@ -307,6 +313,7 @@ class DiaryEntry {
         contentText == other.contentText &&
         editorType == other.editorType &&
         mood == other.mood &&
+        moodLabel == other.moodLabel &&
         category == other.category &&
         _listEquals(tags, other.tags) &&
         _listEquals(attachmentIds, other.attachmentIds) &&
@@ -339,6 +346,7 @@ class DiaryEntry {
     contentText,
     editorType,
     mood,
+    moodLabel,
     category,
     Object.hashAll(tags),
     Object.hashAll(attachmentIds),
@@ -357,6 +365,11 @@ class DiaryEntry {
 
 String _readString(Object? value, {String fallback = ''}) {
   return value is String ? value : fallback;
+}
+
+String? _readNullableString(Object? value) {
+  final result = value is String ? value.trim() : '';
+  return result.isEmpty ? null : result;
 }
 
 DateTime _readDate(Object? value, {required DateTime fallback}) {

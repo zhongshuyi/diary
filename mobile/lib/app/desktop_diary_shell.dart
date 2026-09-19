@@ -7,7 +7,9 @@ import 'package:diary/app/app_theme.dart';
 import 'package:diary/app/diary_shell.dart';
 import 'package:diary/application/settings_controller.dart';
 import 'package:diary/domain/diary_entry.dart';
+import 'package:diary/domain/diary_settings.dart';
 import 'package:diary/pages/calendar/calendar_page.dart';
+import 'package:diary/pages/chat/chat_page.dart';
 import 'package:diary/pages/entry/entry_detail_page.dart';
 import 'package:diary/pages/entry/entry_editor_page.dart';
 import 'package:diary/pages/home/home_page.dart';
@@ -32,6 +34,9 @@ class DesktopDiaryShell extends StatefulWidget {
     required this.categories,
     required this.settingsController,
     required this.actions,
+    this.defaultHomeMode = DiaryHomeMode.timeline,
+    this.chatTitle = diaryDefaultChatTitle,
+    this.chatBackground = const DiaryChatBackground(),
     this.conflictCount = 0,
     super.key,
   });
@@ -41,6 +46,9 @@ class DesktopDiaryShell extends StatefulWidget {
   final List<String> categories;
   final SettingsController settingsController;
   final DiaryShellActions actions;
+  final DiaryHomeMode defaultHomeMode;
+  final String chatTitle;
+  final DiaryChatBackground chatBackground;
   final int conflictCount;
 
   @override
@@ -52,13 +60,41 @@ class _DesktopDiaryShellState extends State<DesktopDiaryShell> {
   final _workspaceNavigatorKey = GlobalKey<NavigatorState>();
   final _workspaceTitles = <String>[];
   WidgetBuilder? _workspaceBuilder;
-  int _selectedIndex = 0;
+  static const _timelineIndex = 0;
+  static const _chatIndex = 1;
 
-  static const _pageTitles = ['今天', '日历', '媒体', '洞察', '我的'];
+  int _selectedIndex = _timelineIndex;
+  bool _selectedByUser = false;
+
+  static const _pageTitles = ['今天', '对话', '日历', '媒体', '洞察', '我的'];
 
   bool get _inWorkspace => _workspaceTitles.isNotEmpty;
   String? get _workspaceTitle =>
       _workspaceTitles.isEmpty ? null : _workspaceTitles.last;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedIndex = _indexForHomeMode(widget.defaultHomeMode);
+  }
+
+  @override
+  void didUpdateWidget(covariant DesktopDiaryShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.defaultHomeMode != widget.defaultHomeMode &&
+        !_selectedByUser) {
+      setState(
+        () => _selectedIndex = _indexForHomeMode(widget.defaultHomeMode),
+      );
+    }
+  }
+
+  int _indexForHomeMode(DiaryHomeMode mode) {
+    return switch (mode) {
+      DiaryHomeMode.timeline => _timelineIndex,
+      DiaryHomeMode.chat => _chatIndex,
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -128,6 +164,22 @@ class _DesktopDiaryShellState extends State<DesktopDiaryShell> {
         onBatchFavorite: widget.actions.batchSetFavorite,
         onBatchDelete: widget.actions.batchMoveToTrash,
       ),
+      ChatPage(
+        entries: widget.entries,
+        title: widget.chatTitle,
+        chatBackground: widget.chatBackground,
+        onSend: widget.actions.saveChatMessage,
+        onOpenEntry: (entry) => unawaited(_openEntry(entry)),
+        onEdit: (entry) async {
+          await _openEditor(entry);
+        },
+        onDelete: widget.actions.moveToTrash,
+        onOpenEditor: () => unawaited(_openEditor()),
+        onImportAttachments: widget.actions.importQuickPhotos,
+        onExternalActivityStart: widget.actions.beginExternalActivity,
+        onExternalActivityEnd: widget.actions.endExternalActivity,
+        onNavigate: _navigateFromChat,
+      ),
       CalendarPage(
         entries: widget.entries,
         onOpenEntry: (entry) => unawaited(_openEntry(entry)),
@@ -167,13 +219,39 @@ class _DesktopDiaryShellState extends State<DesktopDiaryShell> {
   void _selectPage(int index) {
     if (_inWorkspace) {
       setState(() {
+        _selectedByUser = true;
         _workspaceTitles.clear();
         _workspaceBuilder = null;
         _selectedIndex = index;
       });
       return;
     }
-    if (_selectedIndex != index) setState(() => _selectedIndex = index);
+    if (_selectedIndex != index || !_selectedByUser) {
+      setState(() {
+        _selectedByUser = true;
+        _selectedIndex = index;
+      });
+    }
+  }
+
+  void _navigateFromChat(ChatPageDestination destination) {
+    switch (destination) {
+      case ChatPageDestination.timeline:
+        _selectPage(_timelineIndex);
+        break;
+      case ChatPageDestination.calendar:
+        _selectPage(2);
+        break;
+      case ChatPageDestination.media:
+        _selectPage(3);
+        break;
+      case ChatPageDestination.insights:
+        _selectPage(4);
+        break;
+      case ChatPageDestination.profile:
+        _selectPage(5);
+        break;
+    }
   }
 
   void _focusSearch() {
@@ -251,6 +329,7 @@ class _DesktopDiaryShellState extends State<DesktopDiaryShell> {
       '应用设置',
       (context) => SettingsPage(
         controller: widget.settingsController,
+        onImportPhotos: widget.actions.importQuickPhotos,
         onOpenCategories: () => unawaited(_openCategories()),
         onOpenBackup: () => unawaited(_openBackup()),
         onOpenAbout: () => unawaited(_openAbout()),

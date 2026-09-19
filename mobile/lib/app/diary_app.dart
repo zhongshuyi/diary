@@ -58,8 +58,14 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp(
       title: '此刻 · diary',
       debugShowCheckedModeBanner: false,
-      theme: DiaryTheme.light,
-      darkTheme: DiaryTheme.dark,
+      theme: DiaryTheme.lightFor(
+        settings.themePreset,
+        customAccent: settings.customThemeColor,
+      ),
+      darkTheme: DiaryTheme.darkFor(
+        settings.themePreset,
+        customAccent: settings.customThemeColor,
+      ),
       themeMode: settings.themeMode.materialMode,
       localizationsDelegates:
           quill.FlutterQuillLocalizations.localizationsDelegates,

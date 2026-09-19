@@ -17,6 +17,8 @@ class DiaryAudioPlayer extends StatefulWidget {
     this.label,
     this.onRemove,
     this.compact = false,
+    this.chatStyle = false,
+    this.chatStyleHighContrast = false,
     this.loadMetadata = true,
     this.loadWaveform = true,
     this.waveformLoader,
@@ -27,6 +29,8 @@ class DiaryAudioPlayer extends StatefulWidget {
   final String? label;
   final VoidCallback? onRemove;
   final bool compact;
+  final bool chatStyle;
+  final bool chatStyleHighContrast;
   final bool loadMetadata;
   final bool loadWaveform;
   final DiaryAudioWaveformLoader? waveformLoader;
@@ -252,6 +256,12 @@ class _DiaryAudioPlayerState extends State<DiaryAudioPlayer> {
         ? '重新播放'
         : '播放';
 
+    final chatForeground = widget.chatStyleHighContrast
+        ? colors.onHero
+        : colors.terracotta;
+    final chatInactiveWaveform = widget.chatStyleHighContrast
+        ? Color.lerp(colors.terracotta, colors.onHero, .55)!
+        : colors.terracotta;
     final playButton = IconButton.filled(
       tooltip: playTooltip,
       onPressed: _isLoading ? null : _togglePlayback,
@@ -277,13 +287,75 @@ class _DiaryAudioPlayerState extends State<DiaryAudioPlayer> {
     final waveform = _WaveformSeekBar(
       progress: progress,
       duration: _duration,
-      activeColor: colors.terracotta,
-      inactiveColor: colors.line,
+      activeColor: widget.chatStyle
+          ? (widget.chatStyleHighContrast ? colors.onHero : colors.ink)
+          : colors.terracotta,
+      inactiveColor: widget.chatStyle ? chatInactiveWaveform : colors.line,
       amplitudes: _waveform?.amplitudes,
       enabled: !_isLoading && !_hasError && _duration > Duration.zero,
       onPreview: _previewSeek,
       onCommit: (position) => unawaited(_commitSeek(position)),
     );
+
+    if (widget.chatStyle) {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final width = math.min(constraints.maxWidth, 260.0);
+          return Semantics(
+            container: true,
+            label:
+                '语音，${_formatDuration(shownPosition)} / ${_formatDuration(_duration)}',
+            child: SizedBox(
+              width: width,
+              child: Row(
+                children: [
+                  IconButton.filled(
+                    tooltip: playTooltip,
+                    onPressed: _isLoading ? null : _togglePlayback,
+                    style: IconButton.styleFrom(
+                      backgroundColor: widget.chatStyleHighContrast
+                          ? colors.onHero
+                          : colors.terracotta,
+                      foregroundColor: widget.chatStyleHighContrast
+                          ? colors.terracotta
+                          : colors.onHero,
+                      minimumSize: const Size.square(34),
+                      maximumSize: const Size.square(34),
+                      padding: EdgeInsets.zero,
+                    ),
+                    icon: _isLoading
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Icon(
+                            _hasError
+                                ? Icons.refresh_rounded
+                                : _isPlaying
+                                ? Icons.pause_rounded
+                                : Icons.play_arrow_rounded,
+                            size: 20,
+                          ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(child: waveform),
+                  const SizedBox(width: 8),
+                  Text(
+                    _hasError
+                        ? '重试'
+                        : '${_formatDuration(shownPosition)} / ${_formatDuration(_duration)}',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.labelSmall?.copyWith(color: chatForeground),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    }
 
     return LayoutBuilder(
       builder: (context, constraints) {

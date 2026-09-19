@@ -20,6 +20,7 @@ void main() {
 
     try {
       expect((await repository.load()).single.id, _entry.id);
+      expect((await repository.load()).single.moodLabel, '平静');
       expect((await repository.search('数据库')).single.id, _entry.id);
 
       await repository.moveToTrash(_entry.id);
@@ -48,6 +49,8 @@ final _entry = DiaryEntry(
   title: 'Isar 测试',
   content: '验证本地数据库',
   contentText: '验证本地数据库',
+  mood: .7,
+  moodLabel: '平静',
   category: '测试',
   tags: const ['本地', '数据库'],
 );

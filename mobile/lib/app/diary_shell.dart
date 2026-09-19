@@ -51,6 +51,7 @@ class DiaryShellActions {
     required this.saveQuickCapture,
     required this.saveQuickCaptureWithPhotos,
     required this.saveQuickCaptureWithMedia,
+    required this.saveChatMessage,
     required this.importQuickPhotos,
     required this.loadDraft,
     required this.saveDraft,
@@ -88,6 +89,15 @@ class DiaryShellActions {
     List<String> audioPaths,
   )
   saveQuickCaptureWithMedia;
+  final Future<void> Function(
+    String content,
+    List<String> imagePaths,
+    List<String> audioPaths,
+    List<String> videoPaths,
+    double mood,
+    String? moodLabel,
+  )
+  saveChatMessage;
   final Future<List<String>> Function(List<String> paths) importQuickPhotos;
   final Future<DraftPayload?> Function(String id) loadDraft;
   final Future<void> Function(DraftPayload draft) saveDraft;
@@ -225,6 +235,7 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
           saveQuickCapture: _saveQuickCapture,
           saveQuickCaptureWithPhotos: _saveQuickCaptureWithPhotos,
           saveQuickCaptureWithMedia: _saveQuickCaptureWithMedia,
+          saveChatMessage: _saveChatMessage,
           importQuickPhotos: importQuickPhotos,
           loadDraft: widget.repository.loadDraft,
           saveDraft: widget.repository.saveDraft,
@@ -253,6 +264,9 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
             categories: _categories,
             settingsController: widget.settingsController,
             actions: actions,
+            defaultHomeMode: widget.settingsController.settings.defaultHomeMode,
+            chatTitle: widget.settingsController.settings.chatTitle,
+            chatBackground: widget.settingsController.settings.chatBackground,
             conflictCount: _conflicts.length,
           );
         }
@@ -260,6 +274,9 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
           entries: _entries,
           trash: _trash,
           quickCaptureSide: widget.settingsController.settings.quickCaptureSide,
+          defaultHomeMode: widget.settingsController.settings.defaultHomeMode,
+          chatTitle: widget.settingsController.settings.chatTitle,
+          chatBackground: widget.settingsController.settings.chatBackground,
           syncState: _syncState,
           onSyncNow: _syncEngine == null ? null : _syncNow,
           actions: actions,
@@ -355,6 +372,51 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('已保存在本机')));
+  }
+
+  Future<void> _saveChatMessage(
+    String content,
+    List<String> imagePaths,
+    List<String> audioPaths,
+    List<String> videoPaths,
+    double mood,
+    String? moodLabel,
+  ) async {
+    final text = content.trim();
+    if (text.isEmpty &&
+        imagePaths.isEmpty &&
+        audioPaths.isEmpty &&
+        videoPaths.isEmpty &&
+        moodLabel == null) {
+      return;
+    }
+    final now = DateTime.now();
+    final timeLabel = diaryTimeLabel(now);
+    await _controller.save(
+      DiaryEntry(
+        id: now.microsecondsSinceEpoch.toString(),
+        createdAt: now,
+        updatedAt: now,
+        title: text.isNotEmpty
+            ? '$timeLabel 的片段'
+            : imagePaths.isNotEmpty
+            ? '$timeLabel 的照片'
+            : videoPaths.isNotEmpty
+            ? '$timeLabel 的视频'
+            : audioPaths.isNotEmpty
+            ? '$timeLabel 的语音'
+            : '$timeLabel 的心情',
+        content: text,
+        contentText: text,
+        mood: mood,
+        moodLabel: moodLabel,
+        category: '生活',
+        imagePaths: imagePaths,
+        audioPaths: audioPaths,
+        videoPaths: videoPaths,
+      ),
+    );
+    unawaited(_syncNow());
   }
 
   Future<void> _openEditorFromQuick(String content, List<String> imagePaths) =>
@@ -474,7 +536,10 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         settings: const RouteSettings(name: AppRoutes.settings),
-        builder: (_) => SettingsPage(controller: widget.settingsController),
+        builder: (_) => SettingsPage(
+          controller: widget.settingsController,
+          onImportPhotos: importQuickPhotos,
+        ),
       ),
     );
   }

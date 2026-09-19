@@ -11,6 +11,7 @@ import 'package:diary/domain/diary_entry.dart';
 import 'package:diary/domain/diary_settings.dart';
 import 'package:diary/domain/sync_state.dart';
 import 'package:diary/pages/calendar/calendar_page.dart';
+import 'package:diary/pages/chat/chat_page.dart';
 import 'package:diary/pages/entry/quick_capture_sheet.dart';
 import 'package:diary/pages/home/home_page.dart';
 import 'package:diary/pages/insights/insights_page.dart';
@@ -28,6 +29,9 @@ class MobileDiaryShell extends StatefulWidget {
     required this.trash,
     required this.actions,
     this.quickCaptureSide = QuickCaptureSide.right,
+    this.defaultHomeMode = DiaryHomeMode.timeline,
+    this.chatTitle = diaryDefaultChatTitle,
+    this.chatBackground = const DiaryChatBackground(),
     this.conflictCount = 0,
     this.syncState = const SyncState(),
     this.onSyncNow,
@@ -38,6 +42,9 @@ class MobileDiaryShell extends StatefulWidget {
   final List<DiaryEntry> trash;
   final DiaryShellActions actions;
   final QuickCaptureSide quickCaptureSide;
+  final DiaryHomeMode defaultHomeMode;
+  final String chatTitle;
+  final DiaryChatBackground chatBackground;
   final int conflictCount;
   final SyncState syncState;
   final Future<void> Function()? onSyncNow;
@@ -49,14 +56,38 @@ class MobileDiaryShell extends StatefulWidget {
 class _MobileDiaryShellState extends State<MobileDiaryShell> {
   static const _quickCaptureXKey = 'diary.mobile.quick_capture.x';
   static const _quickCaptureYKey = 'diary.mobile.quick_capture.y';
+  static const _timelineIndex = 0;
+  static const _chatIndex = 1;
+  static const _calendarIndex = 2;
+  static const _profileIndex = 3;
 
-  int _selectedIndex = 0;
+  int _selectedIndex = _timelineIndex;
+  bool _selectedByUser = false;
   Offset? _quickCapturePosition;
 
   @override
   void initState() {
     super.initState();
+    _selectedIndex = _indexForHomeMode(widget.defaultHomeMode);
     _loadQuickCapturePosition();
+  }
+
+  @override
+  void didUpdateWidget(covariant MobileDiaryShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.defaultHomeMode != widget.defaultHomeMode &&
+        !_selectedByUser) {
+      setState(
+        () => _selectedIndex = _indexForHomeMode(widget.defaultHomeMode),
+      );
+    }
+  }
+
+  int _indexForHomeMode(DiaryHomeMode mode) {
+    return switch (mode) {
+      DiaryHomeMode.timeline => _timelineIndex,
+      DiaryHomeMode.chat => _chatIndex,
+    };
   }
 
   Future<void> _loadQuickCapturePosition() async {
@@ -115,15 +146,24 @@ class _MobileDiaryShellState extends State<MobileDiaryShell> {
         syncState: widget.syncState,
         onSyncNow: widget.onSyncNow,
       ),
+      ChatPage(
+        entries: widget.entries,
+        title: widget.chatTitle,
+        chatBackground: widget.chatBackground,
+        onSend: widget.actions.saveChatMessage,
+        onOpenEntry: (entry) => unawaited(widget.actions.openEntry(entry)),
+        onEdit: (entry) => widget.actions.openEditor(entry),
+        onDelete: widget.actions.moveToTrash,
+        onOpenEditor: () => unawaited(widget.actions.openEditor()),
+        onImportAttachments: widget.actions.importQuickPhotos,
+        onExternalActivityStart: widget.actions.beginExternalActivity,
+        onExternalActivityEnd: widget.actions.endExternalActivity,
+        onNavigate: _navigateFromChat,
+      ),
       CalendarPage(
         entries: widget.entries,
         onOpenEntry: (entry) => unawaited(widget.actions.openEntry(entry)),
       ),
-      MediaPage(
-        entries: widget.entries,
-        onOpenEntry: (entry) => unawaited(widget.actions.openEntry(entry)),
-      ),
-      InsightsPage(entries: widget.entries),
       ProfilePage(
         entryCount: widget.entries.length,
         trashCount: widget.trash.length,
@@ -134,6 +174,8 @@ class _MobileDiaryShellState extends State<MobileDiaryShell> {
         onOpenAbout: widget.actions.openAbout,
         conflictCount: widget.conflictCount,
         onOpenConflicts: widget.actions.openConflicts,
+        onOpenMedia: () => unawaited(_openMedia()),
+        onOpenInsights: () => unawaited(_openInsights()),
       ),
     ];
 
@@ -152,22 +194,80 @@ class _MobileDiaryShellState extends State<MobileDiaryShell> {
           child: Stack(
             children: [
               _AnimatedTabStack(index: _selectedIndex, pages: pages),
-              DraggableQuickCaptureFab(
-                buttonKey: const Key('mobile-quick-capture-fab'),
-                initialPosition: _quickCapturePosition,
-                initialSide: widget.quickCaptureSide,
-                onPositionChanged: (position) {
-                  unawaited(_saveQuickCapturePosition(position));
-                },
-                onSubmit: widget.actions.saveQuickCapture,
-                onOpen: _openQuickCapture,
-              ),
+              if (_selectedIndex != _chatIndex)
+                DraggableQuickCaptureFab(
+                  buttonKey: const Key('mobile-quick-capture-fab'),
+                  initialPosition: _quickCapturePosition,
+                  initialSide: widget.quickCaptureSide,
+                  onPositionChanged: (position) {
+                    unawaited(_saveQuickCapturePosition(position));
+                  },
+                  onSubmit: widget.actions.saveQuickCapture,
+                  onOpen: _openQuickCapture,
+                ),
             ],
           ),
         ),
-        bottomNavigationBar: DiaryBottomNavigation(
-          selectedIndex: _selectedIndex,
-          onSelected: (index) => setState(() => _selectedIndex = index),
+        bottomNavigationBar: _selectedIndex == _chatIndex
+            ? null
+            : DiaryBottomNavigation(
+                selectedIndex: _selectedIndex,
+                onSelected: _selectPage,
+              ),
+      ),
+    );
+  }
+
+  void _selectPage(int index) {
+    setState(() {
+      _selectedByUser = true;
+      _selectedIndex = index;
+    });
+  }
+
+  void _navigateFromChat(ChatPageDestination destination) {
+    switch (destination) {
+      case ChatPageDestination.timeline:
+        _selectPage(_timelineIndex);
+        break;
+      case ChatPageDestination.calendar:
+        _selectPage(_calendarIndex);
+        break;
+      case ChatPageDestination.media:
+        unawaited(_openMedia());
+        break;
+      case ChatPageDestination.insights:
+        unawaited(_openInsights());
+        break;
+      case ChatPageDestination.profile:
+        _selectPage(_profileIndex);
+        break;
+    }
+  }
+
+  Future<void> _openMedia() {
+    return Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          backgroundColor: DiaryThemeColors.of(context).paper,
+          body: SafeArea(
+            child: MediaPage(
+              entries: widget.entries,
+              onOpenEntry: (entry) =>
+                  unawaited(widget.actions.openEntry(entry)),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openInsights() {
+    return Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          backgroundColor: DiaryThemeColors.of(context).paper,
+          body: SafeArea(child: InsightsPage(entries: widget.entries)),
         ),
       ),
     );

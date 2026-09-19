@@ -12,6 +12,8 @@ class ProfilePage extends StatelessWidget {
     required this.onOpenCategories,
     required this.onOpenBackup,
     required this.onOpenAbout,
+    this.onOpenMedia,
+    this.onOpenInsights,
     this.conflictCount = 0,
     this.onOpenConflicts,
     this.desktopLayout = false,
@@ -25,6 +27,8 @@ class ProfilePage extends StatelessWidget {
   final VoidCallback onOpenCategories;
   final VoidCallback onOpenBackup;
   final VoidCallback onOpenAbout;
+  final VoidCallback? onOpenMedia;
+  final VoidCallback? onOpenInsights;
   final int conflictCount;
   final VoidCallback? onOpenConflicts;
   final bool desktopLayout;
@@ -132,6 +136,25 @@ class ProfilePage extends StatelessWidget {
                 ],
               ),
               if (!desktopLayout) ...[
+                if (onOpenMedia != null || onOpenInsights != null) ...[
+                  const SizedBox(height: 25),
+                  Text('日记工具', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 9),
+                  if (onOpenMedia != null)
+                    _ProfileTile(
+                      icon: Icons.collections_outlined,
+                      title: '媒体库',
+                      subtitle: '照片、视频和语音都在这里',
+                      onTap: onOpenMedia!,
+                    ),
+                  if (onOpenInsights != null)
+                    _ProfileTile(
+                      icon: Icons.auto_graph_outlined,
+                      title: '洞察',
+                      subtitle: '看看你的记录习惯与情绪变化',
+                      onTap: onOpenInsights!,
+                    ),
+                ],
                 const SizedBox(height: 25),
                 Text('管理', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 9),

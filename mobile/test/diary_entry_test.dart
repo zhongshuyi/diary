@@ -13,6 +13,7 @@ void main() {
       contentText: '今天很好。',
       editorType: DiaryEditorType.richText,
       mood: 0.82,
+      moodLabel: '明亮',
       category: '生活',
       tags: const ['散步', '慢生活'],
       imagePaths: const ['photo://one'],
@@ -26,6 +27,7 @@ void main() {
 
     expect(restored, entry);
     expect(restored.editorType, DiaryEditorType.richText);
+    expect(restored.moodLabel, '明亮');
     expect(restored.tags, contains('慢生活'));
     expect(restored.imagePaths, contains('photo://one'));
   });
@@ -46,5 +48,20 @@ void main() {
     expect(entry.matches('小确幸'), isTrue);
     expect(entry.matches('生活'), isTrue);
     expect(entry.matches('不存在'), isFalse);
+  });
+
+  test('reads backups from before optional mood labels existed', () {
+    final entry = DiaryEntry(
+      id: 'entry-legacy',
+      createdAt: DateTime(2026, 9, 15),
+      updatedAt: DateTime(2026, 9, 15),
+      title: '旧日记',
+      content: '内容',
+      contentText: '内容',
+      category: '生活',
+    );
+    final legacyPayload = entry.toJson()..remove('moodLabel');
+
+    expect(DiaryEntry.fromJson(legacyPayload).moodLabel, isNull);
   });
 }

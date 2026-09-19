@@ -104,32 +104,37 @@ const DiaryRecordSchema = CollectionSchema(
       type: IsarType.double,
     ),
     r'mood': PropertySchema(id: 18, name: r'mood', type: IsarType.double),
-    r'occurredAt': PropertySchema(
+    r'moodLabel': PropertySchema(
       id: 19,
+      name: r'moodLabel',
+      type: IsarType.string,
+    ),
+    r'occurredAt': PropertySchema(
+      id: 20,
       name: r'occurredAt',
       type: IsarType.dateTime,
     ),
     r'positions': PropertySchema(
-      id: 20,
+      id: 21,
       name: r'positions',
       type: IsarType.stringList,
     ),
-    r'revision': PropertySchema(id: 21, name: r'revision', type: IsarType.long),
-    r'tags': PropertySchema(id: 22, name: r'tags', type: IsarType.stringList),
-    r'title': PropertySchema(id: 23, name: r'title', type: IsarType.string),
+    r'revision': PropertySchema(id: 22, name: r'revision', type: IsarType.long),
+    r'tags': PropertySchema(id: 23, name: r'tags', type: IsarType.stringList),
+    r'title': PropertySchema(id: 24, name: r'title', type: IsarType.string),
     r'updatedAt': PropertySchema(
-      id: 24,
+      id: 25,
       name: r'updatedAt',
       type: IsarType.dateTime,
     ),
-    r'uuid': PropertySchema(id: 25, name: r'uuid', type: IsarType.string),
+    r'uuid': PropertySchema(id: 26, name: r'uuid', type: IsarType.string),
     r'videoPaths': PropertySchema(
-      id: 26,
+      id: 27,
       name: r'videoPaths',
       type: IsarType.stringList,
     ),
     r'weather': PropertySchema(
-      id: 27,
+      id: 28,
       name: r'weather',
       type: IsarType.stringList,
     ),
@@ -319,6 +324,12 @@ int _diaryRecordEstimateSize(
       bytesCount += value.length * 3;
     }
   }
+  {
+    final value = object.moodLabel;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
   bytesCount += 3 + object.positions.length * 3;
   {
     for (var i = 0; i < object.positions.length; i++) {
@@ -377,15 +388,16 @@ void _diaryRecordSerialize(
   writer.writeDouble(offsets[16], object.latitude);
   writer.writeDouble(offsets[17], object.longitude);
   writer.writeDouble(offsets[18], object.mood);
-  writer.writeDateTime(offsets[19], object.occurredAt);
-  writer.writeStringList(offsets[20], object.positions);
-  writer.writeLong(offsets[21], object.revision);
-  writer.writeStringList(offsets[22], object.tags);
-  writer.writeString(offsets[23], object.title);
-  writer.writeDateTime(offsets[24], object.updatedAt);
-  writer.writeString(offsets[25], object.uuid);
-  writer.writeStringList(offsets[26], object.videoPaths);
-  writer.writeStringList(offsets[27], object.weather);
+  writer.writeString(offsets[19], object.moodLabel);
+  writer.writeDateTime(offsets[20], object.occurredAt);
+  writer.writeStringList(offsets[21], object.positions);
+  writer.writeLong(offsets[22], object.revision);
+  writer.writeStringList(offsets[23], object.tags);
+  writer.writeString(offsets[24], object.title);
+  writer.writeDateTime(offsets[25], object.updatedAt);
+  writer.writeString(offsets[26], object.uuid);
+  writer.writeStringList(offsets[27], object.videoPaths);
+  writer.writeStringList(offsets[28], object.weather);
 }
 
 DiaryRecord _diaryRecordDeserialize(
@@ -415,15 +427,16 @@ DiaryRecord _diaryRecordDeserialize(
   object.latitude = reader.readDoubleOrNull(offsets[16]);
   object.longitude = reader.readDoubleOrNull(offsets[17]);
   object.mood = reader.readDouble(offsets[18]);
-  object.occurredAt = reader.readDateTimeOrNull(offsets[19]);
-  object.positions = reader.readStringList(offsets[20]) ?? [];
-  object.revision = reader.readLong(offsets[21]);
-  object.tags = reader.readStringList(offsets[22]) ?? [];
-  object.title = reader.readString(offsets[23]);
-  object.updatedAt = reader.readDateTime(offsets[24]);
-  object.uuid = reader.readString(offsets[25]);
-  object.videoPaths = reader.readStringList(offsets[26]) ?? [];
-  object.weather = reader.readStringList(offsets[27]) ?? [];
+  object.moodLabel = reader.readStringOrNull(offsets[19]);
+  object.occurredAt = reader.readDateTimeOrNull(offsets[20]);
+  object.positions = reader.readStringList(offsets[21]) ?? [];
+  object.revision = reader.readLong(offsets[22]);
+  object.tags = reader.readStringList(offsets[23]) ?? [];
+  object.title = reader.readString(offsets[24]);
+  object.updatedAt = reader.readDateTime(offsets[25]);
+  object.uuid = reader.readString(offsets[26]);
+  object.videoPaths = reader.readStringList(offsets[27]) ?? [];
+  object.weather = reader.readStringList(offsets[28]) ?? [];
   return object;
 }
 
@@ -473,22 +486,24 @@ P _diaryRecordDeserializeProp<P>(
     case 18:
       return (reader.readDouble(offset)) as P;
     case 19:
-      return (reader.readDateTimeOrNull(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 20:
-      return (reader.readStringList(offset) ?? []) as P;
+      return (reader.readDateTimeOrNull(offset)) as P;
     case 21:
-      return (reader.readLong(offset)) as P;
+      return (reader.readStringList(offset) ?? []) as P;
     case 22:
-      return (reader.readStringList(offset) ?? []) as P;
+      return (reader.readLong(offset)) as P;
     case 23:
-      return (reader.readString(offset)) as P;
-    case 24:
-      return (reader.readDateTime(offset)) as P;
-    case 25:
-      return (reader.readString(offset)) as P;
-    case 26:
       return (reader.readStringList(offset) ?? []) as P;
+    case 24:
+      return (reader.readString(offset)) as P;
+    case 25:
+      return (reader.readDateTime(offset)) as P;
+    case 26:
+      return (reader.readString(offset)) as P;
     case 27:
+      return (reader.readStringList(offset) ?? []) as P;
+    case 28:
       return (reader.readStringList(offset) ?? []) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -3784,6 +3799,165 @@ extension DiaryRecordQueryFilter
   }
 
   QueryBuilder<DiaryRecord, DiaryRecord, QAfterFilterCondition>
+  moodLabelIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        const FilterCondition.isNull(property: r'moodLabel'),
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterFilterCondition>
+  moodLabelIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        const FilterCondition.isNotNull(property: r'moodLabel'),
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterFilterCondition>
+  moodLabelEqualTo(String? value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.equalTo(
+          property: r'moodLabel',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterFilterCondition>
+  moodLabelGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.greaterThan(
+          include: include,
+          property: r'moodLabel',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterFilterCondition>
+  moodLabelLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.lessThan(
+          include: include,
+          property: r'moodLabel',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterFilterCondition>
+  moodLabelBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.between(
+          property: r'moodLabel',
+          lower: lower,
+          includeLower: includeLower,
+          upper: upper,
+          includeUpper: includeUpper,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterFilterCondition>
+  moodLabelStartsWith(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.startsWith(
+          property: r'moodLabel',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterFilterCondition>
+  moodLabelEndsWith(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.endsWith(
+          property: r'moodLabel',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterFilterCondition>
+  moodLabelContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.contains(
+          property: r'moodLabel',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterFilterCondition>
+  moodLabelMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.matches(
+          property: r'moodLabel',
+          wildcard: pattern,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterFilterCondition>
+  moodLabelIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.equalTo(property: r'moodLabel', value: ''),
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterFilterCondition>
+  moodLabelIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.greaterThan(property: r'moodLabel', value: ''),
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterFilterCondition>
   occurredAtIsNull() {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
@@ -5238,6 +5412,18 @@ extension DiaryRecordQuerySortBy
     });
   }
 
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterSortBy> sortByMoodLabel() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'moodLabel', Sort.asc);
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterSortBy> sortByMoodLabelDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'moodLabel', Sort.desc);
+    });
+  }
+
   QueryBuilder<DiaryRecord, DiaryRecord, QAfterSortBy> sortByOccurredAt() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'occurredAt', Sort.asc);
@@ -5506,6 +5692,18 @@ extension DiaryRecordQuerySortThenBy
     });
   }
 
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterSortBy> thenByMoodLabel() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'moodLabel', Sort.asc);
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterSortBy> thenByMoodLabelDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'moodLabel', Sort.desc);
+    });
+  }
+
   QueryBuilder<DiaryRecord, DiaryRecord, QAfterSortBy> thenByOccurredAt() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'occurredAt', Sort.asc);
@@ -5698,6 +5896,14 @@ extension DiaryRecordQueryWhereDistinct
     });
   }
 
+  QueryBuilder<DiaryRecord, DiaryRecord, QDistinct> distinctByMoodLabel({
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'moodLabel', caseSensitive: caseSensitive);
+    });
+  }
+
   QueryBuilder<DiaryRecord, DiaryRecord, QDistinct> distinctByOccurredAt() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'occurredAt');
@@ -5879,6 +6085,12 @@ extension DiaryRecordQueryProperty
   QueryBuilder<DiaryRecord, double, QQueryOperations> moodProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'mood');
+    });
+  }
+
+  QueryBuilder<DiaryRecord, String?, QQueryOperations> moodLabelProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'moodLabel');
     });
   }
 

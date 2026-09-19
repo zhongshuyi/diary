@@ -48,6 +48,7 @@ class DiaryRecord {
   late int editorType;
 
   late double mood;
+  String? moodLabel;
 
   @Index()
   late String category;
@@ -84,6 +85,7 @@ class DiaryRecord {
       ..contentText = entry.contentText
       ..editorType = entry.editorType.index
       ..mood = entry.mood
+      ..moodLabel = entry.moodLabel
       ..category = entry.category
       ..tags = List<String>.from(entry.tags)
       ..attachmentIds = List<String>.from(entry.attachmentIds)
@@ -116,6 +118,7 @@ class DiaryRecord {
       contentText: contentText,
       editorType: DiaryEditorTypeCodec.fromIndex(editorType),
       mood: mood,
+      moodLabel: moodLabel,
       category: category,
       tags: tags,
       attachmentIds: attachmentIds,

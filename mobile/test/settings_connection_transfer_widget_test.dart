@@ -48,13 +48,13 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.scrollUntilVisible(
-      find.text('双端同步'),
+      find.byKey(const Key('settings-sync')),
       240,
       scrollable: find.byType(Scrollable).first,
     );
-    expect(find.text('复制连接配置'), findsOneWidget);
-    await tester.drag(find.byType(ListView), const Offset(0, -240));
+    await tester.tap(find.byKey(const Key('settings-sync')));
     await tester.pumpAndSettle();
+    expect(find.text('复制连接配置'), findsOneWidget);
     await tester.tap(find.text('复制连接配置'));
     await tester.pump();
     expect(

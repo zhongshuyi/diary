@@ -75,6 +75,102 @@ class DiaryThemeColors extends ThemeExtension<DiaryThemeColors> {
     lavender: Color(0xFF413B50),
   );
 
+  static DiaryThemeColors lightFor(DiaryThemePreset preset) {
+    return switch (preset) {
+      DiaryThemePreset.warmPaper => light,
+      DiaryThemePreset.mistBlue => const DiaryThemeColors(
+        paper: Color(0xFFF2F6F8),
+        surface: Color(0xFFFCFDFE),
+        ink: Color(0xFF1E2A32),
+        hero: Color(0xFF1E2A32),
+        onHero: Color(0xFFFCFDFE),
+        mutedInk: Color(0xFF687780),
+        line: Color(0xFFD7E2E8),
+        terracotta: Color(0xFF3E7895),
+        terracottaSoft: Color(0xFFCFE3EC),
+        sage: Color(0xFFD6E9E1),
+        butter: Color(0xFFE7E4BC),
+        lavender: Color(0xFFDEE2F1),
+      ),
+      DiaryThemePreset.evergreen => const DiaryThemeColors(
+        paper: Color(0xFFF4F6F0),
+        surface: Color(0xFFFDFFF9),
+        ink: Color(0xFF253027),
+        hero: Color(0xFF253027),
+        onHero: Color(0xFFFDFFF9),
+        mutedInk: Color(0xFF6D786C),
+        line: Color(0xFFDCE4D7),
+        terracotta: Color(0xFF5B7D55),
+        terracottaSoft: Color(0xFFD7E6D1),
+        sage: Color(0xFFC7DEC2),
+        butter: Color(0xFFEDE2B9),
+        lavender: Color(0xFFE4E1EF),
+      ),
+      DiaryThemePreset.lavender => const DiaryThemeColors(
+        paper: Color(0xFFF7F4FA),
+        surface: Color(0xFFFFFCFF),
+        ink: Color(0xFF28232E),
+        hero: Color(0xFF28232E),
+        onHero: Color(0xFFFFFCFF),
+        mutedInk: Color(0xFF746C7C),
+        line: Color(0xFFE5DDED),
+        terracotta: Color(0xFF8465A8),
+        terracottaSoft: Color(0xFFE4D8F1),
+        sage: Color(0xFFD6E6DC),
+        butter: Color(0xFFF0E1B7),
+        lavender: Color(0xFFE5DDF1),
+      ),
+    };
+  }
+
+  static DiaryThemeColors darkFor(DiaryThemePreset preset) {
+    return switch (preset) {
+      DiaryThemePreset.warmPaper => dark,
+      DiaryThemePreset.mistBlue => const DiaryThemeColors(
+        paper: Color(0xFF182126),
+        surface: Color(0xFF273239),
+        ink: Color(0xFFEFF6F8),
+        hero: Color(0xFF111A1E),
+        onHero: Color(0xFFEFF6F8),
+        mutedInk: Color(0xFFB4C4CB),
+        line: Color(0xFF47565E),
+        terracotta: Color(0xFF7DBAD4),
+        terracottaSoft: Color(0xFF284E60),
+        sage: Color(0xFF2F4D44),
+        butter: Color(0xFF574E2F),
+        lavender: Color(0xFF3D455D),
+      ),
+      DiaryThemePreset.evergreen => const DiaryThemeColors(
+        paper: Color(0xFF192019),
+        surface: Color(0xFF2B3329),
+        ink: Color(0xFFF0F6ED),
+        hero: Color(0xFF11170F),
+        onHero: Color(0xFFF0F6ED),
+        mutedInk: Color(0xFFBBC8B7),
+        line: Color(0xFF4B5848),
+        terracotta: Color(0xFF91B58A),
+        terracottaSoft: Color(0xFF3D5538),
+        sage: Color(0xFF3D5738),
+        butter: Color(0xFF574D2F),
+        lavender: Color(0xFF464252),
+      ),
+      DiaryThemePreset.lavender => const DiaryThemeColors(
+        paper: Color(0xFF211C25),
+        surface: Color(0xFF302A35),
+        ink: Color(0xFFF5EFF9),
+        hero: Color(0xFF17121B),
+        onHero: Color(0xFFF5EFF9),
+        mutedInk: Color(0xFFC8BECF),
+        line: Color(0xFF514857),
+        terracotta: Color(0xFFC5A8E5),
+        terracottaSoft: Color(0xFF544263),
+        sage: Color(0xFF3B5046),
+        butter: Color(0xFF574A2F),
+        lavender: Color(0xFF4B4158),
+      ),
+    };
+  }
+
   final Color paper;
   final Color surface;
   final Color ink;
@@ -87,6 +183,24 @@ class DiaryThemeColors extends ThemeExtension<DiaryThemeColors> {
   final Color sage;
   final Color butter;
   final Color lavender;
+
+  DiaryThemeColors withCustomAccent(
+    int colorValue, {
+    required Brightness brightness,
+  }) {
+    final source = HSLColor.fromColor(Color(colorValue));
+    final accent = brightness == Brightness.dark && source.lightness < .66
+        ? source.withLightness(.66).toColor()
+        : source.toColor();
+    final softSaturation = source.saturation == 0
+        ? 0.0
+        : (source.saturation * .72).clamp(.18, .62).toDouble();
+    final soft = source
+        .withSaturation(softSaturation)
+        .withLightness(brightness == Brightness.light ? .88 : .30)
+        .toColor();
+    return copyWith(terracotta: accent, terracottaSoft: soft);
+  }
 
   static DiaryThemeColors of(BuildContext context) =>
       Theme.of(context).extension<DiaryThemeColors>() ?? light;
@@ -143,6 +257,122 @@ class DiaryThemeColors extends ThemeExtension<DiaryThemeColors> {
 }
 
 abstract final class DiaryTheme {
+  static ThemeData lightFor(DiaryThemePreset preset, {int? customAccent}) {
+    if (preset == DiaryThemePreset.warmPaper && customAccent == null) {
+      return light;
+    }
+    final colors = DiaryThemeColors.lightFor(preset);
+    return _withColors(
+      base: light,
+      colors: customAccent == null
+          ? colors
+          : colors.withCustomAccent(customAccent, brightness: Brightness.light),
+      brightness: Brightness.light,
+    );
+  }
+
+  static ThemeData darkFor(DiaryThemePreset preset, {int? customAccent}) {
+    if (preset == DiaryThemePreset.warmPaper && customAccent == null) {
+      return dark;
+    }
+    final colors = DiaryThemeColors.darkFor(preset);
+    return _withColors(
+      base: dark,
+      colors: customAccent == null
+          ? colors
+          : colors.withCustomAccent(customAccent, brightness: Brightness.dark),
+      brightness: Brightness.dark,
+    );
+  }
+
+  static ThemeData _withColors({
+    required ThemeData base,
+    required DiaryThemeColors colors,
+    required Brightness brightness,
+  }) {
+    final scheme =
+        ColorScheme.fromSeed(
+          seedColor: colors.terracotta,
+          brightness: brightness,
+          surface: colors.surface,
+        ).copyWith(
+          primary: colors.terracotta,
+          onPrimary:
+              ThemeData.estimateBrightnessForColor(colors.terracotta) ==
+                  Brightness.dark
+              ? colors.surface
+              : colors.ink,
+          secondary: colors.sage,
+          onSecondary: brightness == Brightness.light
+              ? colors.ink
+              : colors.onHero,
+          surface: colors.surface,
+          onSurface: colors.ink,
+        );
+    final inputBorder = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: BorderSide(color: colors.line),
+    );
+    final focusedInputBorder = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: BorderSide(color: colors.terracotta, width: 1.5),
+    );
+    final textTheme = base.textTheme.copyWith(
+      displaySmall: base.textTheme.displaySmall?.copyWith(color: colors.ink),
+      headlineSmall: base.textTheme.headlineSmall?.copyWith(color: colors.ink),
+      titleLarge: base.textTheme.titleLarge?.copyWith(color: colors.ink),
+      titleMedium: base.textTheme.titleMedium?.copyWith(color: colors.ink),
+      bodyLarge: base.textTheme.bodyLarge?.copyWith(color: colors.mutedInk),
+      bodyMedium: base.textTheme.bodyMedium?.copyWith(color: colors.mutedInk),
+      labelLarge: base.textTheme.labelLarge?.copyWith(color: colors.ink),
+      labelSmall: base.textTheme.labelSmall?.copyWith(color: colors.mutedInk),
+    );
+    final snackBarBackground = brightness == Brightness.light
+        ? colors.ink
+        : colors.onHero;
+    final snackBarForeground = brightness == Brightness.light
+        ? colors.surface
+        : colors.hero;
+
+    return base.copyWith(
+      colorScheme: scheme,
+      scaffoldBackgroundColor: colors.paper,
+      textTheme: textTheme,
+      appBarTheme: base.appBarTheme.copyWith(
+        backgroundColor: colors.paper,
+        foregroundColor: colors.ink,
+        surfaceTintColor: Colors.transparent,
+      ),
+      inputDecorationTheme: base.inputDecorationTheme.copyWith(
+        fillColor: colors.surface,
+        border: inputBorder,
+        enabledBorder: inputBorder,
+        focusedBorder: focusedInputBorder,
+      ),
+      cardTheme: base.cardTheme.copyWith(
+        color: colors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(22),
+          side: BorderSide(color: colors.line),
+        ),
+      ),
+      dividerTheme: base.dividerTheme.copyWith(color: colors.line),
+      snackBarTheme: base.snackBarTheme.copyWith(
+        backgroundColor: snackBarBackground,
+        contentTextStyle: TextStyle(color: snackBarForeground),
+      ),
+      bottomSheetTheme: base.bottomSheetTheme.copyWith(
+        backgroundColor: colors.surface,
+        surfaceTintColor: Colors.transparent,
+      ),
+      dialogTheme: base.dialogTheme.copyWith(
+        backgroundColor: colors.surface,
+        surfaceTintColor: Colors.transparent,
+      ),
+      extensions: [colors],
+    );
+  }
+
   static ThemeData get light {
     final scheme = ColorScheme.fromSeed(
       seedColor: DiaryPalette.terracotta,

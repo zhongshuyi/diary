@@ -65,28 +65,34 @@ class DiarySideNavigation extends StatelessWidget {
             onTap: () => onSelected(0),
           ),
           DiaryNavigationItem(
-            icon: Icons.calendar_month_outlined,
-            label: '日历',
+            icon: Icons.chat_bubble_outline,
+            label: '对话',
             selected: selectedIndex == 1,
             onTap: () => onSelected(1),
           ),
           DiaryNavigationItem(
-            icon: Icons.collections_outlined,
-            label: '媒体库',
+            icon: Icons.calendar_month_outlined,
+            label: '日历',
             selected: selectedIndex == 2,
             onTap: () => onSelected(2),
           ),
           DiaryNavigationItem(
-            icon: Icons.auto_graph_outlined,
-            label: '洞察',
+            icon: Icons.collections_outlined,
+            label: '媒体库',
             selected: selectedIndex == 3,
             onTap: () => onSelected(3),
           ),
           DiaryNavigationItem(
+            icon: Icons.auto_graph_outlined,
+            label: '洞察',
+            selected: selectedIndex == 4,
+            onTap: () => onSelected(4),
+          ),
+          DiaryNavigationItem(
             icon: Icons.person_outline,
             label: '我的',
-            selected: selectedIndex == 4 && !settingsSelected,
-            onTap: () => onSelected(4),
+            selected: selectedIndex == 5 && !settingsSelected,
+            onTap: () => onSelected(5),
           ),
           const Spacer(),
           DiaryNavigationItem(
@@ -182,19 +188,14 @@ class DiaryBottomNavigation extends StatelessWidget {
           label: '时间线',
         ),
         NavigationDestination(
+          icon: Icon(Icons.chat_bubble_outline),
+          selectedIcon: Icon(Icons.chat_bubble),
+          label: '对话',
+        ),
+        NavigationDestination(
           icon: Icon(Icons.calendar_month_outlined),
           selectedIcon: Icon(Icons.calendar_month),
           label: '日历',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.collections_outlined),
-          selectedIcon: Icon(Icons.collections),
-          label: '媒体库',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.auto_graph_outlined),
-          selectedIcon: Icon(Icons.auto_graph),
-          label: '洞察',
         ),
         NavigationDestination(
           icon: Icon(Icons.person_outline),

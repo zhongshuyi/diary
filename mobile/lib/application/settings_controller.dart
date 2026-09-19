@@ -33,6 +33,21 @@ class SettingsController extends ChangeNotifier {
   Future<void> setThemeMode(DiaryThemeMode value) =>
       _update(_settings.copyWith(themeMode: value));
 
+  Future<void> setThemePreset(DiaryThemePreset value) =>
+      _update(_settings.copyWith(themePreset: value));
+
+  Future<void> setCustomThemeColor(int value) =>
+      _update(_settings.copyWith(customThemeColor: value));
+
+  Future<void> clearCustomThemeColor() =>
+      _update(_settings.copyWith(clearCustomThemeColor: true));
+
+  Future<void> setChatBackground(DiaryChatBackground value) =>
+      _update(_settings.copyWith(chatBackground: value.normalized()));
+
+  Future<void> clearChatBackground() =>
+      _update(_settings.copyWith(chatBackground: const DiaryChatBackground()));
+
   Future<void> setFontScale(double value) =>
       _update(_settings.copyWith(fontScale: value.clamp(.85, 1.3)));
 
@@ -44,6 +59,12 @@ class SettingsController extends ChangeNotifier {
 
   Future<void> setQuickCaptureSide(QuickCaptureSide value) =>
       _update(_settings.copyWith(quickCaptureSide: value));
+
+  Future<void> setDefaultHomeMode(DiaryHomeMode value) =>
+      _update(_settings.copyWith(defaultHomeMode: value));
+
+  Future<void> setChatTitle(String value) =>
+      _update(_settings.copyWith(chatTitle: _normalizeChatTitle(value)));
 
   Future<void> setDailyReminder(bool value) =>
       _update(_settings.copyWith(dailyReminder: value));
@@ -86,3 +107,8 @@ class SettingsController extends ChangeNotifier {
 
 String _normalizeEndpoint(String value) =>
     value.trim().replaceFirst(RegExp(r'/+$'), '');
+
+String _normalizeChatTitle(String value) {
+  final title = value.trim();
+  return title.isEmpty ? diaryDefaultChatTitle : title;
+}
