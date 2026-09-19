@@ -68,6 +68,7 @@ class DiaryShellActions {
     required this.replaceEntries,
     required this.restoreEntry,
     required this.deleteEntryPermanently,
+    required this.clearTrash,
     required this.openConflicts,
     this.batchSetFavorite,
     this.batchMoveToTrash,
@@ -114,6 +115,7 @@ class DiaryShellActions {
   final Future<void> Function(List<DiaryEntry> entries) replaceEntries;
   final Future<void> Function(DiaryEntry entry) restoreEntry;
   final Future<void> Function(DiaryEntry entry) deleteEntryPermanently;
+  final Future<void> Function() clearTrash;
   final Future<void> Function() openConflicts;
   final Future<void> Function(Iterable<String> ids, bool value)?
   batchSetFavorite;
@@ -252,6 +254,7 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
           replaceEntries: (entries) => _controller.replaceAll(entries),
           restoreEntry: _restoreFromRecycle,
           deleteEntryPermanently: _deleteFromRecycle,
+          clearTrash: _clearTrashAndSync,
           openConflicts: _openConflicts,
           batchSetFavorite: (ids, value) =>
               _controller.batchSetFavorite(ids, value),
@@ -505,6 +508,7 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
           entries: _trash,
           onRestore: _restoreFromRecycle,
           onDelete: _deleteFromRecycle,
+          onEmpty: _emptyRecycle,
         ),
       ),
     );
@@ -525,7 +529,22 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
 
   Future<void> _deleteFromRecycle(DiaryEntry entry) async {
     await _controller.deletePermanently(entry);
+    unawaited(_syncNow());
     if (mounted) Navigator.pop(context);
+  }
+
+  Future<void> _emptyRecycle() async {
+    await _clearTrashAndSync();
+    if (!mounted) return;
+    Navigator.pop(context);
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('回收站已清空')));
+  }
+
+  Future<void> _clearTrashAndSync() async {
+    await _controller.clearTrash();
+    unawaited(_syncNow());
   }
 
   Future<void> _toggleFavorite(DiaryEntry entry) async {

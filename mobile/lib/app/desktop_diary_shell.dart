@@ -372,6 +372,7 @@ class _DesktopDiaryShellState extends State<DesktopDiaryShell> {
         entries: widget.trash,
         onRestore: widget.actions.restoreEntry,
         onDelete: widget.actions.deleteEntryPermanently,
+        onEmpty: widget.actions.clearTrash,
       ),
     );
   }

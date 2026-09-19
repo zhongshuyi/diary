@@ -1,5 +1,8 @@
 import '../domain/demo_data.dart';
+import '../domain/conflict.dart';
 import '../domain/diary_entry.dart';
+import '../domain/outbox_mutation.dart';
+import '../domain/sync_state.dart';
 import 'diary_repository.dart';
 
 class IsarDiaryRepository extends DiaryRepository {
@@ -42,8 +45,33 @@ class IsarDiaryRepository extends DiaryRepository {
   Future<void> deletePermanently(String id) => _delegate.deletePermanently(id);
 
   @override
+  Future<void> clearTrash() => _delegate.clearTrash();
+
+  @override
   Future<void> replaceAll(Iterable<DiaryEntry> entries) =>
       _delegate.replaceAll(entries.toList(growable: false));
+
+  @override
+  Future<List<OutboxMutation>> listPendingMutations({int limit = 100}) =>
+      _delegate.listPendingMutations(limit: limit);
+
+  @override
+  Future<void> applySyncResult(SyncResult result) =>
+      _delegate.applySyncResult(result);
+
+  @override
+  Future<SyncState> getSyncState() => _delegate.getSyncState();
+
+  @override
+  Future<void> setSyncState(SyncState state) => _delegate.setSyncState(state);
+
+  @override
+  Future<List<Conflict>> listConflicts({String status = 'pending'}) =>
+      _delegate.listConflicts(status: status);
+
+  @override
+  Future<void> resolveConflict(String conflictId, DiaryEntry resolution) =>
+      _delegate.resolveConflict(conflictId, resolution);
 
   Future<void> close() async {}
 }

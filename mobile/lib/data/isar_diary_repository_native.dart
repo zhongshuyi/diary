@@ -160,8 +160,27 @@ class IsarDiaryRepository extends DiaryRepository {
     if (record == null) {
       return;
     }
+    final tombstone = DiaryEntry.tombstone(record.toEntity());
     await _isar.writeTxn(() async {
       await _isar.diaryRecords.delete(record.id);
+      await _replaceOutboxEntry(tombstone);
+    });
+  }
+
+  @override
+  Future<void> clearTrash() async {
+    final records = await _isar.diaryRecords
+        .filter()
+        .isInTrashEqualTo(true)
+        .findAll();
+    if (records.isEmpty) return;
+    await _isar.writeTxn(() async {
+      await _isar.diaryRecords.deleteAll(
+        records.map((record) => record.id).toList(growable: false),
+      );
+      for (final record in records) {
+        await _replaceOutboxEntry(DiaryEntry.tombstone(record.toEntity()));
+      }
     });
   }
 
@@ -247,6 +266,10 @@ class IsarDiaryRepository extends DiaryRepository {
             .filter()
             .uuidEqualTo(change.id)
             .findFirst();
+        if (change.isDeleted) {
+          if (current != null) await _isar.diaryRecords.delete(current.id);
+          continue;
+        }
         await _isar.diaryRecords.put(
           DiaryRecord.fromEntity(change)
             ..id = current?.id ?? Isar.autoIncrement,
@@ -352,6 +375,28 @@ class IsarDiaryRepository extends DiaryRepository {
         .uuidEqualTo(id)
         .findFirst();
     return record?.toEntity();
+  }
+
+  Future<void> _replaceOutboxEntry(DiaryEntry entry) async {
+    final existingOutbox = await _isar.outboxRecords
+        .filter()
+        .entityIdEqualTo(entry.id)
+        .findAll();
+    for (final item in existingOutbox) {
+      await _isar.outboxRecords.delete(item.id);
+    }
+    final mutationId = '${entry.deviceId}:${entry.id}:${entry.revision}';
+    await _isar.outboxRecords.put(
+      OutboxRecord.fromEntity(
+        OutboxMutation(
+          mutationId: mutationId,
+          entityType: 'entry',
+          entityId: entry.id,
+          payload: {'mutationId': mutationId, 'entry': entry.toJson()},
+          createdAt: DateTime.now(),
+        ),
+      ),
+    );
   }
 
   Future<void> close() => _isar.close(deleteFromDisk: false);

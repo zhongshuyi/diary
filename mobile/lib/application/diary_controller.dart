@@ -79,6 +79,11 @@ class DiaryController extends ChangeNotifier {
     await refresh();
   }
 
+  Future<void> clearTrash() async {
+    await _repository.clearTrash();
+    await refresh();
+  }
+
   Future<void> replaceAll(List<DiaryEntry> entries) async {
     await _repository.replaceAll(entries);
     await refresh();

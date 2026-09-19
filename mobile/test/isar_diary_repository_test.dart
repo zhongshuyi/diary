@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:isar_community/isar.dart';
 
+import 'package:diary/data/diary_repository.dart';
 import 'package:diary/data/isar_diary_repository.dart';
 import 'package:diary/domain/diary_entry.dart';
 
@@ -35,11 +36,39 @@ void main() {
 
       await repository.deletePermanently(_entry.id);
       expect(await repository.load(includeTrash: true), isEmpty);
+      final deletion = (await repository.listPendingMutations()).single;
+      final tombstone = DiaryEntry.fromJson(
+        Map<String, dynamic>.from(deletion.payload['entry'] as Map),
+      );
+      expect(tombstone.isDeleted, isTrue);
     } finally {
       await repository.close();
       await tempDirectory.delete(recursive: true);
     }
   });
+
+  test(
+    'removes an entry when the desktop repository receives a tombstone',
+    () async {
+      final tempDirectory = await Directory.systemTemp.createTemp(
+        'diary-isar-',
+      );
+      final repository = await IsarDiaryRepository.open(
+        directoryPath: tempDirectory.path,
+        initialEntries: [_entry],
+      );
+
+      try {
+        await repository.applySyncResult(
+          SyncResult(changes: [DiaryEntry.tombstone(_entry)]),
+        );
+        expect(await repository.load(includeTrash: true), isEmpty);
+      } finally {
+        await repository.close();
+        await tempDirectory.delete(recursive: true);
+      }
+    },
+  );
 }
 
 final _entry = DiaryEntry(

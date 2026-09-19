@@ -23,6 +23,7 @@ export function normalizeEntryV2(value = {}) {
     occurredAt: normalizedString(entry.occurredAt, createdAt),
     updatedAt: normalizedString(entry.updatedAt, createdAt),
     deletedAt: entry.deletedAt == null ? null : normalizedString(entry.deletedAt),
+    isDeleted: entry.isDeleted === true,
     title: normalizedString(entry.title),
     content: normalizedString(entry.content),
     contentText: normalizedString(entry.contentText, normalizedString(entry.content)),

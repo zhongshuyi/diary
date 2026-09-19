@@ -69,6 +69,7 @@ class DiaryEntry {
     this.colorValue = 0xFFE4E0ED,
     this.isFavorite = false,
     this.isInTrash = false,
+    this.isDeleted = false,
   });
 
   final String id;
@@ -100,6 +101,31 @@ class DiaryEntry {
   final int colorValue;
   final bool isFavorite;
   final bool isInTrash;
+
+  /// A synchronized tombstone for a record that was permanently deleted.
+  ///
+  /// Tombstones are never rendered in the recycle bin. They exist only long
+  /// enough to prevent an older device from restoring the record during sync.
+  final bool isDeleted;
+
+  factory DiaryEntry.tombstone(DiaryEntry entry, {DateTime? deletedAt}) {
+    final deletedOn = deletedAt ?? DateTime.now();
+    return DiaryEntry(
+      id: entry.id,
+      createdAt: entry.createdAt,
+      updatedAt: deletedOn,
+      occurredAt: entry.occurredAt,
+      deletedAt: deletedOn,
+      revision: entry.revision + 1,
+      deviceId: entry.deviceId,
+      title: '',
+      content: '',
+      contentText: '',
+      category: entry.category,
+      isInTrash: true,
+      isDeleted: true,
+    );
+  }
 
   DateTime get effectiveOccurredAt => occurredAt ?? createdAt;
 
@@ -156,6 +182,7 @@ class DiaryEntry {
     int? colorValue,
     bool? isFavorite,
     bool? isInTrash,
+    bool? isDeleted,
   }) {
     final nextDeletedAt =
         deletedAt ??
@@ -194,6 +221,7 @@ class DiaryEntry {
       colorValue: colorValue ?? this.colorValue,
       isFavorite: isFavorite ?? this.isFavorite,
       isInTrash: isInTrash ?? this.isInTrash,
+      isDeleted: isDeleted ?? this.isDeleted,
     );
   }
 
@@ -229,14 +257,19 @@ class DiaryEntry {
       'colorValue': colorValue,
       'isFavorite': isFavorite,
       'isInTrash': isInTrash,
+      'isDeleted': isDeleted,
     };
   }
 
   factory DiaryEntry.fromJson(Map<String, dynamic> json) {
     final now = DateTime.now();
     final deletedAt = _readNullableDate(json['deletedAt']);
+    final isDeleted = json['isDeleted'] == true;
     final inTrash =
-        json['isInTrash'] == true || json['show'] == false || deletedAt != null;
+        isDeleted ||
+        json['isInTrash'] == true ||
+        json['show'] == false ||
+        deletedAt != null;
     return DiaryEntry(
       id: _readString(
         json['id'],
@@ -292,6 +325,7 @@ class DiaryEntry {
       colorValue: _readInt(json['colorValue'], fallback: 0xFFE4E0ED),
       isFavorite: json['isFavorite'] == true,
       isInTrash: inTrash,
+      isDeleted: isDeleted,
     );
   }
 
@@ -326,7 +360,8 @@ class DiaryEntry {
         longitude == other.longitude &&
         colorValue == other.colorValue &&
         isFavorite == other.isFavorite &&
-        isInTrash == other.isInTrash;
+        isInTrash == other.isInTrash &&
+        isDeleted == other.isDeleted;
   }
 
   @override
@@ -360,6 +395,7 @@ class DiaryEntry {
     colorValue,
     isFavorite,
     isInTrash,
+    isDeleted,
   ]);
 }
 

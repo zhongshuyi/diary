@@ -78,7 +78,10 @@ export class SyncStore {
 
         const current = this.state.entries[mutation.entry.id];
         const incoming = { ...mutation, deviceId };
-        const accepted = !current || compareVersions(incoming, current) > 0;
+        const incomingIsDeleted = incoming.entry.isDeleted === true;
+        const currentIsDeleted = current?.entry?.isDeleted === true;
+        const accepted = !current || incomingIsDeleted ||
+          (!currentIsDeleted && compareVersions(incoming, current) > 0);
 
         if (accepted) {
           this.state.sequence += 1;

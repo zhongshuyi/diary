@@ -8,12 +8,14 @@ class RecyclePage extends StatelessWidget {
     required this.entries,
     required this.onRestore,
     required this.onDelete,
+    required this.onEmpty,
     super.key,
   });
 
   final List<DiaryEntry> entries;
   final ValueChanged<DiaryEntry> onRestore;
   final ValueChanged<DiaryEntry> onDelete;
+  final Future<void> Function() onEmpty;
 
   @override
   Widget build(BuildContext context) {
@@ -24,6 +26,16 @@ class RecyclePage extends StatelessWidget {
         backgroundColor: colors.paper,
         surfaceTintColor: Colors.transparent,
         title: const Text('回收站'),
+        actions: [
+          if (entries.isNotEmpty)
+            TextButton.icon(
+              key: const Key('empty-recycle-bin'),
+              onPressed: () => _confirmEmpty(context),
+              icon: const Icon(Icons.delete_sweep_outlined),
+              label: const Text('清空'),
+              style: TextButton.styleFrom(foregroundColor: colors.terracotta),
+            ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 15, 20, 35),
@@ -88,6 +100,28 @@ class RecyclePage extends StatelessWidget {
     );
     if (confirmed == true) onDelete(entry);
   }
+
+  Future<void> _confirmEmpty(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('清空回收站？'),
+        content: Text(_emptyWarning(entries)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            key: const Key('confirm-empty-recycle-bin'),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('清空回收站'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) await onEmpty();
+  }
 }
 
 String _deleteWarning(DiaryEntry entry) {
@@ -100,6 +134,22 @@ String _deleteWarning(DiaryEntry entry) {
     return '删除后无法恢复，这篇日记没有附件。';
   }
   return '删除后无法恢复，其中包含 $attachmentCount 个附件。';
+}
+
+String _emptyWarning(List<DiaryEntry> entries) {
+  final attachmentCount = entries.fold<int>(
+    0,
+    (total, entry) =>
+        total +
+        entry.imagePaths.length +
+        entry.audioPaths.length +
+        entry.videoPaths.length,
+  );
+  final entryCount = entries.length;
+  if (attachmentCount == 0) {
+    return '将永久删除 $entryCount 篇日记，删除后无法恢复。';
+  }
+  return '将永久删除 $entryCount 篇日记及其中 $attachmentCount 个附件，删除后无法恢复。';
 }
 
 class _RecycleTile extends StatelessWidget {

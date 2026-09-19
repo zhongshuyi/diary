@@ -136,6 +136,15 @@ abstract class DiaryRepository {
 
   Future<void> deletePermanently(String id);
 
+  Future<void> clearTrash() async {
+    final trash = (await load(includeTrash: true))
+        .where((entry) => entry.isInTrash && !entry.isDeleted)
+        .toList(growable: false);
+    for (final entry in trash) {
+      await deletePermanently(entry.id);
+    }
+  }
+
   Future<void> replaceAll(List<DiaryEntry> entries);
 
   Future<void> batchSetFavorite(Iterable<String> ids, bool value) async {
@@ -332,7 +341,10 @@ class MemoryDiaryRepository extends DiaryRepository {
 
   @override
   Future<void> deletePermanently(String id) async {
-    _entries = _entries.where((entry) => entry.id != id).toList();
+    final entry = _findEntry(id);
+    if (entry == null) return;
+    _entries = _entries.where((item) => item.id != id).toList();
+    _enqueue(DiaryEntry.tombstone(entry));
   }
 
   @override
@@ -438,8 +450,13 @@ class MemoryDiaryRepository extends DiaryRepository {
 
   @override
   Future<void> applySyncResult(SyncResult result) async {
-    for (final entry in result.changes)
-      await save(entry, enqueueMutation: false);
+    for (final entry in result.changes) {
+      if (entry.isDeleted) {
+        _entries = _entries.where((item) => item.id != entry.id).toList();
+      } else {
+        await save(entry, enqueueMutation: false);
+      }
+    }
     _outbox.removeWhere(
       (item) => result.acknowledgedMutationIds.contains(item.mutationId),
     );
@@ -715,8 +732,12 @@ class SharedPreferencesDiaryRepository extends DiaryRepository {
   @override
   Future<void> deletePermanently(String id) async {
     final entries = List<DiaryEntry>.of(await load(includeTrash: true));
-    entries.removeWhere((entry) => entry.id == id);
+    final index = entries.indexWhere((entry) => entry.id == id);
+    if (index == -1) return;
+    final tombstone = DiaryEntry.tombstone(entries[index]);
+    entries.removeAt(index);
     await replaceAll(entries);
+    await _enqueue(tombstone);
   }
 
   @override
@@ -738,8 +759,25 @@ class SharedPreferencesDiaryRepository extends DiaryRepository {
 
   @override
   Future<void> applySyncResult(SyncResult result) async {
-    for (final entry in result.changes)
-      await save(entry, enqueueMutation: false);
+    final entries = List<DiaryEntry>.of(await load(includeTrash: true));
+    var changed = false;
+    for (final entry in result.changes) {
+      final index = entries.indexWhere((item) => item.id == entry.id);
+      if (entry.isDeleted) {
+        if (index != -1) {
+          entries.removeAt(index);
+          changed = true;
+        }
+        continue;
+      }
+      if (index == -1) {
+        entries.add(entry);
+      } else {
+        entries[index] = entry;
+      }
+      changed = true;
+    }
+    if (changed) await replaceAll(entries);
     final preferences = await _prefs;
     final pending = _decodeOutbox(preferences.getString(_outboxKey))
       ..removeWhere(
@@ -924,4 +962,25 @@ class SharedPreferencesDiaryRepository extends DiaryRepository {
   }
 
   final Map<String, Conflict> _conflicts = <String, Conflict>{};
+
+  Future<void> _enqueue(DiaryEntry entry) async {
+    final preferences = await _prefs;
+    final pending = _decodeOutbox(preferences.getString(_outboxKey));
+    final mutationId =
+        '${entry.deviceId.isEmpty ? 'mobile' : entry.deviceId}:${entry.id}:${entry.revision}';
+    pending.removeWhere((item) => item.entityId == entry.id);
+    pending.add(
+      OutboxMutation(
+        mutationId: mutationId,
+        entityType: 'entry',
+        entityId: entry.id,
+        payload: {'mutationId': mutationId, 'entry': entry.toJson()},
+        createdAt: DateTime.now(),
+      ),
+    );
+    await preferences.setString(
+      _outboxKey,
+      jsonEncode(pending.map(_outboxToJson).toList()),
+    );
+  }
 }

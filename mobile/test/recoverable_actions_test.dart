@@ -82,6 +82,7 @@ void main() {
           entries: [_entry()],
           onRestore: (_) {},
           onDelete: (_) {},
+          onEmpty: () async {},
         ),
       ),
     );
@@ -92,6 +93,34 @@ void main() {
 
     expect(find.textContaining('1 个附件'), findsOneWidget);
     expect(find.text('取消'), findsOneWidget);
+  });
+
+  testWidgets('confirms the scope before emptying the recycle bin', (
+    tester,
+  ) async {
+    var emptied = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RecyclePage(
+          entries: [_entry()],
+          onRestore: (_) {},
+          onDelete: (_) {},
+          onEmpty: () async => emptied = true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('empty-recycle-bin')));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('将永久删除 1 篇日记'), findsOneWidget);
+    expect(emptied, isFalse);
+
+    await tester.tap(find.byKey(const Key('confirm-empty-recycle-bin')));
+    await tester.pumpAndSettle();
+
+    expect(emptied, isTrue);
   });
 
   testWidgets('confirms the scope before importing a backup', (tester) async {

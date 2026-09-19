@@ -26,6 +26,11 @@ void main() {
       expect((await repository.load(includeTrash: true)).map((e) => e.id), [
         'two',
       ]);
+      final deletion = (await repository.listPendingMutations()).single;
+      final tombstone = DiaryEntry.fromJson(
+        Map<String, dynamic>.from(deletion.payload['entry'] as Map),
+      );
+      expect(tombstone.isDeleted, isTrue);
     },
   );
 
@@ -41,6 +46,38 @@ void main() {
 
       expect(entries.single.id, 'new');
       expect((await repository.load()).first.id, 'new');
+    },
+  );
+
+  test('repository clears only entries in the recycle bin', () async {
+    final repository = MemoryDiaryRepository([
+      _entry('keep', '保留的日记'),
+      _entry('trash-one', '第一篇待清理日记'),
+      _entry('trash-two', '第二篇待清理日记'),
+    ]);
+
+    await repository.moveToTrash('trash-one');
+    await repository.moveToTrash('trash-two');
+    await repository.clearTrash();
+
+    expect(
+      (await repository.load(includeTrash: true)).map((entry) => entry.id),
+      ['keep'],
+    );
+    expect(await repository.listPendingMutations(), hasLength(2));
+  });
+
+  test(
+    'a synchronized tombstone removes a local record without entering trash',
+    () async {
+      final local = _entry('one', '第一篇');
+      final repository = MemoryDiaryRepository([local]);
+
+      await repository.applySyncResult(
+        SyncResult(changes: [DiaryEntry.tombstone(local)]),
+      );
+
+      expect(await repository.load(includeTrash: true), isEmpty);
     },
   );
 

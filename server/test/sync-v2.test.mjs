@@ -91,3 +91,41 @@ test('v2 cursor only advances through the returned page', async () => {
     assert.equal(second.body.data.nextCursor, '2');
   });
 });
+
+test('v2 tombstones remove a record and prevent a stale device from restoring it', async () => {
+  await withServer(async (baseUrl) => {
+    await sync(baseUrl, {
+      protocolVersion: 2,
+      deviceId: 'phone-a',
+      cursor: '0',
+      changes: [{ mutationId: 'create-1', entry: entry('e-1', '2026-09-15T09:00:00.000Z') }],
+    });
+    const deletion = await sync(baseUrl, {
+      protocolVersion: 2,
+      deviceId: 'phone-a',
+      cursor: '1',
+      changes: [{ mutationId: 'delete-1', entry: entry('e-1', '2026-09-15T09:01:00.000Z', { isDeleted: true, deletedAt: '2026-09-15T09:01:00.000Z' }) }],
+    });
+    assert.equal(deletion.body.data.changes.some((change) => change.entry.isDeleted), true);
+
+    const stale = await sync(baseUrl, {
+      protocolVersion: 2,
+      deviceId: 'tablet-b',
+      cursor: '1',
+      changes: [{ mutationId: 'stale-edit', entry: entry('e-1', '2026-09-16T09:00:00.000Z', { contentText: '不应复活' }) }],
+    });
+    assert.equal(stale.body.data.conflicts.length, 1);
+    assert.equal(stale.body.data.changes.some((change) => change.entry.isDeleted), true);
+
+    const freshDevice = await sync(baseUrl, {
+      protocolVersion: 2,
+      deviceId: 'desktop-c',
+      cursor: '0',
+      changes: [],
+    });
+    const latest = freshDevice.body.data.changes
+      .filter((change) => change.entry.id === 'e-1')
+      .at(-1);
+    assert.equal(latest.entry.isDeleted, true);
+  });
+});
