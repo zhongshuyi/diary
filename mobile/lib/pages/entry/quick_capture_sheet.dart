@@ -45,6 +45,7 @@ class QuickCaptureSheet extends StatefulWidget {
 class _QuickCaptureSheetState extends State<QuickCaptureSheet> {
   static const _draftId = 'mobile-quick-capture';
   final _controller = TextEditingController();
+  final _focusNode = FocusNode();
   final List<String> _imagePaths = [];
   Timer? _draftTimer;
   bool _restoring = false;
@@ -61,7 +62,9 @@ class _QuickCaptureSheetState extends State<QuickCaptureSheet> {
   void initState() {
     super.initState();
     _controller.addListener(_scheduleDraftSave);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _restoreDraft());
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => unawaited(_finishEntrance()),
+    );
   }
 
   @override
@@ -69,7 +72,22 @@ class _QuickCaptureSheetState extends State<QuickCaptureSheet> {
     _draftTimer?.cancel();
     if (!_completed) unawaited(_persistDraft());
     _controller.dispose();
+    _focusNode.dispose();
     super.dispose();
+  }
+
+  Future<void> _finishEntrance() async {
+    await Future<void>.delayed(
+      DiaryMotion.duration(context, DiaryMotion.emphasized),
+    );
+    if (!mounted ||
+        ModalRoute.of(context)?.isCurrent != true ||
+        _picking ||
+        _saving) {
+      return;
+    }
+    unawaited(_restoreDraft());
+    if (!_focusNode.hasFocus) _focusNode.requestFocus();
   }
 
   Future<void> _restoreDraft() async {
@@ -232,9 +250,7 @@ class _QuickCaptureSheetState extends State<QuickCaptureSheet> {
   @override
   Widget build(BuildContext context) {
     final colors = DiaryThemeColors.of(context);
-    return AnimatedPadding(
-      duration: DiaryMotion.duration(context, DiaryMotion.standard),
-      curve: DiaryMotion.curve(context, Curves.easeOutCubic),
+    return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
       child: SafeArea(
         top: false,
@@ -303,7 +319,8 @@ class _QuickCaptureSheetState extends State<QuickCaptureSheet> {
                 child: TextField(
                   key: const Key('quick-capture-text'),
                   controller: _controller,
-                  autofocus: true,
+                  focusNode: _focusNode,
+                  autofocus: false,
                   minLines: 3,
                   maxLines: 5,
                   keyboardType: TextInputType.multiline,

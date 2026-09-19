@@ -18,6 +18,7 @@ import 'package:diary/pages/entry/entry_detail_page.dart';
 import 'package:diary/pages/entry/entry_editor_page.dart';
 import 'package:diary/pages/entry/quick_capture_sheet.dart';
 import 'package:diary/pages/home/home_page.dart';
+import 'package:diary/widgets/diary_image_viewer.dart';
 import 'package:diary/widgets/diary_navigation.dart';
 import 'package:diary/widgets/entry_card.dart';
 
@@ -136,6 +137,28 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('路边的树影很好看。'), findsOneWidget);
+  });
+
+  testWidgets('quick capture waits for its entrance before requesting focus', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('mobile-quick-capture-fab')));
+    await tester.pump();
+
+    TextField field() =>
+        tester.widget<TextField>(find.byKey(const Key('quick-capture-text')));
+
+    expect(field().autofocus, isFalse);
+    expect(field().focusNode!.hasFocus, isFalse);
+
+    await tester.pump(const Duration(milliseconds: 259));
+    expect(field().focusNode!.hasFocus, isFalse);
+
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(field().focusNode!.hasFocus, isTrue);
   });
 
   testWidgets('quick capture saves an imported photo without text', (
@@ -501,8 +524,9 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('2 / 3'), findsOneWidget);
-    await tester.tap(find.byTooltip('关闭照片预览'));
+    await tester.tapAt(const Offset(8, 180));
     await tester.pumpAndSettle();
+    expect(find.text('2 / 3'), findsNothing);
 
     await tester.tap(find.byTooltip('移除第 2 张照片'));
     await tester.pumpAndSettle();
@@ -1047,11 +1071,29 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Hero &&
+              widget.tag ==
+                  diaryImageHeroTag('home-images', 0, scope: 'timeline'),
+        ),
+        findsOneWidget,
+      );
       await tester.tap(
         find.byKey(const Key('diary-image-thumbnail-home-images-0')),
       );
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('diary-image-viewer')), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Hero &&
+              widget.tag ==
+                  diaryImageHeroTag('home-images', 0, scope: 'timeline'),
+        ),
+        findsOneWidget,
+      );
       expect(find.text('1 / 2'), findsOneWidget);
       expect(opened, isNull);
 
@@ -1068,6 +1110,10 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('1 / 2'), findsOneWidget);
+
+      await tester.tapAt(const Offset(8, 120));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('diary-image-viewer')), findsNothing);
     },
   );
 

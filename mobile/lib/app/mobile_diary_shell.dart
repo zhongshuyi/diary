@@ -79,6 +79,7 @@ class _MobileDiaryShellState extends State<MobileDiaryShell> {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
+      requestFocus: false,
       showDragHandle: true,
       backgroundColor: DiaryThemeColors.of(context).surface,
       builder: (_) => QuickCaptureSheet(

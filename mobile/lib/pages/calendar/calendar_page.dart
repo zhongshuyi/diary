@@ -406,6 +406,7 @@ class _CalendarImageCollage extends StatelessWidget {
                   index: 0,
                   borderRadius: 9,
                   expand: true,
+                  heroScope: 'calendar',
                 ),
               ),
               if (count > 1) ...[
@@ -417,6 +418,7 @@ class _CalendarImageCollage extends StatelessWidget {
                     index: 1,
                     borderRadius: 9,
                     expand: true,
+                    heroScope: 'calendar',
                   ),
                 ),
               ],

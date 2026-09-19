@@ -57,6 +57,8 @@ class DiaryEntryCard extends StatelessWidget {
 
   Widget _cardBody(BuildContext context, DiaryThemeColors colors) {
     final tint = Color(entry.colorValue);
+    final thumbnailCacheSize = (72 * MediaQuery.devicePixelRatioOf(context))
+        .round();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -123,6 +125,8 @@ class DiaryEntryCard extends StatelessWidget {
                   child: LocalMediaPreview(
                     path: entry.imagePaths[index],
                     kind: DiaryMediaKind.image,
+                    cacheWidth: thumbnailCacheSize,
+                    cacheHeight: thumbnailCacheSize,
                   ),
                 ),
               ),
@@ -158,9 +162,7 @@ class DiaryEntryCard extends StatelessWidget {
                 key: ValueKey(entry.isFavorite),
                 entry.isFavorite ? Icons.bookmark : Icons.bookmark_border,
                 size: 17,
-                color: entry.isFavorite
-                    ? colors.terracotta
-                    : colors.mutedInk,
+                color: entry.isFavorite ? colors.terracotta : colors.mutedInk,
               ),
             ),
           ],

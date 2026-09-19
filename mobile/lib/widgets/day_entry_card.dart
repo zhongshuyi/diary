@@ -268,6 +268,7 @@ class _MomentRow extends StatelessWidget {
                   width: 48,
                   height: 48,
                   borderRadius: 7,
+                  heroScope: 'timeline',
                 ),
               ] else if (entry.hasMedia) ...[
                 const SizedBox(width: 6),

@@ -24,13 +24,7 @@ class _MediaPageState extends State<MediaPage> {
   DiaryMediaKind? _filter;
   String _query = '';
 
-  List<_MediaItem> get _items => _collectItems(
-    _filter,
-  ).where((item) => item.matches(_query)).toList(growable: false);
-
-  List<_MediaItem> get _allItems => _collectItems();
-
-  List<_MediaItem> _collectItems([DiaryMediaKind? filter]) {
+  List<_MediaItem> _collectItems() {
     final result = <_MediaItem>[];
     for (final entry in widget.entries) {
       for (final path in entry.imagePaths) {
@@ -53,9 +47,7 @@ class _MediaPageState extends State<MediaPage> {
         );
       }
     }
-    return result
-        .where((item) => filter == null || item.kind == filter)
-        .toList(growable: false);
+    return result;
   }
 
   @override
@@ -66,7 +58,13 @@ class _MediaPageState extends State<MediaPage> {
 
   @override
   Widget build(BuildContext context) {
-    final items = _items;
+    final allItems = _collectItems();
+    final items = allItems
+        .where(
+          (item) =>
+              (_filter == null || item.kind == _filter) && item.matches(_query),
+        )
+        .toList(growable: false);
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 28, 20, 110),
       child: Center(
@@ -81,7 +79,7 @@ class _MediaPageState extends State<MediaPage> {
                 description: '把图片、声音和文件放在一起，回到那一天。',
               ),
               const SizedBox(height: 20),
-              _MediaSummary(items: _allItems),
+              _MediaSummary(items: allItems),
               const SizedBox(height: 16),
               TextField(
                 key: const Key('media-search-field'),
@@ -116,7 +114,7 @@ class _MediaPageState extends State<MediaPage> {
               const SizedBox(height: 16),
               if (items.isEmpty)
                 _EmptyMediaState(
-                  hasMedia: _allItems.isNotEmpty,
+                  hasMedia: allItems.isNotEmpty,
                   hasQuery: _query.trim().isNotEmpty,
                 )
               else
@@ -293,56 +291,65 @@ class _MediaCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = DiaryThemeColors.of(context);
-    final fileName = item.path.split(RegExp(r'[\\/]')).last;
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: SizedBox.expand(
-                child: LocalMediaPreview(
-                  path: item.path,
-                  kind: item.kind,
-                  showRetry: true,
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    diaryMediaKindLabel(item.kind),
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: colors.terracotta,
-                      letterSpacing: .3,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final colors = DiaryThemeColors.of(context);
+        final fileName = item.path.split(RegExp(r'[\\/]')).last;
+        final cacheWidth = constraints.hasBoundedWidth
+            ? (constraints.maxWidth * MediaQuery.devicePixelRatioOf(context))
+                  .round()
+            : null;
+        return Card(
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: SizedBox.expand(
+                    child: LocalMediaPreview(
+                      path: item.path,
+                      kind: item.kind,
+                      showRetry: true,
+                      cacheWidth: cacheWidth,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    fileName.isEmpty ? '未命名附件' : fileName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleMedium,
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        diaryMediaKindLabel(item.kind),
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: colors.terracotta,
+                          letterSpacing: .3,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        fileName.isEmpty ? '未命名附件' : fileName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        item.entry.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 3),
-                  Text(
-                    item.entry.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }

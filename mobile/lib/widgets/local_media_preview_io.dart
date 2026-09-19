@@ -10,6 +10,8 @@ class LocalMediaPreview extends StatefulWidget {
     required this.kind,
     this.showRetry = false,
     this.fit = BoxFit.cover,
+    this.cacheWidth,
+    this.cacheHeight,
     super.key,
   });
 
@@ -17,6 +19,8 @@ class LocalMediaPreview extends StatefulWidget {
   final DiaryMediaKind kind;
   final bool showRetry;
   final BoxFit fit;
+  final int? cacheWidth;
+  final int? cacheHeight;
 
   @override
   State<LocalMediaPreview> createState() => _LocalMediaPreviewState();
@@ -30,18 +34,12 @@ class _LocalMediaPreviewState extends State<LocalMediaPreview> {
     if (widget.kind != DiaryMediaKind.image) {
       return _MediaPlaceholder(kind: widget.kind);
     }
-    if (!File(widget.path).existsSync()) {
-      return _MediaPlaceholder(
-        kind: widget.kind,
-        missing: true,
-        showRetry: widget.showRetry,
-        onRetry: () => setState(() => _reloadToken++),
-      );
-    }
     return Image.file(
       File(widget.path),
       key: ValueKey(_reloadToken),
       fit: widget.fit,
+      cacheWidth: widget.cacheWidth,
+      cacheHeight: widget.cacheHeight,
       errorBuilder: (context, error, stackTrace) => _MediaPlaceholder(
         kind: widget.kind,
         missing: true,

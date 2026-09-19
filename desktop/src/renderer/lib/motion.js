@@ -14,13 +14,17 @@ export const springs = Object.freeze({
   instant: Object.freeze({ type: 'spring', stiffness: 600, damping: 35 }),
 });
 
+function detectLowEndDevice() {
+  if (typeof navigator === 'undefined') return false;
+  return Number(navigator.hardwareConcurrency || 8) <= 4;
+}
+
 export function useMotionPreference() {
   const prefersReducedMotion = useReducedMotion();
-  const [isLowEnd, setIsLowEnd] = useState(true);
+  const [isLowEnd, setIsLowEnd] = useState(detectLowEndDevice);
 
   useEffect(() => {
-    const cores = typeof navigator === 'undefined' ? 8 : Number(navigator.hardwareConcurrency || 8);
-    setIsLowEnd(cores <= 4);
+    setIsLowEnd(detectLowEndDevice());
   }, []);
 
   return { shouldAnimate: !prefersReducedMotion && !isLowEnd, prefersReducedMotion: Boolean(prefersReducedMotion) };

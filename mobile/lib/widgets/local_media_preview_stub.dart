@@ -8,6 +8,8 @@ class LocalMediaPreview extends StatelessWidget {
     required this.kind,
     this.showRetry = false,
     this.fit = BoxFit.cover,
+    this.cacheWidth,
+    this.cacheHeight,
     super.key,
   });
 
@@ -15,6 +17,8 @@ class LocalMediaPreview extends StatelessWidget {
   final DiaryMediaKind kind;
   final bool showRetry;
   final BoxFit fit;
+  final int? cacheWidth;
+  final int? cacheHeight;
 
   @override
   Widget build(BuildContext context) {

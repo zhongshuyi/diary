@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'diary_image_viewer.dart';
 import 'local_media_preview.dart';
 
 class SelectedPhotoStrip extends StatelessWidget {
@@ -34,6 +35,8 @@ class SelectedPhotoStrip extends StatelessWidget {
             separatorBuilder: (_, _) => const SizedBox(width: 12),
             itemBuilder: (context, index) {
               final path = paths[index];
+              final thumbnailCacheSize =
+                  (88 * MediaQuery.devicePixelRatioOf(context)).round();
               return SizedBox(
                 width: 88,
                 child: Stack(
@@ -54,6 +57,8 @@ class SelectedPhotoStrip extends StatelessWidget {
                           child: LocalMediaPreview(
                             path: path,
                             kind: DiaryMediaKind.image,
+                            cacheWidth: thumbnailCacheSize,
+                            cacheHeight: thumbnailCacheSize,
                           ),
                         ),
                       ),
@@ -158,14 +163,9 @@ class _PhotoViewerState extends State<_PhotoViewer> {
                 controller: _pageController,
                 itemCount: widget.paths.length,
                 onPageChanged: (index) => setState(() => _index = index),
-                itemBuilder: (context, index) => InteractiveViewer(
-                  child: Center(
-                    child: LocalMediaPreview(
-                      path: widget.paths[index],
-                      kind: DiaryMediaKind.image,
-                      fit: BoxFit.contain,
-                    ),
-                  ),
+                itemBuilder: (context, index) => DiaryZoomableImage(
+                  path: widget.paths[index],
+                  onTapOutsideImage: () => Navigator.maybePop(context),
                 ),
               ),
             ),
