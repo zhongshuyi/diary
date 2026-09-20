@@ -12,6 +12,41 @@ void main() {
     await Isar.initializeIsarCore(download: true);
   });
 
+  test('opens a new diary database without sample entries', () async {
+    final tempDirectory = await Directory.systemTemp.createTemp('diary-isar-');
+    final repository = await IsarDiaryRepository.open(
+      directoryPath: tempDirectory.path,
+    );
+
+    try {
+      expect(await repository.load(), isEmpty);
+    } finally {
+      await repository.close();
+      await tempDirectory.delete(recursive: true);
+    }
+  });
+
+  test('creates a missing database directory before opening Isar', () async {
+    final tempDirectory = await Directory.systemTemp.createTemp('diary-isar-');
+    final databaseDirectory = Directory(
+      '${tempDirectory.path}${Platform.pathSeparator}new${Platform.pathSeparator}diary_database',
+    );
+
+    expect(await databaseDirectory.exists(), isFalse);
+
+    final repository = await IsarDiaryRepository.open(
+      directoryPath: databaseDirectory.path,
+    );
+
+    try {
+      expect(await databaseDirectory.exists(), isTrue);
+      expect(await repository.load(), isEmpty);
+    } finally {
+      await repository.close();
+      await tempDirectory.delete(recursive: true);
+    }
+  });
+
   test('persists diary records and supports the recycle bin flow', () async {
     final tempDirectory = await Directory.systemTemp.createTemp('diary-isar-');
     final repository = await IsarDiaryRepository.open(

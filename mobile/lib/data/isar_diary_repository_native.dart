@@ -1,8 +1,9 @@
+import 'dart:io';
+
 import 'package:isar_community/isar.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
-import '../domain/demo_data.dart';
 import '../domain/conflict.dart';
 import '../domain/diary_entry.dart';
 import '../domain/diary_query.dart';
@@ -24,6 +25,7 @@ class IsarDiaryRepository extends DiaryRepository {
           (await getApplicationDocumentsDirectory()).path,
           'diary_database',
         );
+    await Directory(databasePath).create(recursive: true);
     final isar = await Isar.open(
       [
         DiaryRecordSchema,
@@ -39,7 +41,9 @@ class IsarDiaryRepository extends DiaryRepository {
     final repository = IsarDiaryRepository._(isar);
 
     if (await isar.diaryRecords.count() == 0) {
-      final seeds = (initialEntries ?? demoEntries).toList(growable: false);
+      final seeds = (initialEntries ?? const <DiaryEntry>[]).toList(
+        growable: false,
+      );
       if (seeds.isNotEmpty) {
         await repository.replaceAll(seeds);
       }
