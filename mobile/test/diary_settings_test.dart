@@ -130,6 +130,31 @@ void main() {
     expect((await store.load()).chatTitle, '晚安日记');
   });
 
+  test('profile avatar path is persisted and can be cleared', () async {
+    final store = _MemorySettingsStore();
+    final controller = SettingsController(store: store);
+    await controller.initialize();
+
+    await controller.setProfileAvatarPath('  profile/avatar.jpg  ');
+    expect(store.value.profileAvatarPath, 'profile/avatar.jpg');
+
+    await controller.clearProfileAvatarPath();
+    expect(store.value.profileAvatarPath, isNull);
+  });
+
+  test(
+    'saved profile avatar path round trips through device preferences',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final store = SharedPreferencesDiarySettingsStore();
+      await store.save(
+        const DiarySettings(profileAvatarPath: 'profile/avatar.jpg'),
+      );
+
+      expect((await store.load()).profileAvatarPath, 'profile/avatar.jpg');
+    },
+  );
+
   test('saved reminder time round trips through device preferences', () async {
     SharedPreferences.setMockInitialValues({});
     final store = SharedPreferencesDiarySettingsStore();

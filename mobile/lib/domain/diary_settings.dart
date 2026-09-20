@@ -205,6 +205,7 @@ class DiarySettings {
     this.quickCaptureSide = QuickCaptureSide.right,
     this.defaultHomeMode = DiaryHomeMode.timeline,
     this.chatTitle = diaryDefaultChatTitle,
+    this.profileAvatarPath,
   });
 
   final DiaryThemeMode themeMode;
@@ -223,6 +224,7 @@ class DiarySettings {
   final QuickCaptureSide quickCaptureSide;
   final DiaryHomeMode defaultHomeMode;
   final String chatTitle;
+  final String? profileAvatarPath;
 
   DiarySettings copyWith({
     DiaryThemeMode? themeMode,
@@ -242,6 +244,8 @@ class DiarySettings {
     QuickCaptureSide? quickCaptureSide,
     DiaryHomeMode? defaultHomeMode,
     String? chatTitle,
+    String? profileAvatarPath,
+    bool clearProfileAvatarPath = false,
   }) {
     return DiarySettings(
       themeMode: themeMode ?? this.themeMode,
@@ -262,6 +266,9 @@ class DiarySettings {
       quickCaptureSide: quickCaptureSide ?? this.quickCaptureSide,
       defaultHomeMode: defaultHomeMode ?? this.defaultHomeMode,
       chatTitle: chatTitle ?? this.chatTitle,
+      profileAvatarPath: clearProfileAvatarPath
+          ? null
+          : profileAvatarPath ?? this.profileAvatarPath,
     );
   }
 }

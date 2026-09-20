@@ -42,4 +42,40 @@ void main() {
       expect(data, lessThan(app));
     },
   );
+
+  testWidgets('keeps the original banner and exposes avatar choices', (
+    tester,
+  ) async {
+    var pickRequested = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DiaryTheme.light,
+        home: ProfilePage(
+          entryCount: 8,
+          trashCount: 2,
+          onOpenRecycle: () {},
+          onOpenSettings: () {},
+          onOpenCategories: () {},
+          onOpenBackup: () {},
+          onOpenAbout: () {},
+          profileAvatarPath: 'missing-avatar.jpg',
+          onPickAvatar: () async => pickRequested = true,
+          onClearAvatar: () async {},
+        ),
+      ),
+    );
+
+    expect(find.text('写给自己的日记'), findsOneWidget);
+    expect(find.byKey(const Key('profile-avatar-button')), findsOneWidget);
+    expect(find.textContaining('已写下'), findsNothing);
+
+    await tester.tap(find.byKey(const Key('profile-avatar-button')));
+    await tester.pumpAndSettle();
+    expect(find.text('从相册选择'), findsOneWidget);
+    expect(find.text('恢复默认头像'), findsOneWidget);
+
+    await tester.tap(find.text('从相册选择'));
+    await tester.pumpAndSettle();
+    expect(pickRequested, isTrue);
+  });
 }

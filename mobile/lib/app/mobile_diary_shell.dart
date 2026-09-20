@@ -37,6 +37,9 @@ class MobileDiaryShell extends StatefulWidget {
     this.syncState = const SyncState(),
     this.onSyncNow,
     this.onOpenSyncSettings,
+    this.profileAvatarPath,
+    this.onPickAvatar,
+    this.onClearAvatar,
     super.key,
   });
 
@@ -51,6 +54,9 @@ class MobileDiaryShell extends StatefulWidget {
   final SyncState syncState;
   final Future<void> Function()? onSyncNow;
   final Future<void> Function()? onOpenSyncSettings;
+  final String? profileAvatarPath;
+  final Future<void> Function()? onPickAvatar;
+  final Future<void> Function()? onClearAvatar;
 
   @override
   State<MobileDiaryShell> createState() => _MobileDiaryShellState();
@@ -196,6 +202,9 @@ class _MobileDiaryShellState extends State<MobileDiaryShell> {
         onOpenSyncSettings: widget.onOpenSyncSettings == null
             ? null
             : () => unawaited(widget.onOpenSyncSettings!()),
+        profileAvatarPath: widget.profileAvatarPath,
+        onPickAvatar: widget.onPickAvatar,
+        onClearAvatar: widget.onClearAvatar,
         onOpenMedia: () => unawaited(_openMedia()),
         onOpenInsights: () => unawaited(_openInsights()),
         favoriteCount: _favoriteCount,
