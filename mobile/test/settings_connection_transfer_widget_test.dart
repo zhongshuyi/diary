@@ -52,6 +52,8 @@ void main() {
       240,
       scrollable: find.byType(Scrollable).first,
     );
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -160));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('settings-sync')));
     await tester.pumpAndSettle();
     expect(find.text('复制连接配置'), findsOneWidget);

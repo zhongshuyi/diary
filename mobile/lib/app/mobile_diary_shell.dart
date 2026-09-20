@@ -40,6 +40,7 @@ class MobileDiaryShell extends StatefulWidget {
     this.profileAvatarPath,
     this.onPickAvatar,
     this.onClearAvatar,
+    this.showChatAvatar = true,
     super.key,
   });
 
@@ -57,6 +58,7 @@ class MobileDiaryShell extends StatefulWidget {
   final String? profileAvatarPath;
   final Future<void> Function()? onPickAvatar;
   final Future<void> Function()? onClearAvatar;
+  final bool showChatAvatar;
 
   @override
   State<MobileDiaryShell> createState() => _MobileDiaryShellState();
@@ -174,6 +176,8 @@ class _MobileDiaryShellState extends State<MobileDiaryShell> {
         entries: widget.entries,
         title: widget.chatTitle,
         chatBackground: widget.chatBackground,
+        showChatAvatar: widget.showChatAvatar,
+        profileAvatarPath: widget.profileAvatarPath,
         onSend: widget.actions.saveChatMessage,
         onOpenEntry: (entry) => unawaited(widget.actions.openEntry(entry)),
         onEdit: (entry) => widget.actions.openEditor(entry),

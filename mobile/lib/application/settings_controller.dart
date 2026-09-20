@@ -88,6 +88,9 @@ class SettingsController extends ChangeNotifier {
   Future<void> clearProfileAvatarPath() =>
       _update(_settings.copyWith(clearProfileAvatarPath: true));
 
+  Future<void> setShowChatAvatar(bool value) =>
+      _update(_settings.copyWith(showChatAvatar: value));
+
   Future<DailyReminderScheduleResult> setDailyReminder(bool value) async {
     final result = value
         ? await _dailyReminderScheduler.schedule(

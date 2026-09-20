@@ -168,6 +168,8 @@ class _DesktopDiaryShellState extends State<DesktopDiaryShell> {
         entries: widget.entries,
         title: widget.chatTitle,
         chatBackground: widget.chatBackground,
+        showChatAvatar: widget.settingsController.settings.showChatAvatar,
+        profileAvatarPath: widget.settingsController.settings.profileAvatarPath,
         onSend: widget.actions.saveChatMessage,
         onOpenEntry: (entry) => unawaited(_openEntry(entry)),
         onEdit: (entry) async {

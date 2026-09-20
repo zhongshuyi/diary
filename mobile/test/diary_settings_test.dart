@@ -31,6 +31,7 @@ void main() {
       await controller.setQuickCaptureSide(QuickCaptureSide.left);
       await controller.setDefaultHomeMode(DiaryHomeMode.chat);
       await controller.setChatTitle('睡前片刻');
+      await controller.setShowChatAvatar(false);
 
       expect(store.value.themeMode, DiaryThemeMode.dark);
       expect(store.value.themePreset.wireValue, 'carbon');
@@ -43,6 +44,7 @@ void main() {
       expect(store.value.quickCaptureSide, QuickCaptureSide.left);
       expect(store.value.defaultHomeMode, DiaryHomeMode.chat);
       expect(store.value.chatTitle, '睡前片刻');
+      expect(store.value.showChatAvatar, isFalse);
     },
   );
 
@@ -142,6 +144,14 @@ void main() {
     expect(store.value.profileAvatarPath, isNull);
   });
 
+  test('chat avatar visibility is saved through device preferences', () async {
+    SharedPreferences.setMockInitialValues({});
+    final store = SharedPreferencesDiarySettingsStore();
+    await store.save(const DiarySettings(showChatAvatar: false));
+
+    expect((await store.load()).showChatAvatar, isFalse);
+  });
+
   test(
     'saved profile avatar path round trips through device preferences',
     () async {
@@ -187,6 +197,22 @@ void main() {
     expect(find.text('清理临时缓存'), findsNothing);
     expect(find.text('偏好设置'), findsNothing);
     expect(find.textContaining('阅读、记录和应用习惯'), findsOneWidget);
+  });
+
+  testWidgets('settings exposes the chat avatar visibility control', (
+    tester,
+  ) async {
+    final controller = SettingsController(store: _MemorySettingsStore());
+    await controller.initialize();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DiaryTheme.light,
+        home: SettingsPage(controller: controller),
+      ),
+    );
+
+    expect(find.byKey(const Key('settings-show-chat-avatar')), findsOneWidget);
+    expect(find.text('在对话中显示头像'), findsOneWidget);
   });
 
   test(
@@ -627,6 +653,8 @@ void main() {
       240,
       scrollable: find.byType(Scrollable).first,
     );
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -160));
+    await tester.pumpAndSettle();
     expect(find.text('数据'), findsOneWidget);
     await tester.tap(find.byKey(const Key('settings-sync')));
     await tester.pumpAndSettle();

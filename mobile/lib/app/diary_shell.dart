@@ -290,6 +290,7 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
               widget.settingsController.settings.profileAvatarPath,
           onPickAvatar: _pickProfileAvatar,
           onClearAvatar: _clearProfileAvatar,
+          showChatAvatar: widget.settingsController.settings.showChatAvatar,
           actions: actions,
           conflictCount: _conflicts.length,
         );
@@ -541,9 +542,9 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
     messenger.clearSnackBars();
     messenger.showSnackBar(
       SnackBar(
-        content: Text(
-          count == 1 ? '已移入回收站，可随时恢复' : '已移入回收站，共 $count 篇',
-        ),
+          content: Text(
+            count == 1 ? '已移入回收站，可随时恢复' : '已移入回收站，共 $count 篇',
+          ),
         duration: const Duration(seconds: 2),
         action: SnackBarAction(
           label: '查看',

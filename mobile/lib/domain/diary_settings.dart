@@ -206,6 +206,7 @@ class DiarySettings {
     this.defaultHomeMode = DiaryHomeMode.timeline,
     this.chatTitle = diaryDefaultChatTitle,
     this.profileAvatarPath,
+    this.showChatAvatar = true,
   });
 
   final DiaryThemeMode themeMode;
@@ -225,6 +226,7 @@ class DiarySettings {
   final DiaryHomeMode defaultHomeMode;
   final String chatTitle;
   final String? profileAvatarPath;
+  final bool showChatAvatar;
 
   DiarySettings copyWith({
     DiaryThemeMode? themeMode,
@@ -246,6 +248,7 @@ class DiarySettings {
     String? chatTitle,
     String? profileAvatarPath,
     bool clearProfileAvatarPath = false,
+    bool? showChatAvatar,
   }) {
     return DiarySettings(
       themeMode: themeMode ?? this.themeMode,
@@ -269,6 +272,7 @@ class DiarySettings {
       profileAvatarPath: clearProfileAvatarPath
           ? null
           : profileAvatarPath ?? this.profileAvatarPath,
+      showChatAvatar: showChatAvatar ?? this.showChatAvatar,
     );
   }
 }

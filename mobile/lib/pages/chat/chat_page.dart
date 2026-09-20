@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -48,6 +50,8 @@ class ChatPage extends StatefulWidget {
     required this.onNavigate,
     this.title = diaryDefaultChatTitle,
     this.chatBackground = const DiaryChatBackground(),
+    this.showChatAvatar = false,
+    this.profileAvatarPath,
     this.pickGalleryPhotos,
     this.onExternalActivityStart,
     this.onExternalActivityEnd,
@@ -64,6 +68,8 @@ class ChatPage extends StatefulWidget {
   final ValueChanged<ChatPageDestination> onNavigate;
   final String title;
   final DiaryChatBackground chatBackground;
+  final bool showChatAvatar;
+  final String? profileAvatarPath;
   final Future<List<String>> Function(int maxAssets)? pickGalleryPhotos;
   final VoidCallback? onExternalActivityStart;
   final VoidCallback? onExternalActivityEnd;
@@ -224,6 +230,8 @@ class _ChatPageState extends State<ChatPage> {
                           onMessageEntranceFinished: _finishMessageEntrance,
                           onOpenEntry: widget.onOpenEntry,
                           onLongPress: _showEntryActions,
+                          showChatAvatar: widget.showChatAvatar,
+                          profileAvatarPath: widget.profileAvatarPath,
                         );
                       },
                     ),
@@ -388,6 +396,8 @@ class _ChatDaySection extends StatelessWidget {
     required this.onMessageEntranceFinished,
     required this.onOpenEntry,
     required this.onLongPress,
+    required this.showChatAvatar,
+    required this.profileAvatarPath,
   });
 
   final _ChatDay day;
@@ -395,6 +405,8 @@ class _ChatDaySection extends StatelessWidget {
   final ValueChanged<String> onMessageEntranceFinished;
   final ValueChanged<DiaryEntry> onOpenEntry;
   final Future<void> Function(DiaryEntry entry) onLongPress;
+  final bool showChatAvatar;
+  final String? profileAvatarPath;
 
   @override
   Widget build(BuildContext context) {
@@ -422,6 +434,8 @@ class _ChatDaySection extends StatelessWidget {
                     entry: entry,
                     onOpen: () => onOpenEntry(entry),
                     onLongPress: () => unawaited(onLongPress(entry)),
+                    showChatAvatar: showChatAvatar,
+                    profileAvatarPath: profileAvatarPath,
                   ),
                 ],
               ),
@@ -481,11 +495,15 @@ class _ChatEntryBubble extends StatelessWidget {
     required this.entry,
     required this.onOpen,
     required this.onLongPress,
+    required this.showChatAvatar,
+    required this.profileAvatarPath,
   });
 
   final DiaryEntry entry;
   final VoidCallback onOpen;
   final VoidCallback onLongPress;
+  final bool showChatAvatar;
+  final String? profileAvatarPath;
 
   @override
   Widget build(BuildContext context) {
@@ -518,7 +536,12 @@ class _ChatEntryBubble extends StatelessWidget {
       );
     }
     if (isImageOnly) {
-      return _ChatImageMessage(entry: entry, onLongPress: onLongPress);
+      return _ChatImageMessage(
+        entry: entry,
+        onLongPress: onLongPress,
+        showChatAvatar: showChatAvatar,
+        profileAvatarPath: profileAvatarPath,
+      );
     }
 
     final textBubbleColor = Color.lerp(
@@ -526,129 +549,199 @@ class _ChatEntryBubble extends StatelessWidget {
       colors.terracotta,
       .12,
     )!;
-    return Align(
-      alignment: Alignment.centerRight,
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 520),
-          child: FractionallySizedBox(
-            widthFactor: isVoiceOnly ? .62 : .86,
-            alignment: Alignment.centerRight,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                if (hasBubbleContent)
-                  Material(
-                    color: isVoiceOnly ? colors.terracotta : textBubbleColor,
-                    borderRadius: BorderRadius.circular(18),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(18),
-                      onTap: onOpen,
-                      onLongPress: onLongPress,
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (mood != null) ...[
-                              _ChatMoodBadge(mood: mood),
-                              if (content.isNotEmpty ||
-                                  entry.imagePaths.isNotEmpty ||
-                                  entry.audioPaths.isNotEmpty)
-                                const SizedBox(height: 8),
-                            ],
-                            if (content.isNotEmpty)
-                              Text(
-                                content,
-                                style: Theme.of(context).textTheme.bodyLarge
-                                    ?.copyWith(
-                                      color: colors.ink,
-                                      fontWeight: FontWeight.w500,
-                                      height: 1.45,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 520),
+                child: FractionallySizedBox(
+                  widthFactor: isVoiceOnly ? .62 : .86,
+                  alignment: Alignment.centerRight,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      if (hasBubbleContent)
+                        Material(
+                          color: isVoiceOnly
+                              ? colors.terracotta
+                              : textBubbleColor,
+                          borderRadius: BorderRadius.circular(18),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(18),
+                            onTap: onOpen,
+                            onLongPress: onLongPress,
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (mood != null) ...[
+                                    _ChatMoodBadge(mood: mood),
+                                    if (content.isNotEmpty ||
+                                        entry.imagePaths.isNotEmpty ||
+                                        entry.audioPaths.isNotEmpty)
+                                      const SizedBox(height: 8),
+                                  ],
+                                  if (content.isNotEmpty)
+                                    Text(
+                                      content,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyLarge
+                                          ?.copyWith(
+                                            color: colors.ink,
+                                            fontWeight: FontWeight.w500,
+                                            height: 1.45,
+                                          ),
                                     ),
+                                  if (content.isNotEmpty &&
+                                      (entry.imagePaths.isNotEmpty ||
+                                          entry.audioPaths.isNotEmpty))
+                                    const SizedBox(height: 10),
+                                  if (entry.imagePaths.isNotEmpty)
+                                    _ChatImageGrid(entry: entry),
+                                  if (entry.imagePaths.isNotEmpty &&
+                                      entry.audioPaths.isNotEmpty)
+                                    const SizedBox(height: 8),
+                                  for (
+                                    var index = 0;
+                                    index < entry.audioPaths.length;
+                                    index++
+                                  ) ...[
+                                    DiaryAudioPlayer(
+                                      path: entry.audioPaths[index],
+                                      compact: true,
+                                      chatStyle: true,
+                                      chatStyleHighContrast: isVoiceOnly,
+                                    ),
+                                    if (index < entry.audioPaths.length - 1)
+                                      const SizedBox(height: 8),
+                                  ],
+                                ],
                               ),
-                            if (content.isNotEmpty &&
-                                (entry.imagePaths.isNotEmpty ||
-                                    entry.audioPaths.isNotEmpty))
-                              const SizedBox(height: 10),
-                            if (entry.imagePaths.isNotEmpty)
-                              _ChatImageGrid(entry: entry),
-                            if (entry.imagePaths.isNotEmpty &&
-                                entry.audioPaths.isNotEmpty)
-                              const SizedBox(height: 8),
-                            for (
-                              var index = 0;
-                              index < entry.audioPaths.length;
-                              index++
-                            ) ...[
-                              DiaryAudioPlayer(
-                                path: entry.audioPaths[index],
-                                compact: true,
-                                chatStyle: true,
-                                chatStyleHighContrast: isVoiceOnly,
-                              ),
-                              if (index < entry.audioPaths.length - 1)
-                                const SizedBox(height: 8),
-                            ],
-                          ],
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
+                      if (hasBubbleContent && entry.videoPaths.isNotEmpty)
+                        const SizedBox(height: 8),
+                      for (
+                        var index = 0;
+                        index < entry.videoPaths.length;
+                        index++
+                      ) ...[
+                        DiaryVideoPreview(
+                          key: Key('chat-video-${entry.id}-$index'),
+                          path: entry.videoPaths[index],
+                          label: entry.videoPaths.length == 1
+                              ? '视频'
+                              : '视频 ${index + 1}',
+                          onLongPress: onLongPress,
+                        ),
+                        if (index < entry.videoPaths.length - 1)
+                          const SizedBox(height: 8),
+                      ],
+                    ],
                   ),
-                if (hasBubbleContent && entry.videoPaths.isNotEmpty)
-                  const SizedBox(height: 8),
-                for (
-                  var index = 0;
-                  index < entry.videoPaths.length;
-                  index++
-                ) ...[
-                  DiaryVideoPreview(
-                    key: Key('chat-video-${entry.id}-$index'),
-                    path: entry.videoPaths[index],
-                    label: entry.videoPaths.length == 1
-                        ? '视频'
-                        : '视频 ${index + 1}',
-                    onLongPress: onLongPress,
-                  ),
-                  if (index < entry.videoPaths.length - 1)
-                    const SizedBox(height: 8),
-                ],
-              ],
+                ),
+              ),
             ),
           ),
-        ),
+          if (showChatAvatar) ...[
+            const SizedBox(width: 8),
+            _ChatProfileAvatar(
+              entryId: entry.id,
+              profileAvatarPath: profileAvatarPath,
+            ),
+          ],
+        ],
       ),
     );
   }
 }
 
 class _ChatImageMessage extends StatelessWidget {
-  const _ChatImageMessage({required this.entry, required this.onLongPress});
+  const _ChatImageMessage({
+    required this.entry,
+    required this.onLongPress,
+    required this.showChatAvatar,
+    required this.profileAvatarPath,
+  });
 
   final DiaryEntry entry;
   final VoidCallback onLongPress;
+  final bool showChatAvatar;
+  final String? profileAvatarPath;
 
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerRight,
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 520),
-          child: FractionallySizedBox(
-            widthFactor: .78,
-            alignment: Alignment.centerRight,
-            child: GestureDetector(
-              key: ValueKey('chat-image-message-${entry.id}'),
-              behavior: HitTestBehavior.translucent,
-              onLongPress: onLongPress,
-              child: _ChatImageGrid(entry: entry),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 520),
+                child: FractionallySizedBox(
+                  widthFactor: .78,
+                  alignment: Alignment.centerRight,
+                  child: GestureDetector(
+                    key: ValueKey('chat-image-message-${entry.id}'),
+                    behavior: HitTestBehavior.translucent,
+                    onLongPress: onLongPress,
+                    child: _ChatImageGrid(entry: entry),
+                  ),
+                ),
+              ),
             ),
           ),
-        ),
+          if (showChatAvatar) ...[
+            const SizedBox(width: 8),
+            _ChatProfileAvatar(
+              entryId: entry.id,
+              profileAvatarPath: profileAvatarPath,
+            ),
+          ],
+        ],
       ),
+    );
+  }
+}
+
+class _ChatProfileAvatar extends StatelessWidget {
+  const _ChatProfileAvatar({
+    required this.entryId,
+    required this.profileAvatarPath,
+  });
+
+  final String entryId;
+  final String? profileAvatarPath;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
+    final path = profileAvatarPath?.trim();
+    return Container(
+      key: ValueKey('chat-profile-avatar-$entryId'),
+      width: 32,
+      height: 32,
+      decoration: BoxDecoration(color: colors.butter, shape: BoxShape.circle),
+      clipBehavior: Clip.antiAlias,
+      child: path == null || path.isEmpty
+          ? Icon(Icons.person_outline, size: 18, color: colors.ink)
+          : Image.file(
+              File(path),
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) =>
+                  Icon(Icons.person_outline, size: 18, color: colors.ink),
+            ),
     );
   }
 }
