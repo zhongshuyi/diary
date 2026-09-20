@@ -35,8 +35,8 @@ class HomeDateFilter {
       HomeDatePreset.all => true,
       HomeDatePreset.today => day == today,
       HomeDatePreset.lastSevenDays =>
-        !day.isBefore(today.subtract(const Duration(days: 6))) &&
-            day.isBefore(today.add(const Duration(days: 1))),
+        !day.isBefore(_localCalendarDayOffset(today, -6)) &&
+            day.isBefore(_localCalendarDayOffset(today, 1)),
       HomeDatePreset.thisMonth =>
         day.year == today.year && day.month == today.month,
       HomeDatePreset.thisYear => day.year == today.year,
@@ -44,21 +44,21 @@ class HomeDateFilter {
         start != null &&
             end != null &&
             !day.isBefore(start!) &&
-            day.isBefore(end!.add(const Duration(days: 1))),
+            day.isBefore(_localCalendarDayOffset(end!, 1)),
     };
   }
 }
 
 class HomeTimelineFilter {
-  const HomeTimelineFilter({
+  HomeTimelineFilter({
     this.query = '',
     this.category = '全部',
-    this.tags = const <String>{},
+    Set<String> tags = const <String>{},
     this.favoriteOnly = false,
     this.dateFilter = const HomeDateFilter.all(),
     this.moodFilter = HomeMoodFilter.all,
     this.mediaFilter = HomeMediaFilter.all,
-  });
+  }) : tags = Set.unmodifiable(tags);
 
   final String query;
   final String category;
@@ -107,7 +107,7 @@ class HomeTimelineFilter {
     return HomeTimelineFilter(
       query: query ?? this.query,
       category: category ?? this.category,
-      tags: tags == null ? this.tags : Set.unmodifiable(tags),
+      tags: tags ?? this.tags,
       favoriteOnly: favoriteOnly ?? this.favoriteOnly,
       dateFilter: dateFilter ?? this.dateFilter,
       moodFilter: moodFilter ?? this.moodFilter,
@@ -140,6 +140,10 @@ class HomeTimelineFilter {
 DateTime _startOfLocalDay(DateTime value) {
   final local = value.toLocal();
   return DateTime(local.year, local.month, local.day);
+}
+
+DateTime _localCalendarDayOffset(DateTime localDay, int days) {
+  return DateTime(localDay.year, localDay.month, localDay.day + days);
 }
 
 DateTime _earlierLocalDay(DateTime first, DateTime second) {

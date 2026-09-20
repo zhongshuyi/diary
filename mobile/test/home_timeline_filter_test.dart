@@ -191,6 +191,45 @@ void main() {
     },
   );
 
+  test('uses local calendar days for date-range boundaries', () {
+    final lastSevenDays = HomeTimelineFilter(
+      dateFilter: const HomeDateFilter.preset(HomeDatePreset.lastSevenDays),
+    );
+    final custom = HomeTimelineFilter(
+      dateFilter: HomeDateFilter.custom(
+        DateTime(2026, 3, 8),
+        DateTime(2026, 3, 8),
+      ),
+    );
+    final daylightSavingDay = DateTime(2026, 3, 8);
+    final followingCalendarDay = DateTime(2026, 3, 9);
+
+    expect(
+      lastSevenDays.matches(
+        entry('following-day', occurredAt: followingCalendarDay),
+        now: daylightSavingDay,
+      ),
+      isFalse,
+    );
+    expect(
+      custom.matches(
+        entry('custom-following-day', occurredAt: followingCalendarDay),
+        now: daylightSavingDay,
+      ),
+      isFalse,
+    );
+  });
+
+  test('owns an immutable copy of selected tags', () {
+    final sourceTags = <String>{'周末'};
+    final filter = HomeTimelineFilter(tags: sourceTags);
+
+    sourceTags.add('户外');
+
+    expect(filter.tags, {'周末'});
+    expect(() => filter.tags.add('旅行'), throwsUnsupportedError);
+  });
+
   test('uses inclusive mood bands and the requested media kind', () {
     final low = HomeTimelineFilter(moodFilter: HomeMoodFilter.low);
     final calm = HomeTimelineFilter(moodFilter: HomeMoodFilter.calm);
@@ -237,7 +276,7 @@ void main() {
   test(
     'rejects trash tombstones and conflicts before evaluating conditions',
     () {
-      const filter = HomeTimelineFilter();
+      final filter = HomeTimelineFilter();
 
       expect(
         filter.matches(entry('trash', isInTrash: true), now: now),
@@ -257,7 +296,7 @@ void main() {
   test(
     'counts advanced filters and hides reflections for active conditions',
     () {
-      const filter = HomeTimelineFilter(
+      final filter = HomeTimelineFilter(
         dateFilter: HomeDateFilter.preset(HomeDatePreset.thisMonth),
         moodFilter: HomeMoodFilter.calm,
         mediaFilter: HomeMediaFilter.anyMedia,

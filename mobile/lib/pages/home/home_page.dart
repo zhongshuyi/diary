@@ -50,7 +50,7 @@ class HomePageState extends State<HomePage> {
   final _quickController = TextEditingController();
   final _searchFocusNode = FocusNode();
   final _quickFocusNode = FocusNode();
-  HomeTimelineFilter _filter = const HomeTimelineFilter();
+  HomeTimelineFilter _filter = HomeTimelineFilter();
   int _randomRotation = 0;
   bool _quickSaving = false;
   bool _selectionMode = false;
@@ -455,11 +455,6 @@ class HomePageState extends State<HomePage> {
                           _EmptyState(
                             query: _filter.query,
                             onOpenEditor: widget.onOpenEditor,
-                            onClearFilters: _filter.hasActiveConditions
-                                ? () => setState(
-                                    () => _filter = _filter.clearConditions(),
-                                  )
-                                : null,
                           )
                         else
                           ..._buildEntryGroups(context, entries),

@@ -35,6 +35,7 @@ Widget homeWithEntries(
   List<DiaryEntry> entries, {
   ValueChanged<DiaryEntry>? onOpenEntry,
   double textScale = 1,
+  bool desktopLayout = false,
 }) {
   return MaterialApp(
     home: Builder(
@@ -51,6 +52,7 @@ Widget homeWithEntries(
             onShare: (_) {},
             onDelete: (_) {},
             onQuickCapture: (_) async {},
+            desktopLayout: desktopLayout,
           ),
         ),
       ),
@@ -246,6 +248,22 @@ void main() {
           ?.text,
       '今天',
     );
+  });
+
+  testWidgets('keeps the clear-filters action out of the desktop timeline', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      homeWithEntries([
+        entry('ordinary', occurredAt: DateTime.now()),
+      ], desktopLayout: true),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('只看收藏'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('清除筛选条件'), findsNothing);
   });
 
   testWidgets(
