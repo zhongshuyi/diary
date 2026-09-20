@@ -379,10 +379,7 @@ ipcMain.handle('assets:read', async (_event, assetPath, options = {}) => {
       const thumbnail = image.resize({ width: Math.max(1, Math.round(size.width * scale)), height: Math.max(1, Math.round(size.height * scale)), quality: 'good' });
       return thumbnail.toDataURL();
     }
-    const file = await fs.readFile(resolvedPath);
-    if (file.byteLength > 128 * 1024 * 1024) return null;
-    const mime = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp', '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime', '.mkv': 'video/x-matroska', '.avi': 'video/x-msvideo', '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.m4a': 'audio/mp4', '.aac': 'audio/aac', '.ogg': 'audio/ogg', '.flac': 'audio/flac' }[extension] || 'application/octet-stream';
-    return `data:${mime};base64,${file.toString('base64')}`;
+    return pathToFileURL(resolvedPath).href;
   } catch {
     return null;
   }

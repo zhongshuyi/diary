@@ -49,6 +49,28 @@ class DayEntryCard extends StatelessWidget {
         : '${date.year}年 ${diaryDateLabel(date)}';
     final visibleCount = expanded ? entries.length : entries.length.clamp(0, 3);
     final hiddenCount = entries.length - visibleCount;
+    final moments = Column(
+      children: [
+        for (var index = 0; index < visibleCount; index++) ...[
+          if (index > 0)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Divider(height: 1, color: colors.line),
+            ),
+          _MomentRow(
+            entry: entries[index],
+            selected: selectedIds.contains(entries[index].id),
+            selectionMode: selectionMode,
+            onTap: () => onOpenEntry(entries[index]),
+            onLongPress: () => onLongPressEntry(entries[index]),
+            onFavorite: () => onFavorite(entries[index]),
+            onShare: () => onShare(entries[index]),
+            onDelete: () => onDelete(entries[index]),
+          ),
+        ],
+      ],
+    );
+    final animateExpansion = entries.length <= 12;
     return Material(
       key: Key('mobile-day-card-${date.year}-${date.month}-${date.day}'),
       color: colors.surface,
@@ -81,32 +103,14 @@ class DayEntryCard extends StatelessWidget {
             ),
           ),
           Divider(height: 1, color: colors.line),
-          AnimatedSize(
-            duration: DiaryMotion.duration(context, DiaryMotion.standard),
-            curve: DiaryMotion.curve(context, Curves.easeOutCubic),
-            alignment: Alignment.topCenter,
-            child: Column(
-              children: [
-                for (var index = 0; index < visibleCount; index++) ...[
-                  if (index > 0)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Divider(height: 1, color: colors.line),
-                    ),
-                  _MomentRow(
-                    entry: entries[index],
-                    selected: selectedIds.contains(entries[index].id),
-                    selectionMode: selectionMode,
-                    onTap: () => onOpenEntry(entries[index]),
-                    onLongPress: () => onLongPressEntry(entries[index]),
-                    onFavorite: () => onFavorite(entries[index]),
-                    onShare: () => onShare(entries[index]),
-                    onDelete: () => onDelete(entries[index]),
-                  ),
-                ],
-              ],
-            ),
-          ),
+          animateExpansion
+              ? AnimatedSize(
+                  duration: DiaryMotion.duration(context, DiaryMotion.standard),
+                  curve: DiaryMotion.curve(context, Curves.easeOutCubic),
+                  alignment: Alignment.topCenter,
+                  child: moments,
+                )
+              : moments,
           if (showExpandControl && entries.length > 3) ...[
             Divider(height: 1, color: colors.line),
             Align(

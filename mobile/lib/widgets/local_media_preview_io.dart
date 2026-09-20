@@ -28,23 +28,38 @@ class LocalMediaPreview extends StatefulWidget {
 
 class _LocalMediaPreviewState extends State<LocalMediaPreview> {
   int _reloadToken = 0;
+  late bool _fileExists = File(widget.path).existsSync();
+
+  @override
+  void didUpdateWidget(covariant LocalMediaPreview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.path != widget.path) {
+      _fileExists = File(widget.path).existsSync();
+    }
+  }
+
+  void _reload() {
+    setState(() {
+      _reloadToken++;
+      _fileExists = File(widget.path).existsSync();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     if (widget.kind != DiaryMediaKind.image) {
       return _MediaPlaceholder(kind: widget.kind);
     }
-    final file = File(widget.path);
-    if (!file.existsSync()) {
+    if (!_fileExists) {
       return _MediaPlaceholder(
         kind: widget.kind,
         missing: true,
         showRetry: widget.showRetry,
-        onRetry: () => setState(() => _reloadToken++),
+        onRetry: _reload,
       );
     }
     return Image.file(
-      file,
+      File(widget.path),
       key: ValueKey(_reloadToken),
       fit: widget.fit,
       cacheWidth: widget.cacheWidth,
@@ -53,7 +68,7 @@ class _LocalMediaPreviewState extends State<LocalMediaPreview> {
         kind: widget.kind,
         missing: true,
         showRetry: widget.showRetry,
-        onRetry: () => setState(() => _reloadToken++),
+        onRetry: _reload,
       ),
     );
   }
