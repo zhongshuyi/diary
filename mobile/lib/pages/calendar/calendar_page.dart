@@ -146,9 +146,7 @@ class _CalendarPageState extends State<CalendarPage> {
                                           width: 4,
                                           height: 4,
                                           decoration: BoxDecoration(
-                                            color: isSelected == true
-                                                ? colors.butter
-                                                : colors.sage,
+                                            color: colors.terracotta,
                                             shape: BoxShape.circle,
                                           ),
                                         ),
@@ -170,7 +168,7 @@ class _CalendarPageState extends State<CalendarPage> {
                             width: 8,
                             height: 8,
                             decoration: BoxDecoration(
-                              color: colors.sage,
+                              color: colors.terracotta,
                               shape: BoxShape.circle,
                             ),
                           ),
@@ -317,53 +315,69 @@ class _CalendarEntryTile extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(
-              width: 48,
-              child: Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: Text(
-                  diaryTimeLabel(entry.effectiveOccurredAt),
-                  style: Theme.of(
-                    context,
-                  ).textTheme.labelLarge?.copyWith(color: colors.terracotta),
-                ),
-              ),
-            ),
-            Container(
-              width: 7,
-              height: 7,
-              margin: const EdgeInsets.only(top: 5, right: 10),
-              decoration: BoxDecoration(
-                color: Color(entry.colorValue),
-                shape: BoxShape.circle,
-              ),
-            ),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    primaryText,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleMedium,
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: 48,
+                        child: Text(
+                          key: Key('calendar-entry-time-${entry.id}'),
+                          diaryTimeLabel(entry.effectiveOccurredAt),
+                          style: Theme.of(context).textTheme.labelLarge
+                              ?.copyWith(color: colors.terracotta),
+                        ),
+                      ),
+                      SizedBox(
+                        width: 17,
+                        child: Center(
+                          child: Container(
+                            key: Key('calendar-entry-mark-${entry.id}'),
+                            width: 7,
+                            height: 7,
+                            decoration: BoxDecoration(
+                              color: Color(entry.colorValue),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Text(
+                          key: Key('calendar-entry-title-${entry.id}'),
+                          primaryText,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ),
+                    ],
                   ),
                   if (secondaryText.isNotEmpty) ...[
                     const SizedBox(height: 3),
-                    Text(
-                      secondaryText,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodyMedium,
+                    Padding(
+                      padding: const EdgeInsets.only(left: 65),
+                      child: Text(
+                        secondaryText,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
                     ),
                   ],
                   if (details.isNotEmpty) ...[
                     const SizedBox(height: 6),
-                    Text(
-                      details,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.labelSmall,
+                    Padding(
+                      padding: const EdgeInsets.only(left: 65),
+                      child: Text(
+                        details,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.labelSmall,
+                      ),
                     ),
                   ],
                 ],

@@ -54,8 +54,13 @@ class _AvatarCropperPageState extends State<_AvatarCropperPage> {
       );
       try {
         final frame = await codec.getNextFrame();
-        _image = frame.image;
-        return frame.image;
+        final image = frame.image;
+        if (!mounted) {
+          image.dispose();
+          throw StateError('头像裁剪已关闭');
+        }
+        setState(() => _image = image);
+        return image;
       } finally {
         codec.dispose();
       }
