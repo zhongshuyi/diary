@@ -34,8 +34,17 @@ class _LocalMediaPreviewState extends State<LocalMediaPreview> {
     if (widget.kind != DiaryMediaKind.image) {
       return _MediaPlaceholder(kind: widget.kind);
     }
+    final file = File(widget.path);
+    if (!file.existsSync()) {
+      return _MediaPlaceholder(
+        kind: widget.kind,
+        missing: true,
+        showRetry: widget.showRetry,
+        onRetry: () => setState(() => _reloadToken++),
+      );
+    }
     return Image.file(
-      File(widget.path),
+      file,
       key: ValueKey(_reloadToken),
       fit: widget.fit,
       cacheWidth: widget.cacheWidth,
