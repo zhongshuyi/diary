@@ -720,6 +720,7 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
   Widget _saveBar(BuildContext context, {required bool desktop}) {
     final colors = DiaryThemeColors.of(context);
     return Container(
+      key: const Key('entry-save-bar'),
       padding: EdgeInsets.fromLTRB(
         desktop ? 34 : 20,
         12,
@@ -727,7 +728,7 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
         14,
       ),
       decoration: BoxDecoration(
-        color: colors.onHero,
+        color: colors.surface,
         border: Border(top: BorderSide(color: colors.line)),
       ),
       child: Center(
@@ -751,7 +752,7 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
                         height: 17,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: colors.onHero,
+                          color: Theme.of(context).colorScheme.onPrimary,
                         ),
                       )
                     : const Icon(Icons.check, size: 18),

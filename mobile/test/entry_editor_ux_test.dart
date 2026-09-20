@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:diary/app/app_theme.dart';
 import 'package:diary/application/diary_draft_store.dart';
 import 'package:diary/domain/diary_entry.dart';
+import 'package:diary/domain/diary_settings.dart';
 import 'package:diary/pages/entry/entry_detail_page.dart';
 import 'package:diary/pages/entry/entry_editor_page.dart';
 
@@ -77,6 +79,19 @@ void main() {
     expect(await store.load('new-entry'), isNull);
   });
 
+  testWidgets('uses the active theme surface for the save bar', (tester) async {
+    final store = MemoryDiaryDraftStore();
+    final theme = DiaryTheme.darkFor(DiaryThemePreset.carbon);
+    await tester.pumpWidget(_editor(store, theme: theme));
+
+    final saveBar = find.byKey(const Key('entry-save-bar'));
+    expect(saveBar, findsOneWidget);
+    expect(
+      (tester.widget<Container>(saveBar).decoration as BoxDecoration).color,
+      theme.extension<DiaryThemeColors>()!.surface,
+    );
+  });
+
   testWidgets('keeps the detail page open after editing an entry', (
     tester,
   ) async {
@@ -105,8 +120,10 @@ void main() {
 Widget _editor(
   MemoryDiaryDraftStore store, {
   Future<void> Function(DiaryEntry entry)? onSave,
+  ThemeData? theme,
 }) {
   return MaterialApp(
+    theme: theme,
     home: EntryEditorPage(
       categories: const ['生活'],
       draftStore: store,
