@@ -1,7 +1,7 @@
 # Mobile profile workspace design
 
 **Date:** 2026-09-20
-**Status:** Proposed design; awaiting written-spec review before implementation planning.
+**Status:** Implemented and verified.
 
 ## Purpose
 
@@ -17,8 +17,7 @@ The redesign fixes two navigation problems without introducing unnecessary scree
 - Mobile profile navigation and the mobile settings grouping only. The desktop workspace remains as it is.
 - Existing diary, favorite, media, insight, category/tag, recycle-bin, backup/restore, conflict, sync, theme, reminder, and biometric-lock behavior stays intact.
 - Sync, backup, and restore remain explicit user actions. No automatic upload, export, restore, or account requirement is added.
-- Avatar selection is local-only. The selected image is copied to app-owned storage, its local path is persisted with device settings, and it is neither added to a diary nor uploaded through sync or backup.
-- Existing users receive the new layout with a default avatar and no migration prompt.
+- Retain the existing profile avatar treatment at the top of the page. Avatar selection, storage, migration, sync, and backup behavior are outside this change.
 
 ## Information architecture
 
@@ -55,9 +54,7 @@ The header is a compact, left-aligned identity block:
                            本地优先 / 已同步 / 待同步
 ```
 
-- With no image selected, show a theme-aware circular background and `person_outline` icon. It must look complete, not like an error state.
-- Tapping the avatar opens a small local edit sheet with **从相册选择** and, when applicable, **恢复默认头像**. There is no account, sign-in, public profile, or social sharing.
-- A selected photo is center-cropped to the circle in the UI. Its source file is copied into app-owned storage before the setting is saved, so it does not disappear when the gallery app removes or moves the original file.
+- Keep the avatar's existing data and interaction. This iteration only presents it in a more compact surrounding hierarchy.
 - The subtitle is a compact informational summary only. Sync status is not a primary action in the header; the **同步** row in 数据 is the interactive destination.
 - A nickname is deliberately out of scope. The consistent default title is **我的空间**.
 
@@ -91,19 +88,14 @@ Both rows are always visible and sit at the same navigation depth. There is no i
 
 ## Implementation boundaries
 
-- `ProfilePage` renders the new header and group ordering. It receives existing callbacks plus the live sync state and avatar callbacks; it does not read repositories or write preferences itself.
-- `MobileDiaryShell` forwards the current `SyncState`, sync destination callback, and avatar settings values/actions from `DiaryShell`.
-- `DiarySettings`, `SettingsController`, and `SharedPreferencesDiarySettingsStore` gain a nullable local avatar-path setting with backward-compatible default `null`.
-- A small avatar-file service copies the chosen image to app-owned settings media storage and safely removes only the prior app-owned avatar file when replacing or resetting it. It must never delete gallery originals.
+- `ProfilePage` renders the new header and group ordering. It receives existing callbacks plus the live sync state; it does not read repositories or write preferences itself.
+- `MobileDiaryShell` forwards the current `SyncState` and sync destination callback from `DiaryShell`.
 - Extract the existing private connection-settings page into a reusable public sync/settings destination, preserving endpoint/token configuration, copy/paste/import behavior, and current error handling.
 - Mobile `SettingsPage` is preference-only after the move. Desktop layout is not restructured by this change.
 
 ## Errors, privacy, and accessibility
 
-- If an avatar pick or file copy fails, retain the current avatar and show one concise error message. Do not clear a valid saved avatar first.
-- If the selected avatar path is unavailable at render time, show the default avatar and leave the stored setting available for replacement/reset; never crash the profile page.
-- Avatar images are local device settings and are excluded from diary backup, sync payloads, media library, and exports.
-- All rows remain semantic buttons with title, subtitle, and state/count where relevant. The avatar exposes an accessible edit label.
+- All rows remain semantic buttons with title, subtitle, and state/count where relevant.
 - The page remains scrollable at large system font sizes; header text and group subtitles wrap rather than overlap or truncate actions.
 
 ## Tests
@@ -114,13 +106,10 @@ Add or update tests to cover:
 2. Sync and backup/restore both being direct, visible rows in 数据; sync is absent from mobile 偏好设置.
 3. Local-only, syncing, pending, synced, failed, and conflict sync subtitles, including conflict count.
 4. Existing favorite/media/insight/category/recycle/settings/about callbacks remaining connected after relocation.
-5. Default avatar rendering, selected-avatar rendering, reset behavior, unavailable local image fallback, and picker/copy failure retaining the previous avatar.
-6. Settings persistence compatibility when the avatar key is absent and when it is set or cleared.
-7. Narrow and large-text mobile layouts preserving access to all groups.
+5. Narrow and large-text mobile layouts preserving access to all groups.
 
 ## Non-goals
 
-- No user account, login, nickname, online profile, or social features.
-- No avatar synchronization, backup export, or media-library inclusion.
+- No user account, login, nickname, online profile, avatar change, or social features.
 - No desktop information-architecture change.
 - No new sync provider, automatic backup, or change to the backup format.

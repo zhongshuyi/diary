@@ -22,6 +22,7 @@ class SettingsPage extends StatelessWidget {
     this.onOpenAbout,
     this.onImportPhotos,
     this.pickChatBackgroundPhoto,
+    this.showDataControls = true,
     super.key,
   });
 
@@ -31,6 +32,7 @@ class SettingsPage extends StatelessWidget {
   final VoidCallback? onOpenAbout;
   final Future<List<String>> Function(List<String> paths)? onImportPhotos;
   final Future<List<String>> Function()? pickChatBackgroundPhoto;
+  final bool showDataControls;
 
   @override
   Widget build(BuildContext context) {
@@ -51,7 +53,9 @@ class SettingsPage extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 35),
             children: [
               Text(
-                '在这里调整阅读、记录和同步习惯。所有偏好都会保存在这台设备上。',
+                showDataControls
+                    ? '在这里调整阅读、记录和同步习惯。所有偏好都会保存在这台设备上。'
+                    : '在这里调整阅读、记录和应用习惯。所有偏好都会保存在这台设备上。',
                 style: Theme.of(
                   context,
                 ).textTheme.bodyMedium?.copyWith(color: colors.mutedInk),
@@ -223,35 +227,32 @@ class SettingsPage extends StatelessWidget {
                     ),
                 ],
               ),
-              const SizedBox(height: 12),
-              _Section(
-                title: '数据',
-                children: [
-                  _SettingsTile(
-                    key: const Key('settings-sync'),
-                    leading: Icon(
-                      Icons.cloud_sync_outlined,
-                      color: colors.sage,
+              if (showDataControls) ...[
+                const SizedBox(height: 12),
+                _Section(
+                  title: '数据',
+                  children: [
+                    _SettingsTile(
+                      key: const Key('settings-sync'),
+                      leading: Icon(
+                        Icons.cloud_sync_outlined,
+                        color: colors.sage,
+                      ),
+                      title: const Text('同步'),
+                      subtitle: Text(
+                        settings.syncEndpoint.isEmpty
+                            ? '本地模式 · 尚未连接服务器'
+                            : '已配置同步连接',
+                      ),
+                      trailing: Icon(
+                        Icons.chevron_right,
+                        color: colors.mutedInk,
+                      ),
+                      onTap: () => _openConnectionSettings(context),
                     ),
-                    title: const Text('同步与更新'),
-                    subtitle: Text(
-                      settings.syncEndpoint.isEmpty
-                          ? '本地模式 · 尚未连接服务器'
-                          : '已配置同步连接',
-                    ),
-                    trailing: Icon(Icons.chevron_right, color: colors.mutedInk),
-                    onTap: () => _openConnectionSettings(context),
-                  ),
-                  _SettingsTile(
-                    title: const Text('清理临时缓存'),
-                    subtitle: const Text('不会删除你的日记和附件'),
-                    trailing: Icon(Icons.chevron_right, color: colors.mutedInk),
-                    onTap: () => ScaffoldMessenger.of(
-                      context,
-                    ).showSnackBar(const SnackBar(content: Text('临时缓存已整理'))),
-                  ),
-                ],
-              ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 12),
               if (onOpenCategories != null ||
                   onOpenBackup != null ||
@@ -502,7 +503,7 @@ class SettingsPage extends StatelessWidget {
   Future<void> _openConnectionSettings(BuildContext context) {
     return Navigator.of(context).push<void>(
       MaterialPageRoute(
-        builder: (_) => _ConnectionSettingsPage(controller: controller),
+        builder: (_) => SyncSettingsPage(controller: controller),
       ),
     );
   }
@@ -604,8 +605,8 @@ class SettingsPage extends StatelessWidget {
   }
 }
 
-class _ConnectionSettingsPage extends StatelessWidget {
-  const _ConnectionSettingsPage({required this.controller});
+class SyncSettingsPage extends StatelessWidget {
+  const SyncSettingsPage({required this.controller, super.key});
 
   final SettingsController controller;
 
@@ -618,7 +619,7 @@ class _ConnectionSettingsPage extends StatelessWidget {
         backgroundColor: colors.paper,
         surfaceTintColor: Colors.transparent,
         centerTitle: true,
-        title: const Text('同步与更新'),
+        title: const Text('同步'),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
@@ -633,6 +634,20 @@ class _ConnectionSettingsPage extends StatelessWidget {
           _Section(
             title: '连接设置',
             children: [_SyncSettings(controller: controller)],
+          ),
+          const SizedBox(height: 12),
+          _Section(
+            title: '存储',
+            children: [
+              _SettingsTile(
+                title: const Text('清理临时缓存'),
+                subtitle: const Text('不会删除你的日记和附件'),
+                trailing: Icon(Icons.chevron_right, color: colors.mutedInk),
+                onTap: () => ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(const SnackBar(content: Text('临时缓存已整理'))),
+              ),
+            ],
           ),
         ],
       ),

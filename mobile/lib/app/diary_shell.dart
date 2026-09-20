@@ -282,6 +282,7 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
           chatBackground: widget.settingsController.settings.chatBackground,
           syncState: _syncState,
           onSyncNow: _syncEngine == null ? null : _syncNow,
+          onOpenSyncSettings: _openSyncSettings,
           actions: actions,
           conflictCount: _conflicts.length,
         );
@@ -581,7 +582,16 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
         builder: (_) => SettingsPage(
           controller: widget.settingsController,
           onImportPhotos: importQuickPhotos,
+          showDataControls: false,
         ),
+      ),
+    );
+  }
+
+  Future<void> _openSyncSettings() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => SyncSettingsPage(controller: widget.settingsController),
       ),
     );
   }
