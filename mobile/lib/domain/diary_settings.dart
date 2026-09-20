@@ -19,6 +19,27 @@ enum DiaryHomeMode { timeline, chat }
 
 const diaryDefaultChatTitle = '我的日记';
 
+class DiaryReminderTime {
+  const DiaryReminderTime({this.hour = 21, this.minute = 30})
+    : assert(hour >= 0 && hour <= 23),
+      assert(minute >= 0 && minute <= 59);
+
+  final int hour;
+  final int minute;
+
+  int get minuteOfDay => hour * 60 + minute;
+
+  String get label =>
+      '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
+
+  static DiaryReminderTime fromMinuteOfDay(int? value) {
+    if (value == null || value < 0 || value >= 24 * 60) {
+      return const DiaryReminderTime();
+    }
+    return DiaryReminderTime(hour: value ~/ 60, minute: value % 60);
+  }
+}
+
 class DiaryChatBackground {
   const DiaryChatBackground({
     this.imagePath,
@@ -176,6 +197,7 @@ class DiarySettings {
     this.defaultEditorType = DiaryEditorType.plainText,
     this.showWordCount = true,
     this.dailyReminder = false,
+    this.dailyReminderTime = const DiaryReminderTime(),
     this.biometricLock = false,
     this.syncEndpoint = '',
     this.syncToken = '',
@@ -193,6 +215,7 @@ class DiarySettings {
   final DiaryEditorType defaultEditorType;
   final bool showWordCount;
   final bool dailyReminder;
+  final DiaryReminderTime dailyReminderTime;
   final bool biometricLock;
   final String syncEndpoint;
   final String syncToken;
@@ -211,6 +234,7 @@ class DiarySettings {
     DiaryEditorType? defaultEditorType,
     bool? showWordCount,
     bool? dailyReminder,
+    DiaryReminderTime? dailyReminderTime,
     bool? biometricLock,
     String? syncEndpoint,
     String? syncToken,
@@ -230,6 +254,7 @@ class DiarySettings {
       defaultEditorType: defaultEditorType ?? this.defaultEditorType,
       showWordCount: showWordCount ?? this.showWordCount,
       dailyReminder: dailyReminder ?? this.dailyReminder,
+      dailyReminderTime: dailyReminderTime ?? this.dailyReminderTime,
       biometricLock: biometricLock ?? this.biometricLock,
       syncEndpoint: syncEndpoint ?? this.syncEndpoint,
       syncToken: syncToken ?? this.syncToken,

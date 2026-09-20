@@ -1,13 +1,20 @@
 import 'package:flutter/foundation.dart';
 
+import 'package:diary/application/daily_reminder_scheduler.dart';
 import 'package:diary/data/settings_store.dart';
 import 'package:diary/domain/diary_entry.dart';
 import 'package:diary/domain/diary_settings.dart';
 
 class SettingsController extends ChangeNotifier {
-  SettingsController({required DiarySettingsStore store}) : _store = store;
+  SettingsController({
+    required DiarySettingsStore store,
+    DailyReminderScheduler? dailyReminderScheduler,
+  }) : _store = store,
+       _dailyReminderScheduler =
+           dailyReminderScheduler ?? const NoopDailyReminderScheduler();
 
   final DiarySettingsStore _store;
+  final DailyReminderScheduler _dailyReminderScheduler;
   DiarySettings _settings = const DiarySettings();
   bool _isLoading = true;
 
@@ -21,6 +28,12 @@ class SettingsController extends ChangeNotifier {
       _settings = loaded.copyWith(
         fontScale: loaded.fontScale.clamp(.85, 1.3).toDouble(),
       );
+      if (_settings.dailyReminder) {
+        await _dailyReminderScheduler.schedule(
+          _settings.dailyReminderTime,
+          requestPermission: false,
+        );
+      }
     } catch (_) {
       // Settings are a convenience layer. A storage failure must not block
       // the diary from opening; defaults are safe and usable.
@@ -66,8 +79,35 @@ class SettingsController extends ChangeNotifier {
   Future<void> setChatTitle(String value) =>
       _update(_settings.copyWith(chatTitle: _normalizeChatTitle(value)));
 
-  Future<void> setDailyReminder(bool value) =>
-      _update(_settings.copyWith(dailyReminder: value));
+  Future<DailyReminderScheduleResult> setDailyReminder(bool value) async {
+    final result = value
+        ? await _dailyReminderScheduler.schedule(
+            _settings.dailyReminderTime,
+            requestPermission: true,
+          )
+        : await _dailyReminderScheduler.cancel();
+    if (result.isSuccess) {
+      await _update(_settings.copyWith(dailyReminder: value));
+    }
+    return result;
+  }
+
+  Future<DailyReminderScheduleResult> setDailyReminderTime(
+    DiaryReminderTime value,
+  ) async {
+    if (!_settings.dailyReminder) {
+      await _update(_settings.copyWith(dailyReminderTime: value));
+      return DailyReminderScheduleResult.scheduled;
+    }
+    final result = await _dailyReminderScheduler.schedule(
+      value,
+      requestPermission: false,
+    );
+    if (result.isSuccess) {
+      await _update(_settings.copyWith(dailyReminderTime: value));
+    }
+    return result;
+  }
 
   Future<void> setBiometricLock(bool value) =>
       _update(_settings.copyWith(biometricLock: value));

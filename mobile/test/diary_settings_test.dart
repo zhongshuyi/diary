@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:diary/app/app_theme.dart';
+import 'package:diary/application/daily_reminder_scheduler.dart';
 import 'package:diary/application/settings_controller.dart';
 import 'package:diary/data/settings_store.dart';
 import 'package:diary/domain/diary_entry.dart';
@@ -127,6 +128,126 @@ void main() {
     final store = SharedPreferencesDiarySettingsStore();
     await store.save(const DiarySettings(chatTitle: '晚安日记'));
     expect((await store.load()).chatTitle, '晚安日记');
+  });
+
+  test('saved reminder time round trips through device preferences', () async {
+    SharedPreferences.setMockInitialValues({});
+    final store = SharedPreferencesDiarySettingsStore();
+    await store.save(
+      const DiarySettings(
+        dailyReminder: true,
+        dailyReminderTime: DiaryReminderTime(hour: 6, minute: 45),
+      ),
+    );
+
+    final restored = await store.load();
+    expect(restored.dailyReminder, isTrue);
+    expect(restored.dailyReminderTime.label, '06:45');
+  });
+
+  test(
+    'keeps the reminder disabled when notification permission is denied',
+    () async {
+      final store = _MemorySettingsStore();
+      final scheduler = _FakeDailyReminderScheduler(
+        scheduleResult: DailyReminderScheduleResult.permissionDenied,
+      );
+      final controller = SettingsController(
+        store: store,
+        dailyReminderScheduler: scheduler,
+      );
+      await controller.initialize();
+
+      final result = await controller.setDailyReminder(true);
+
+      expect(result, DailyReminderScheduleResult.permissionDenied);
+      expect(controller.settings.dailyReminder, isFalse);
+      expect(store.value.dailyReminder, isFalse);
+      expect(scheduler.requestPermissionValues, [true]);
+      expect(scheduler.scheduledTimes.single.label, '21:30');
+    },
+  );
+
+  test('reschedules an enabled reminder when its time changes', () async {
+    final store = _MemorySettingsStore();
+    final scheduler = _FakeDailyReminderScheduler();
+    final controller = SettingsController(
+      store: store,
+      dailyReminderScheduler: scheduler,
+    );
+    await controller.initialize();
+    await controller.setDailyReminder(true);
+
+    final result = await controller.setDailyReminderTime(
+      const DiaryReminderTime(hour: 7, minute: 15),
+    );
+
+    expect(result, DailyReminderScheduleResult.scheduled);
+    expect(controller.settings.dailyReminder, isTrue);
+    expect(controller.settings.dailyReminderTime.label, '07:15');
+    expect(store.value.dailyReminderTime.minuteOfDay, 435);
+    expect(scheduler.requestPermissionValues, [true, false]);
+    expect(scheduler.scheduledTimes.last.label, '07:15');
+  });
+
+  test(
+    'restores an enabled reminder without prompting at app launch',
+    () async {
+      final scheduler = _FakeDailyReminderScheduler();
+      final controller = SettingsController(
+        store: _MemorySettingsStore(
+          const DiarySettings(
+            dailyReminder: true,
+            dailyReminderTime: DiaryReminderTime(hour: 8, minute: 0),
+          ),
+        ),
+        dailyReminderScheduler: scheduler,
+      );
+
+      await controller.initialize();
+
+      expect(scheduler.requestPermissionValues, [false]);
+      expect(scheduler.scheduledTimes.single.label, '08:00');
+    },
+  );
+
+  test('cancels the scheduled reminder before saving it as disabled', () async {
+    final store = _MemorySettingsStore(
+      const DiarySettings(dailyReminder: true),
+    );
+    final scheduler = _FakeDailyReminderScheduler();
+    final controller = SettingsController(
+      store: store,
+      dailyReminderScheduler: scheduler,
+    );
+    await controller.initialize();
+
+    final result = await controller.setDailyReminder(false);
+
+    expect(result, DailyReminderScheduleResult.cancelled);
+    expect(controller.settings.dailyReminder, isFalse);
+    expect(store.value.dailyReminder, isFalse);
+    expect(scheduler.cancelCallCount, 1);
+  });
+
+  test('keeps the reminder enabled when cancellation fails', () async {
+    final store = _MemorySettingsStore(
+      const DiarySettings(dailyReminder: true),
+    );
+    final scheduler = _FakeDailyReminderScheduler(
+      cancelResult: DailyReminderScheduleResult.failed,
+    );
+    final controller = SettingsController(
+      store: store,
+      dailyReminderScheduler: scheduler,
+    );
+    await controller.initialize();
+
+    final result = await controller.setDailyReminder(false);
+
+    expect(result, DailyReminderScheduleResult.failed);
+    expect(controller.settings.dailyReminder, isTrue);
+    expect(store.value.dailyReminder, isTrue);
   });
 
   test('saved chat wallpaper round trips through device preferences', () async {
@@ -286,6 +407,37 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(store.value.customThemeColor, isNotNull);
+  });
+
+  testWidgets('enabling the daily reminder reveals its default time', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final store = _MemorySettingsStore();
+    final controller = SettingsController(store: store);
+    await controller.initialize();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DiaryTheme.light,
+        home: SettingsPage(controller: controller),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -700));
+    await tester.pumpAndSettle();
+    final dailyReminder = find.text('每日提醒');
+    await tester.tap(dailyReminder);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('settings-daily-reminder-time')),
+      findsOneWidget,
+    );
+    expect(find.text('每天 21:30'), findsOneWidget);
   });
 
   testWidgets(
@@ -487,4 +639,33 @@ class _MemorySettingsStore implements DiarySettingsStore {
 
   @override
   Future<void> save(DiarySettings settings) async => value = settings;
+}
+
+class _FakeDailyReminderScheduler implements DailyReminderScheduler {
+  _FakeDailyReminderScheduler({
+    this.scheduleResult = DailyReminderScheduleResult.scheduled,
+    this.cancelResult = DailyReminderScheduleResult.cancelled,
+  });
+
+  final DailyReminderScheduleResult scheduleResult;
+  final DailyReminderScheduleResult cancelResult;
+  final List<DiaryReminderTime> scheduledTimes = [];
+  final List<bool> requestPermissionValues = [];
+  int cancelCallCount = 0;
+
+  @override
+  Future<DailyReminderScheduleResult> cancel() async {
+    cancelCallCount += 1;
+    return cancelResult;
+  }
+
+  @override
+  Future<DailyReminderScheduleResult> schedule(
+    DiaryReminderTime time, {
+    required bool requestPermission,
+  }) async {
+    scheduledTimes.add(time);
+    requestPermissionValues.add(requestPermission);
+    return scheduleResult;
+  }
 }

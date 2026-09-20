@@ -8,6 +8,7 @@ import 'package:diary/application/diary_lock_coordinator.dart';
 import 'package:diary/application/settings_controller.dart';
 import 'package:diary/data/diary_repository.dart';
 import 'package:diary/data/isar_diary_repository.dart';
+import 'package:diary/data/local_daily_reminder_scheduler.dart';
 import 'package:diary/data/settings_store.dart';
 
 class MyApp extends StatefulWidget {
@@ -31,6 +32,7 @@ class _MyAppState extends State<MyApp> {
         SettingsController(
             store:
                 widget.settingsStore ?? SharedPreferencesDiarySettingsStore(),
+            dailyReminderScheduler: LocalDailyReminderScheduler(),
           )
           ..addListener(_onSettingsChanged)
           ..initialize();

@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'package:diary/app/app_theme.dart';
+import 'package:diary/application/daily_reminder_scheduler.dart';
 import 'package:diary/application/settings_controller.dart';
 import 'package:diary/domain/connection_settings_transfer.dart';
 import 'package:diary/domain/diary_entry.dart';
@@ -193,12 +194,33 @@ class SettingsPage extends StatelessWidget {
                         unawaited(controller.setBiometricLock(value)),
                   ),
                   _SwitchTile(
+                    key: const Key('settings-daily-reminder'),
                     title: '每日提醒',
-                    subtitle: '保留你的开关偏好，通知权限将在提醒功能接入后生效',
+                    subtitle: settings.dailyReminder
+                        ? '每天 ${settings.dailyReminderTime.label} · 可随时关闭'
+                        : '默认关闭，只在你开启后请求系统通知权限',
                     value: settings.dailyReminder,
                     onChanged: (value) =>
-                        unawaited(controller.setDailyReminder(value)),
+                        unawaited(_setDailyReminder(context, value)),
                   ),
+                  if (settings.dailyReminder)
+                    _SettingsTile(
+                      key: const Key('settings-daily-reminder-time'),
+                      leading: Icon(
+                        Icons.schedule_rounded,
+                        color: colors.terracotta,
+                      ),
+                      title: const Text('提醒时间'),
+                      subtitle: Text('每天 ${settings.dailyReminderTime.label}'),
+                      trailing: Icon(
+                        Icons.chevron_right,
+                        color: colors.mutedInk,
+                      ),
+                      onTap: () => _showDailyReminderTimePicker(
+                        context,
+                        settings.dailyReminderTime,
+                      ),
+                    ),
                 ],
               ),
               const SizedBox(height: 12),
@@ -312,6 +334,45 @@ class SettingsPage extends StatelessWidget {
       },
     );
     if (value != null) unawaited(controller.setThemeMode(value));
+  }
+
+  Future<void> _setDailyReminder(BuildContext context, bool value) async {
+    final result = await controller.setDailyReminder(value);
+    if (!context.mounted || result.isSuccess) return;
+    _showDailyReminderFeedback(context, result);
+  }
+
+  Future<void> _showDailyReminderTimePicker(
+    BuildContext context,
+    DiaryReminderTime current,
+  ) async {
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: current.hour, minute: current.minute),
+      helpText: '选择每日提醒时间',
+    );
+    if (time == null) return;
+    final result = await controller.setDailyReminderTime(
+      DiaryReminderTime(hour: time.hour, minute: time.minute),
+    );
+    if (!context.mounted || result.isSuccess) return;
+    _showDailyReminderFeedback(context, result);
+  }
+
+  void _showDailyReminderFeedback(
+    BuildContext context,
+    DailyReminderScheduleResult result,
+  ) {
+    final message = switch (result) {
+      DailyReminderScheduleResult.permissionDenied => '没有获得系统通知权限，提醒未开启',
+      DailyReminderScheduleResult.unsupported => '当前设备不支持系统提醒',
+      DailyReminderScheduleResult.failed => '暂时无法安排提醒，请稍后重试',
+      _ => '',
+    };
+    if (message.isEmpty) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _showThemePresetChoice(
@@ -881,6 +942,7 @@ class _SwitchTile extends StatelessWidget {
     required this.subtitle,
     required this.value,
     required this.onChanged,
+    super.key,
   });
 
   final String title;

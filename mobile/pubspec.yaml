@@ -56,6 +56,9 @@ dependencies:
   isar_community_flutter_libs: 3.3.2
   url_launcher: ^6.3.2
   package_info_plus: ^9.0.1
+  flutter_local_notifications: ^22.3.1
+  flutter_timezone: ^5.1.0
+  timezone: ^0.11.1
 
 dev_dependencies:
   flutter_test:
