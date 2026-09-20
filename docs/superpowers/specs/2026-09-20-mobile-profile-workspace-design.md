@@ -17,7 +17,7 @@ The redesign fixes two navigation problems without introducing unnecessary scree
 - Mobile profile navigation and the mobile settings grouping only. The desktop workspace remains as it is.
 - Existing diary, favorite, media, insight, category/tag, recycle-bin, backup/restore, conflict, sync, theme, reminder, and biometric-lock behavior stays intact.
 - Sync, backup, and restore remain explicit user actions. No automatic upload, export, restore, or account requirement is added.
-- Retain the existing profile avatar treatment at the top of the page. Avatar selection, storage, migration, sync, and backup behavior are outside this change.
+- Keep the original profile banner layout at the top of the page. Its left avatar supports local selection and reset; the stored avatar is device-only and excluded from diary sync and backup.
 
 ## Information architecture
 
@@ -46,17 +46,20 @@ The former large profile banner and two large count cards are removed. A compact
 
 ## Profile header and avatar
 
-The header is a compact, left-aligned identity block:
+Keep the original profile header rather than replacing it with a compact identity block:
 
 ```text
-[ 56 px circular avatar ]  我的空间
-                           已写下 N 篇日记 · 回收站 M 篇
-                           本地优先 / 已同步 / 待同步
+A QUIET PLACE FOR YOU
+我的空间
+管理你的记录、偏好与私人边界。
+
+[ rounded avatar ]  写给自己的日记
+                   先保存在本机 · 可按设置同步
 ```
 
-- Keep the avatar's existing data and interaction. This iteration only presents it in a more compact surrounding hierarchy.
-- The subtitle is a compact informational summary only. Sync status is not a primary action in the header; the **同步** row in 数据 is the interactive destination.
-- A nickname is deliberately out of scope. The consistent default title is **我的空间**.
+- Keep the original banner's colors, text, spacing, and rounded avatar position. Tapping the avatar offers **从相册选择** and, when a local image is set, **恢复默认头像**.
+- Copy a selected image into app-owned profile-avatar storage before saving its local path. A missing or unreadable file falls back to the default icon without crashing the profile page.
+- Sync status is not a primary action in the header; the **同步** row in 数据 is the interactive destination. A nickname is out of scope.
 
 ## Group details
 
@@ -88,14 +91,16 @@ Both rows are always visible and sit at the same navigation depth. There is no i
 
 ## Implementation boundaries
 
-- `ProfilePage` renders the new header and group ordering. It receives existing callbacks plus the live sync state; it does not read repositories or write preferences itself.
-- `MobileDiaryShell` forwards the current `SyncState` and sync destination callback from `DiaryShell`.
+- `ProfilePage` renders the original banner plus the new group ordering. It receives existing callbacks, live sync state, and avatar actions; it does not read repositories or write preferences itself.
+- `MobileDiaryShell` forwards the current `SyncState`, sync destination callback, and avatar values/actions from `DiaryShell`.
+- `ProfileAvatarStore` copies selected files into app-owned storage and removes only its own prior avatar files. `DiarySettings` persists the nullable local path with a backward-compatible default.
 - Extract the existing private connection-settings page into a reusable public sync/settings destination, preserving endpoint/token configuration, copy/paste/import behavior, and current error handling.
 - Mobile `SettingsPage` is preference-only after the move. Desktop layout is not restructured by this change.
 
 ## Errors, privacy, and accessibility
 
 - All rows remain semantic buttons with title, subtitle, and state/count where relevant.
+- The avatar exposes an accessible **编辑头像** action; picker or file failures leave the currently saved avatar untouched and show one concise error message.
 - The page remains scrollable at large system font sizes; header text and group subtitles wrap rather than overlap or truncate actions.
 
 ## Tests
@@ -106,10 +111,11 @@ Add or update tests to cover:
 2. Sync and backup/restore both being direct, visible rows in 数据; sync is absent from mobile 偏好设置.
 3. Local-only, syncing, pending, synced, failed, and conflict sync subtitles, including conflict count.
 4. Existing favorite/media/insight/category/recycle/settings/about callbacks remaining connected after relocation.
-5. Narrow and large-text mobile layouts preserving access to all groups.
+5. Avatar persistence, replacement, reset, and the original banner's avatar action.
+6. Narrow and large-text mobile layouts preserving access to all groups.
 
 ## Non-goals
 
-- No user account, login, nickname, online profile, avatar change, or social features.
+- No user account, login, nickname, online profile, avatar sync, avatar backup export, or social features.
 - No desktop information-architecture change.
 - No new sync provider, automatic backup, or change to the backup format.

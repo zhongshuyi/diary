@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import 'package:diary/app/app_theme.dart';
@@ -21,6 +23,9 @@ class ProfilePage extends StatelessWidget {
     this.onOpenConflicts,
     this.syncState = const SyncState(),
     this.onOpenSyncSettings,
+    this.profileAvatarPath,
+    this.onPickAvatar,
+    this.onClearAvatar,
     this.desktopLayout = false,
     super.key,
   });
@@ -40,6 +45,9 @@ class ProfilePage extends StatelessWidget {
   final VoidCallback? onOpenConflicts;
   final SyncState syncState;
   final VoidCallback? onOpenSyncSettings;
+  final String? profileAvatarPath;
+  final Future<void> Function()? onPickAvatar;
+  final Future<void> Function()? onClearAvatar;
   final bool desktopLayout;
 
   @override
@@ -62,6 +70,9 @@ class ProfilePage extends StatelessWidget {
         onOpenConflicts: onOpenConflicts,
         onOpenSettings: onOpenSettings,
         onOpenAbout: onOpenAbout,
+        profileAvatarPath: profileAvatarPath,
+        onPickAvatar: onPickAvatar,
+        onClearAvatar: onClearAvatar,
       );
     }
     return SingleChildScrollView(
@@ -188,6 +199,9 @@ class _MobileProfileWorkspace extends StatelessWidget {
     required this.onOpenConflicts,
     required this.onOpenSettings,
     required this.onOpenAbout,
+    required this.profileAvatarPath,
+    required this.onPickAvatar,
+    required this.onClearAvatar,
   });
 
   final int entryCount;
@@ -205,6 +219,9 @@ class _MobileProfileWorkspace extends StatelessWidget {
   final VoidCallback? onOpenConflicts;
   final VoidCallback onOpenSettings;
   final VoidCallback onOpenAbout;
+  final String? profileAvatarPath;
+  final Future<void> Function()? onPickAvatar;
+  final Future<void> Function()? onClearAvatar;
 
   @override
   Widget build(BuildContext context) {
@@ -216,10 +233,10 @@ class _MobileProfileWorkspace extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _ProfileWorkspaceHeader(
-                entryCount: entryCount,
-                trashCount: trashCount,
-                syncSummary: _syncSubtitle(syncState, conflictCount),
+              _MobileProfileHeader(
+                avatarPath: profileAvatarPath,
+                onPickAvatar: onPickAvatar,
+                onClearAvatar: onClearAvatar,
               ),
               const SizedBox(height: 26),
               _ProfileSection(
@@ -327,48 +344,65 @@ class _MobileProfileWorkspace extends StatelessWidget {
   }
 }
 
-class _ProfileWorkspaceHeader extends StatelessWidget {
-  const _ProfileWorkspaceHeader({
-    required this.entryCount,
-    required this.trashCount,
-    required this.syncSummary,
+class _MobileProfileHeader extends StatelessWidget {
+  const _MobileProfileHeader({
+    required this.avatarPath,
+    required this.onPickAvatar,
+    required this.onClearAvatar,
   });
 
-  final int entryCount;
-  final int trashCount;
-  final String syncSummary;
+  final String? avatarPath;
+  final Future<void> Function()? onPickAvatar;
+  final Future<void> Function()? onClearAvatar;
 
   @override
   Widget build(BuildContext context) {
     final colors = DiaryThemeColors.of(context);
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        CircleAvatar(
-          radius: 28,
-          backgroundColor: colors.butter,
-          foregroundColor: colors.ink,
-          child: const Icon(Icons.person_outline, size: 28),
+        const DiaryPageIntro(
+          eyebrow: 'A QUIET PLACE FOR YOU',
+          title: '我的空间',
+          description: '管理你的记录、偏好与私人边界。',
         ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        const SizedBox(height: 24),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: colors.hero,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Row(
             children: [
-              Text('我的空间', style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 3),
-              Text(
-                '已写下 $entryCount 篇日记 · 回收站 $trashCount 篇',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.copyWith(color: colors.mutedInk),
+              _ProfileAvatarButton(
+                avatarPath: avatarPath,
+                onPickAvatar: onPickAvatar,
+                onClearAvatar: onClearAvatar,
               ),
-              const SizedBox(height: 2),
-              Text(
-                syncSummary,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: colors.mutedInk),
+              const SizedBox(width: 15),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '写给自己的日记',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.titleLarge?.copyWith(color: colors.onHero),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      '先保存在本机 · 可按设置同步',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: colors.onHero.withValues(alpha: .68),
+                      ),
+                    ),
+                  ],
+                ),
               ),
+              Icon(Icons.verified_user_outlined, color: colors.sage),
             ],
           ),
         ),
@@ -376,6 +410,95 @@ class _ProfileWorkspaceHeader extends StatelessWidget {
     );
   }
 }
+
+class _ProfileAvatarButton extends StatelessWidget {
+  const _ProfileAvatarButton({
+    required this.avatarPath,
+    required this.onPickAvatar,
+    required this.onClearAvatar,
+  });
+
+  final String? avatarPath;
+  final Future<void> Function()? onPickAvatar;
+  final Future<void> Function()? onClearAvatar;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
+    final path = avatarPath?.trim();
+    final hasAvatar = path != null && path.isNotEmpty;
+    final avatar = Container(
+      width: 58,
+      height: 58,
+      decoration: BoxDecoration(
+        color: colors.butter,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: hasAvatar
+          ? Image.file(
+              File(path),
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => _defaultAvatarIcon(colors),
+            )
+          : _defaultAvatarIcon(colors),
+    );
+    if (onPickAvatar == null && onClearAvatar == null) return avatar;
+    return Semantics(
+      button: true,
+      label: '编辑头像',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          key: const Key('profile-avatar-button'),
+          borderRadius: BorderRadius.circular(20),
+          onTap: () => _showAvatarActions(context, hasAvatar),
+          child: avatar,
+        ),
+      ),
+    );
+  }
+
+  Widget _defaultAvatarIcon(DiaryThemeColors colors) =>
+      Icon(Icons.person_outline, size: 29, color: colors.ink);
+
+  Future<void> _showAvatarActions(BuildContext context, bool hasAvatar) async {
+    final action = await showModalBottomSheet<_ProfileAvatarAction>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ListTile(title: Text('头像')),
+            if (onPickAvatar != null)
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined),
+                title: const Text('从相册选择'),
+                onTap: () => Navigator.pop(context, _ProfileAvatarAction.pick),
+              ),
+            if (hasAvatar && onClearAvatar != null)
+              ListTile(
+                leading: const Icon(Icons.person_outline),
+                title: const Text('恢复默认头像'),
+                onTap: () => Navigator.pop(context, _ProfileAvatarAction.clear),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    switch (action) {
+      case _ProfileAvatarAction.pick:
+        await onPickAvatar?.call();
+      case _ProfileAvatarAction.clear:
+        await onClearAvatar?.call();
+      case null:
+        break;
+    }
+  }
+}
+
+enum _ProfileAvatarAction { pick, clear }
 
 class _ProfileSection extends StatelessWidget {
   const _ProfileSection({required this.title, required this.children});

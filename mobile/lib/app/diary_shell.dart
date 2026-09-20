@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import 'package:diary/app/app_routes.dart';
 import 'package:diary/app/app_theme.dart';
@@ -11,6 +12,7 @@ import 'package:diary/application/diary_controller.dart';
 import 'package:diary/application/diary_lock_coordinator.dart';
 import 'package:diary/application/settings_controller.dart';
 import 'package:diary/data/diary_repository.dart';
+import 'package:diary/data/profile_avatar_store.dart';
 import 'package:diary/data/quick_photo_importer.dart';
 import 'package:diary/domain/diary_entry.dart';
 import 'package:diary/domain/conflict.dart';
@@ -143,6 +145,7 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
   SyncEngine? _syncEngine;
   _SyncConnection? _syncConnection;
   SyncState _syncState = const SyncState();
+  final ProfileAvatarStore _profileAvatarStore = ProfileAvatarStore();
 
   List<DiaryEntry> get _entries => _controller.entries;
   List<DiaryEntry> get _trash => _controller.trash;
@@ -283,6 +286,10 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
           syncState: _syncState,
           onSyncNow: _syncEngine == null ? null : _syncNow,
           onOpenSyncSettings: _openSyncSettings,
+          profileAvatarPath:
+              widget.settingsController.settings.profileAvatarPath,
+          onPickAvatar: _pickProfileAvatar,
+          onClearAvatar: _clearProfileAvatar,
           actions: actions,
           conflictCount: _conflicts.length,
         );
@@ -594,6 +601,46 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
         builder: (_) => SyncSettingsPage(controller: widget.settingsController),
       ),
     );
+  }
+
+  Future<void> _pickProfileAvatar() async {
+    widget.lockCoordinator.beginExternalActivity();
+    try {
+      final photo = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 92,
+      );
+      if (photo == null) return;
+      final storedPath = await _profileAvatarStore.importFile(photo.path);
+      await widget.settingsController.setProfileAvatarPath(storedPath);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('头像已更新')));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('头像更新失败，请重试')));
+    } finally {
+      widget.lockCoordinator.endExternalActivity();
+    }
+  }
+
+  Future<void> _clearProfileAvatar() async {
+    try {
+      await _profileAvatarStore.clear();
+      await widget.settingsController.clearProfileAvatarPath();
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('已恢复默认头像')));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('恢复默认头像失败，请重试')));
+    }
   }
 
   Future<void> _openCategories() async {

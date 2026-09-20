@@ -33,6 +33,7 @@ class SharedPreferencesDiarySettingsStore implements DiarySettingsStore {
   static const _quickCaptureSideKey = 'diary.settings.quick_capture_side';
   static const _defaultHomeModeKey = 'diary.settings.default_home_mode';
   static const _chatTitleKey = 'diary.settings.chat_title';
+  static const _profileAvatarPathKey = 'diary.settings.profile_avatar_path';
 
   @override
   Future<DiarySettings> load() async {
@@ -92,6 +93,9 @@ class SharedPreferencesDiarySettingsStore implements DiarySettingsStore {
         preferences.getString(_defaultHomeModeKey),
       ),
       chatTitle: preferences.getString(_chatTitleKey) ?? diaryDefaultChatTitle,
+      profileAvatarPath: _optionalPath(
+        preferences.getString(_profileAvatarPathKey),
+      ),
     );
   }
 
@@ -164,12 +168,23 @@ class SharedPreferencesDiarySettingsStore implements DiarySettingsStore {
       settings.defaultHomeMode.wireValue,
     );
     await preferences.setString(_chatTitleKey, settings.chatTitle);
+    final profileAvatarPath = _optionalPath(settings.profileAvatarPath);
+    if (profileAvatarPath == null) {
+      await preferences.remove(_profileAvatarPathKey);
+    } else {
+      await preferences.setString(_profileAvatarPathKey, profileAvatarPath);
+    }
   }
 }
 
 double _safeScale(double? value) {
   if (value == null || value.isNaN || value.isInfinite) return 1;
   return value.clamp(.85, 1.3);
+}
+
+String? _optionalPath(String? value) {
+  final path = value?.trim();
+  return path == null || path.isEmpty ? null : path;
 }
 
 double _safeRange(
