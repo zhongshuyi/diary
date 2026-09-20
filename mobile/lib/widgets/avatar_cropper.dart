@@ -42,10 +42,27 @@ class _AvatarCropperPageState extends State<_AvatarCropperPage> {
 
   Future<ui.Image> _loadImage() async {
     final bytes = await File(widget.sourcePath).readAsBytes();
-    final codec = await ui.instantiateImageCodec(bytes);
-    final frame = await codec.getNextFrame();
-    _image = frame.image;
-    return frame.image;
+    final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
+    final descriptor = await ui.ImageDescriptor.encoded(buffer);
+    try {
+      const previewMaxDimension = 2048;
+      final longestSide = math.max(descriptor.width, descriptor.height);
+      final scale = math.min(1, previewMaxDimension / longestSide);
+      final codec = await descriptor.instantiateCodec(
+        targetWidth: math.max(1, (descriptor.width * scale).round()),
+        targetHeight: math.max(1, (descriptor.height * scale).round()),
+      );
+      try {
+        final frame = await codec.getNextFrame();
+        _image = frame.image;
+        return frame.image;
+      } finally {
+        codec.dispose();
+      }
+    } finally {
+      descriptor.dispose();
+      buffer.dispose();
+    }
   }
 
   @override

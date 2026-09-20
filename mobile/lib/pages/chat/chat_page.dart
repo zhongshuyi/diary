@@ -130,23 +130,13 @@ class _ChatPageState extends State<ChatPage> {
     setState(() => _enteringMessageIds.remove(entryId));
   }
 
-  List<_ChatDay> _groupedEntries() {
+  List<DiaryEntry> _sortedEntries() {
     final sorted = List<DiaryEntry>.of(widget.entries)
       ..sort(
         (left, right) =>
             left.effectiveOccurredAt.compareTo(right.effectiveOccurredAt),
       );
-    final days = <_ChatDay>[];
-    for (final entry in sorted) {
-      final occurredAt = entry.effectiveOccurredAt;
-      final date = DateTime(occurredAt.year, occurredAt.month, occurredAt.day);
-      if (days.isEmpty || !DateUtils.isSameDay(days.last.date, date)) {
-        days.add(_ChatDay(date: date, entries: [entry]));
-      } else {
-        days.last.entries.add(entry);
-      }
-    }
-    return days;
+    return sorted;
   }
 
   Future<void> _showEntryActions(DiaryEntry entry) async {
@@ -201,7 +191,7 @@ class _ChatPageState extends State<ChatPage> {
   @override
   Widget build(BuildContext context) {
     final colors = DiaryThemeColors.of(context);
-    final days = _groupedEntries();
+    final entries = _sortedEntries();
     return ColoredBox(
       color: colors.paper,
       child: Column(
@@ -216,17 +206,17 @@ class _ChatPageState extends State<ChatPage> {
                       'chat-background-image-${widget.chatBackground.imagePath}',
                     )
                   : null,
-              child: days.isEmpty
+              child: entries.isEmpty
                   ? const _EmptyChat()
                   : ListView.builder(
                       key: const Key('chat-message-list'),
                       controller: _scrollController,
                       padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
-                      itemCount: days.length,
+                      itemCount: entries.length,
                       itemBuilder: (context, index) {
-                        final day = days[index];
-                        return _ChatDaySection(
-                          day: day,
+                        final entry = entries[index];
+                        return _ChatEntryItem(
+                          entry: entry,
                           enteringMessageIds: _enteringMessageIds,
                           onMessageEntranceFinished: _finishMessageEntrance,
                           onOpenEntry: widget.onOpenEntry,
@@ -383,9 +373,9 @@ class _EmptyChat extends StatelessWidget {
   }
 }
 
-class _ChatDaySection extends StatelessWidget {
-  const _ChatDaySection({
-    required this.day,
+class _ChatEntryItem extends StatelessWidget {
+  const _ChatEntryItem({
+    required this.entry,
     required this.enteringMessageIds,
     required this.onMessageEntranceFinished,
     required this.onOpenEntry,
@@ -394,7 +384,7 @@ class _ChatDaySection extends StatelessWidget {
     required this.profileAvatarPath,
   });
 
-  final _ChatDay day;
+  final DiaryEntry entry;
   final Set<String> enteringMessageIds;
   final ValueChanged<String> onMessageEntranceFinished;
   final ValueChanged<DiaryEntry> onOpenEntry;
@@ -404,38 +394,33 @@ class _ChatDaySection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        for (final entry in day.entries)
-          KeyedSubtree(
-            key: ValueKey('chat-entry-${entry.id}'),
-            child: _ChatMessageEntrance(
-              animate: enteringMessageIds.contains(entry.id),
-              onEnd: () => onMessageEntranceFinished(entry.id),
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(top: 13, bottom: 8),
-                    child: Text(
-                      _chatTimestampLabel(entry.effectiveOccurredAt),
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: DiaryThemeColors.of(context).mutedInk,
-                      ),
-                    ),
-                  ),
-                  _ChatEntryBubble(
-                    entry: entry,
-                    onOpen: () => onOpenEntry(entry),
-                    onLongPress: () => unawaited(onLongPress(entry)),
-                    showChatAvatar: showChatAvatar,
-                    profileAvatarPath: profileAvatarPath,
-                  ),
-                ],
+    return KeyedSubtree(
+      key: ValueKey('chat-entry-${entry.id}'),
+      child: _ChatMessageEntrance(
+        animate: enteringMessageIds.contains(entry.id),
+        onEnd: () => onMessageEntranceFinished(entry.id),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 13, bottom: 8),
+              child: Text(
+                _chatTimestampLabel(entry.effectiveOccurredAt),
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: DiaryThemeColors.of(context).mutedInk,
+                ),
               ),
             ),
-          ),
-      ],
+            _ChatEntryBubble(
+              entry: entry,
+              onOpen: () => onOpenEntry(entry),
+              onLongPress: () => unawaited(onLongPress(entry)),
+              showChatAvatar: showChatAvatar,
+              profileAvatarPath: profileAvatarPath,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -612,6 +597,8 @@ class _ChatEntryBubble extends StatelessWidget {
                                       compact: true,
                                       chatStyle: true,
                                       chatStyleHighContrast: isVoiceOnly,
+                                      loadMetadata: false,
+                                      loadWaveform: false,
                                     ),
                                     if (index < entry.audioPaths.length - 1)
                                       const SizedBox(height: 8),
@@ -1670,13 +1657,6 @@ String _chatTimestampLabel(DateTime value) {
   final month = value.month.toString().padLeft(2, '0');
   final day = value.day.toString().padLeft(2, '0');
   return '$month/$day ${diaryTimeLabel(value)}';
-}
-
-class _ChatDay {
-  _ChatDay({required this.date, required this.entries});
-
-  final DateTime date;
-  final List<DiaryEntry> entries;
 }
 
 enum _ChatEntryAction { edit, delete }

@@ -22,24 +22,40 @@ class LocalMediaPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _MediaPlaceholder(kind: kind);
+    return _MediaPlaceholder(kind: kind, showRetry: showRetry);
   }
 }
 
 class _MediaPlaceholder extends StatelessWidget {
-  const _MediaPlaceholder({required this.kind});
+  const _MediaPlaceholder({required this.kind, required this.showRetry});
 
   final DiaryMediaKind kind;
+  final bool showRetry;
 
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
       child: Center(
-        child: Tooltip(
-          message: diaryMediaKindLabel(kind),
-          child: Icon(_iconForKind(kind), size: 24),
-        ),
+        child: showRetry
+            ? Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(_iconForKind(kind), size: 30),
+                  const SizedBox(height: 6),
+                  Text('文件不可用', style: Theme.of(context).textTheme.labelSmall),
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    tooltip: '重新加载',
+                    onPressed: () {},
+                    icon: const Icon(Icons.refresh, size: 18),
+                  ),
+                ],
+              )
+            : Tooltip(
+                message: diaryMediaKindLabel(kind),
+                child: Icon(_iconForKind(kind), size: 24),
+              ),
       ),
     );
   }

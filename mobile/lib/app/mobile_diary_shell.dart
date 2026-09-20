@@ -390,12 +390,9 @@ class _AnimatedTabStackState extends State<_AnimatedTabStack>
       child: IndexedStack(index: widget.index, children: widget.pages),
       builder: (context, child) {
         final value = animation.value;
-        return Opacity(
-          opacity: .92 + (.08 * value),
-          child: Transform.translate(
-            offset: Offset(14 * (1 - value), 0),
-            child: child,
-          ),
+        return Transform.translate(
+          offset: Offset(14 * (1 - value), 0),
+          child: child,
         );
       },
     );
