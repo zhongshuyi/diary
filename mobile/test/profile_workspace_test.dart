@@ -43,7 +43,7 @@ void main() {
     },
   );
 
-  testWidgets('keeps the original banner and exposes avatar choices', (
+  testWidgets('offers a direct, visible avatar edit affordance', (
     tester,
   ) async {
     var pickRequested = false;
@@ -65,17 +65,20 @@ void main() {
       ),
     );
 
-    expect(find.text('写给自己的日记'), findsOneWidget);
+    expect(find.byKey(const Key('profile-identity-panel')), findsOneWidget);
     expect(find.byKey(const Key('profile-avatar-button')), findsOneWidget);
-    expect(find.textContaining('已写下'), findsNothing);
+    expect(
+      find.byKey(const Key('profile-avatar-edit-indicator')),
+      findsOneWidget,
+    );
 
     await tester.tap(find.byKey(const Key('profile-avatar-button')));
     await tester.pumpAndSettle();
-    expect(find.text('从相册选择'), findsOneWidget);
-    expect(find.text('恢复默认头像'), findsOneWidget);
-
-    await tester.tap(find.text('从相册选择'));
-    await tester.pumpAndSettle();
     expect(pickRequested, isTrue);
+
+    final panel = tester.widget<Container>(
+      find.byKey(const Key('profile-identity-panel')),
+    );
+    expect((panel.decoration! as BoxDecoration).color, DiaryPalette.surface);
   });
 }

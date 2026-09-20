@@ -153,6 +153,36 @@ void main() {
     );
   });
 
+  testWidgets('uses a readable 40 pixel avatar beside outgoing messages', (
+    tester,
+  ) async {
+    final entry = DiaryEntry(
+      id: 'avatar-size',
+      createdAt: DateTime(2026, 9, 20, 19),
+      updatedAt: DateTime(2026, 9, 20, 19),
+      title: '头像尺寸',
+      content: '头像不应挤压对话内容。',
+      contentText: '头像不应挤压对话内容。',
+      category: '生活',
+    );
+
+    await tester.pumpWidget(
+      _ChatHarness(
+        entries: [entry],
+        showChatAvatar: true,
+        profileAvatarPath: 'missing-avatar.jpg',
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getSize(
+        find.byKey(const ValueKey('chat-profile-avatar-avatar-size')),
+      ),
+      const Size.square(40),
+    );
+  });
+
   testWidgets('a mood can be sent as its own diary record', (tester) async {
     double? sentMood;
     String? sentMoodLabel;

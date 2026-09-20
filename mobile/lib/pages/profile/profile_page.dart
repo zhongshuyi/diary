@@ -1,9 +1,8 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 
 import 'package:diary/app/app_theme.dart';
 import 'package:diary/domain/sync_state.dart';
+import 'package:diary/widgets/diary_avatar.dart';
 import 'package:diary/widgets/page_intro.dart';
 
 class ProfilePage extends StatelessWidget {
@@ -358,6 +357,7 @@ class _MobileProfileHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = DiaryThemeColors.of(context);
+    final hasAvatar = avatarPath?.trim().isNotEmpty ?? false;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -368,18 +368,23 @@ class _MobileProfileHeader extends StatelessWidget {
         ),
         const SizedBox(height: 24),
         Container(
+          key: const Key('profile-identity-panel'),
           width: double.infinity,
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: colors.hero,
-            borderRadius: BorderRadius.circular(24),
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: colors.line),
           ),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              _ProfileAvatarButton(
-                avatarPath: avatarPath,
-                onPickAvatar: onPickAvatar,
-                onClearAvatar: onClearAvatar,
+              DiaryAvatar(
+                key: const Key('profile-avatar-button'),
+                imagePath: avatarPath,
+                size: 72,
+                onTap: onPickAvatar,
+                editIndicatorKey: const Key('profile-avatar-edit-indicator'),
               ),
               const SizedBox(width: 15),
               Expanded(
@@ -390,19 +395,25 @@ class _MobileProfileHeader extends StatelessWidget {
                       '写给自己的日记',
                       style: Theme.of(
                         context,
-                      ).textTheme.titleLarge?.copyWith(color: colors.onHero),
+                      ).textTheme.titleLarge?.copyWith(color: colors.ink),
                     ),
                     const SizedBox(height: 5),
                     Text(
-                      '先保存在本机 · 可按设置同步',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: colors.onHero.withValues(alpha: .68),
-                      ),
+                      '先保存在本机 · 轻触头像即可更换',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodyMedium?.copyWith(color: colors.mutedInk),
                     ),
                   ],
                 ),
               ),
-              Icon(Icons.verified_user_outlined, color: colors.sage),
+              if (hasAvatar && onClearAvatar != null)
+                IconButton(
+                  key: const Key('profile-avatar-reset-button'),
+                  tooltip: '恢复默认头像',
+                  onPressed: () async => await onClearAvatar!.call(),
+                  icon: Icon(Icons.restart_alt, color: colors.mutedInk),
+                ),
             ],
           ),
         ),
@@ -410,95 +421,6 @@ class _MobileProfileHeader extends StatelessWidget {
     );
   }
 }
-
-class _ProfileAvatarButton extends StatelessWidget {
-  const _ProfileAvatarButton({
-    required this.avatarPath,
-    required this.onPickAvatar,
-    required this.onClearAvatar,
-  });
-
-  final String? avatarPath;
-  final Future<void> Function()? onPickAvatar;
-  final Future<void> Function()? onClearAvatar;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = DiaryThemeColors.of(context);
-    final path = avatarPath?.trim();
-    final hasAvatar = path != null && path.isNotEmpty;
-    final avatar = Container(
-      width: 58,
-      height: 58,
-      decoration: BoxDecoration(
-        color: colors.butter,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: hasAvatar
-          ? Image.file(
-              File(path),
-              fit: BoxFit.cover,
-              errorBuilder: (_, _, _) => _defaultAvatarIcon(colors),
-            )
-          : _defaultAvatarIcon(colors),
-    );
-    if (onPickAvatar == null && onClearAvatar == null) return avatar;
-    return Semantics(
-      button: true,
-      label: '编辑头像',
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          key: const Key('profile-avatar-button'),
-          borderRadius: BorderRadius.circular(20),
-          onTap: () => _showAvatarActions(context, hasAvatar),
-          child: avatar,
-        ),
-      ),
-    );
-  }
-
-  Widget _defaultAvatarIcon(DiaryThemeColors colors) =>
-      Icon(Icons.person_outline, size: 29, color: colors.ink);
-
-  Future<void> _showAvatarActions(BuildContext context, bool hasAvatar) async {
-    final action = await showModalBottomSheet<_ProfileAvatarAction>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const ListTile(title: Text('头像')),
-            if (onPickAvatar != null)
-              ListTile(
-                leading: const Icon(Icons.photo_library_outlined),
-                title: const Text('从相册选择'),
-                onTap: () => Navigator.pop(context, _ProfileAvatarAction.pick),
-              ),
-            if (hasAvatar && onClearAvatar != null)
-              ListTile(
-                leading: const Icon(Icons.person_outline),
-                title: const Text('恢复默认头像'),
-                onTap: () => Navigator.pop(context, _ProfileAvatarAction.clear),
-              ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-    switch (action) {
-      case _ProfileAvatarAction.pick:
-        await onPickAvatar?.call();
-      case _ProfileAvatarAction.clear:
-        await onClearAvatar?.call();
-      case null:
-        break;
-    }
-  }
-}
-
-enum _ProfileAvatarAction { pick, clear }
 
 class _ProfileSection extends StatelessWidget {
   const _ProfileSection({required this.title, required this.children});
