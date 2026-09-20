@@ -88,57 +88,108 @@ void main() {
     );
   });
 
-  test('normalizes custom date ranges and clears conditions without clearing search', () {
-    final filter = HomeTimelineFilter(
-      query: '旧照片',
-      category: '旅行',
-      tags: const {'海边'},
-      favoriteOnly: true,
-      dateFilter: HomeDateFilter.custom(
-        DateTime(2026, 9, 10),
-        DateTime(2026, 9, 1),
-      ),
-      moodFilter: HomeMoodFilter.low,
-      mediaFilter: HomeMediaFilter.anyMedia,
-    );
-    final dateOnly = HomeTimelineFilter(dateFilter: filter.dateFilter);
-    final cleared = filter.clearConditions();
+  test(
+    'normalizes custom date ranges and clears conditions without clearing search',
+    () {
+      final filter = HomeTimelineFilter(
+        query: '旧照片',
+        category: '旅行',
+        tags: const {'海边'},
+        favoriteOnly: true,
+        dateFilter: HomeDateFilter.custom(
+          DateTime(2026, 9, 10),
+          DateTime(2026, 9, 1),
+        ),
+        moodFilter: HomeMoodFilter.low,
+        mediaFilter: HomeMediaFilter.anyMedia,
+      );
+      final dateOnly = HomeTimelineFilter(dateFilter: filter.dateFilter);
+      final cleared = filter.clearConditions();
 
-    expect(
-      dateOnly.matches(entry('first', occurredAt: DateTime(2026, 9, 1)), now: now),
-      isTrue,
-    );
-    expect(
-      dateOnly.matches(entry('last', occurredAt: DateTime(2026, 9, 10, 23)), now: now),
-      isTrue,
-    );
-    expect(
-      dateOnly.matches(entry('outside', occurredAt: DateTime(2026, 9, 11)), now: now),
-      isFalse,
-    );
-    expect(cleared.query, '旧照片');
-    expect(cleared.hasActiveConditions, isFalse);
-    expect(cleared.hidesReflections, isTrue);
-  });
+      expect(
+        dateOnly.matches(
+          entry('first', occurredAt: DateTime(2026, 9, 1)),
+          now: now,
+        ),
+        isTrue,
+      );
+      expect(
+        dateOnly.matches(
+          entry('last', occurredAt: DateTime(2026, 9, 10, 23)),
+          now: now,
+        ),
+        isTrue,
+      );
+      expect(
+        dateOnly.matches(
+          entry('outside', occurredAt: DateTime(2026, 9, 11)),
+          now: now,
+        ),
+        isFalse,
+      );
+      expect(cleared.query, '旧照片');
+      expect(cleared.hasActiveConditions, isFalse);
+      expect(cleared.hidesReflections, isTrue);
+    },
+  );
 
-  test('matches local date presets including seven-day and yearly boundaries', () {
-    final today = HomeTimelineFilter(
-      dateFilter: const HomeDateFilter.preset(HomeDatePreset.today),
-    );
-    final lastSevenDays = HomeTimelineFilter(
-      dateFilter: const HomeDateFilter.preset(HomeDatePreset.lastSevenDays),
-    );
-    final thisYear = HomeTimelineFilter(
-      dateFilter: const HomeDateFilter.preset(HomeDatePreset.thisYear),
-    );
+  test(
+    'matches local date presets including seven-day and yearly boundaries',
+    () {
+      final today = HomeTimelineFilter(
+        dateFilter: const HomeDateFilter.preset(HomeDatePreset.today),
+      );
+      final lastSevenDays = HomeTimelineFilter(
+        dateFilter: const HomeDateFilter.preset(HomeDatePreset.lastSevenDays),
+      );
+      final thisYear = HomeTimelineFilter(
+        dateFilter: const HomeDateFilter.preset(HomeDatePreset.thisYear),
+      );
 
-    expect(today.matches(entry('today', occurredAt: DateTime(2026, 9, 20, 23)), now: now), isTrue);
-    expect(today.matches(entry('yesterday', occurredAt: DateTime(2026, 9, 19, 23)), now: now), isFalse);
-    expect(lastSevenDays.matches(entry('first-day', occurredAt: DateTime(2026, 9, 14)), now: now), isTrue);
-    expect(lastSevenDays.matches(entry('too-old', occurredAt: DateTime(2026, 9, 13, 23)), now: now), isFalse);
-    expect(thisYear.matches(entry('jan', occurredAt: DateTime(2026, 1, 1)), now: now), isTrue);
-    expect(thisYear.matches(entry('last-year', occurredAt: DateTime(2025, 12, 31, 23)), now: now), isFalse);
-  });
+      expect(
+        today.matches(
+          entry('today', occurredAt: DateTime(2026, 9, 20, 23)),
+          now: now,
+        ),
+        isTrue,
+      );
+      expect(
+        today.matches(
+          entry('yesterday', occurredAt: DateTime(2026, 9, 19, 23)),
+          now: now,
+        ),
+        isFalse,
+      );
+      expect(
+        lastSevenDays.matches(
+          entry('first-day', occurredAt: DateTime(2026, 9, 14)),
+          now: now,
+        ),
+        isTrue,
+      );
+      expect(
+        lastSevenDays.matches(
+          entry('too-old', occurredAt: DateTime(2026, 9, 13, 23)),
+          now: now,
+        ),
+        isFalse,
+      );
+      expect(
+        thisYear.matches(
+          entry('jan', occurredAt: DateTime(2026, 1, 1)),
+          now: now,
+        ),
+        isTrue,
+      );
+      expect(
+        thisYear.matches(
+          entry('last-year', occurredAt: DateTime(2025, 12, 31, 23)),
+          now: now,
+        ),
+        isFalse,
+      );
+    },
+  );
 
   test('uses inclusive mood bands and the requested media kind', () {
     final low = HomeTimelineFilter(moodFilter: HomeMoodFilter.low);
@@ -152,49 +203,69 @@ void main() {
     expect(bright.matches(entry('bright', mood: .67), now: now), isTrue);
 
     expect(
-      HomeTimelineFilter(mediaFilter: HomeMediaFilter.anyMedia)
-          .matches(entry('any', audioPaths: const ['voice.m4a']), now: now),
+      HomeTimelineFilter(
+        mediaFilter: HomeMediaFilter.anyMedia,
+      ).matches(entry('any', audioPaths: const ['voice.m4a']), now: now),
       isTrue,
     );
     expect(
-      HomeTimelineFilter(mediaFilter: HomeMediaFilter.image)
-          .matches(entry('image', imagePaths: const ['photo.jpg']), now: now),
+      HomeTimelineFilter(
+        mediaFilter: HomeMediaFilter.image,
+      ).matches(entry('image', imagePaths: const ['photo.jpg']), now: now),
       isTrue,
     );
     expect(
-      HomeTimelineFilter(mediaFilter: HomeMediaFilter.audio)
-          .matches(entry('audio', audioPaths: const ['voice.m4a']), now: now),
+      HomeTimelineFilter(
+        mediaFilter: HomeMediaFilter.audio,
+      ).matches(entry('audio', audioPaths: const ['voice.m4a']), now: now),
       isTrue,
     );
     expect(
-      HomeTimelineFilter(mediaFilter: HomeMediaFilter.video)
-          .matches(entry('video', videoPaths: const ['clip.mp4']), now: now),
+      HomeTimelineFilter(
+        mediaFilter: HomeMediaFilter.video,
+      ).matches(entry('video', videoPaths: const ['clip.mp4']), now: now),
       isTrue,
     );
     expect(
-      HomeTimelineFilter(mediaFilter: HomeMediaFilter.anyMedia)
-          .matches(entry('none'), now: now),
+      HomeTimelineFilter(
+        mediaFilter: HomeMediaFilter.anyMedia,
+      ).matches(entry('none'), now: now),
       isFalse,
     );
   });
 
-  test('rejects trash tombstones and conflicts before evaluating conditions', () {
-    const filter = HomeTimelineFilter();
+  test(
+    'rejects trash tombstones and conflicts before evaluating conditions',
+    () {
+      const filter = HomeTimelineFilter();
 
-    expect(filter.matches(entry('trash', isInTrash: true), now: now), isFalse);
-    expect(filter.matches(entry('deleted', isDeleted: true), now: now), isFalse);
-    expect(filter.matches(entry('conflict', isConflict: true), now: now), isFalse);
-  });
+      expect(
+        filter.matches(entry('trash', isInTrash: true), now: now),
+        isFalse,
+      );
+      expect(
+        filter.matches(entry('deleted', isDeleted: true), now: now),
+        isFalse,
+      );
+      expect(
+        filter.matches(entry('conflict', isConflict: true), now: now),
+        isFalse,
+      );
+    },
+  );
 
-  test('counts advanced filters and hides reflections for active conditions', () {
-    const filter = HomeTimelineFilter(
-      dateFilter: HomeDateFilter.preset(HomeDatePreset.thisMonth),
-      moodFilter: HomeMoodFilter.calm,
-      mediaFilter: HomeMediaFilter.anyMedia,
-    );
+  test(
+    'counts advanced filters and hides reflections for active conditions',
+    () {
+      const filter = HomeTimelineFilter(
+        dateFilter: HomeDateFilter.preset(HomeDatePreset.thisMonth),
+        moodFilter: HomeMoodFilter.calm,
+        mediaFilter: HomeMediaFilter.anyMedia,
+      );
 
-    expect(filter.advancedFilterCount, 3);
-    expect(filter.hasActiveConditions, isTrue);
-    expect(filter.hidesReflections, isTrue);
-  });
+      expect(filter.advancedFilterCount, 3);
+      expect(filter.hasActiveConditions, isTrue);
+      expect(filter.hidesReflections, isTrue);
+    },
+  );
 }

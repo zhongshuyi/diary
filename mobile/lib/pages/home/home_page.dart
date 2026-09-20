@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 
 import 'package:diary/app/app_theme.dart';
+import 'package:diary/application/home_timeline_filter.dart';
+import 'package:diary/application/timeline_reflection.dart';
 import 'package:diary/domain/diary_entry.dart';
 import 'package:diary/domain/sync_state.dart';
+import 'package:diary/pages/home/home_filter_sheet.dart';
+import 'package:diary/pages/home/timeline_reflection_section.dart';
 import 'package:diary/widgets/day_entry_card.dart';
 import 'package:diary/widgets/entry_card.dart';
 
@@ -46,10 +50,8 @@ class HomePageState extends State<HomePage> {
   final _quickController = TextEditingController();
   final _searchFocusNode = FocusNode();
   final _quickFocusNode = FocusNode();
-  String _query = '';
-  String _category = '全部';
-  final Set<String> _selectedTags = <String>{};
-  bool _onlyFavorites = false;
+  HomeTimelineFilter _filter = const HomeTimelineFilter();
+  int _randomRotation = 0;
   bool _quickSaving = false;
   bool _selectionMode = false;
   final Set<String> _selectedIds = <String>{};
@@ -72,158 +74,39 @@ class HomePageState extends State<HomePage> {
     super.dispose();
   }
 
-  bool get _hasActiveFilters =>
-      _category != '全部' || _selectedTags.isNotEmpty || _onlyFavorites;
+  bool get _hasActiveFilters => _filter.hasActiveConditions;
 
   Future<void> _openFilters() async {
-    var category = _category;
-    var onlyFavorites = _onlyFavorites;
-    final selectedTags = Set<String>.of(_selectedTags);
-    final result = await showModalBottomSheet<_HomeFilterSelection>(
+    final categories =
+        <String>{
+          '全部',
+          ...widget.entries.map((entry) => entry.category),
+        }.toList()..sort(
+          (left, right) => left == '全部'
+              ? -1
+              : right == '全部'
+              ? 1
+              : _usageCompare(left, right, widget.entries),
+        );
+    final result = await showModalBottomSheet<HomeTimelineFilter>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setSheetState) {
-          final colors = DiaryThemeColors.of(context);
-          return SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '筛选日记',
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    '缩小范围，只看现在想回到的记录。',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 18),
-                  Text('分类', style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final value in {
-                        '全部',
-                        ...widget.entries.map((entry) => entry.category),
-                      })
-                        ChoiceChip(
-                          label: Text(value),
-                          selected: category == value,
-                          onSelected: (_) =>
-                              setSheetState(() => category = value),
-                          selectedColor: colors.hero,
-                          backgroundColor: colors.surface,
-                          side: BorderSide(
-                            color: category == value
-                                ? colors.hero
-                                : colors.line,
-                          ),
-                          labelStyle: TextStyle(
-                            color: category == value
-                                ? colors.onHero
-                                : colors.ink,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                          ),
-                          showCheckmark: false,
-                        ),
-                    ],
-                  ),
-                  if (_sortedTags(widget.entries).isNotEmpty) ...[
-                    const SizedBox(height: 14),
-                    Text('标签', style: Theme.of(context).textTheme.titleMedium),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        for (final tag in _sortedTags(widget.entries))
-                          FilterChip(
-                            key: Key('home-tag-filter-$tag'),
-                            label: Text('#$tag'),
-                            selected: selectedTags.contains(tag),
-                            onSelected: (_) => setSheetState(() {
-                              if (!selectedTags.add(tag)) {
-                                selectedTags.remove(tag);
-                              }
-                            }),
-                            showCheckmark: false,
-                          ),
-                      ],
-                    ),
-                  ],
-                  const SizedBox(height: 10),
-                  SwitchListTile.adaptive(
-                    key: const Key('home-favorites-filter'),
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('只看收藏'),
-                    subtitle: const Text('隐藏未收藏的日记'),
-                    value: onlyFavorites,
-                    onChanged: (value) =>
-                        setSheetState(() => onlyFavorites = value),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      TextButton(
-                        onPressed: () => setSheetState(() {
-                          category = '全部';
-                          onlyFavorites = false;
-                          selectedTags.clear();
-                        }),
-                        child: const Text('清除条件'),
-                      ),
-                      const Spacer(),
-                      FilledButton(
-                        onPressed: () => Navigator.pop(
-                          context,
-                          _HomeFilterSelection(
-                            category: category,
-                            tags: selectedTags,
-                            onlyFavorites: onlyFavorites,
-                          ),
-                        ),
-                        child: const Text('应用筛选'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
+      builder: (_) => HomeFilterSheet(
+        initialFilter: _filter,
+        categories: categories,
+        tags: _sortedTags(widget.entries),
+        now: DateTime.now(),
       ),
     );
     if (!mounted || result == null) return;
-    setState(() {
-      _category = result.category;
-      _selectedTags
-        ..clear()
-        ..addAll(result.tags);
-      _onlyFavorites = result.onlyFavorites;
-    });
+    setState(() => _filter = result);
   }
 
   List<DiaryEntry> get _filteredEntries {
+    final now = DateTime.now();
     return widget.entries
-        .where((entry) {
-          final categoryMatch =
-              _category == '全部' || entry.category == _category;
-          final tagMatch =
-              _selectedTags.isEmpty || _selectedTags.every(entry.tags.contains);
-          final favoriteMatch = !_onlyFavorites || entry.isFavorite;
-          return categoryMatch &&
-              tagMatch &&
-              favoriteMatch &&
-              entry.matches(_query);
-        })
+        .where((entry) => _filter.matches(entry, now: now))
         .toList(growable: false);
   }
 
@@ -231,6 +114,10 @@ class HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     final colors = DiaryThemeColors.of(context);
     final entries = _filteredEntries;
+    final reflection = calculateTimelineReflection(
+      entries: widget.entries,
+      now: DateTime.now(),
+    );
     final categories =
         <String>{
           '全部',
@@ -246,7 +133,7 @@ class HomePageState extends State<HomePage> {
     if (widget.desktopLayout) {
       return _buildDesktop(context, entries, categories, tags);
     }
-    return _buildMobile(context, entries, categories, tags, colors);
+    return _buildMobile(context, entries, categories, tags, colors, reflection);
   }
 
   Widget _buildMobile(
@@ -255,6 +142,7 @@ class HomePageState extends State<HomePage> {
     List<String> categories,
     List<String> tags,
     DiaryThemeColors colors,
+    TimelineReflection reflection,
   ) {
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 22, 16, 110),
@@ -327,12 +215,17 @@ class HomePageState extends State<HomePage> {
                     ),
                   ),
                   IconButton(
-                    onPressed: () =>
-                        setState(() => _onlyFavorites = !_onlyFavorites),
+                    onPressed: () => setState(
+                      () => _filter = _filter.copyWith(
+                        favoriteOnly: !_filter.favoriteOnly,
+                      ),
+                    ),
                     tooltip: '只看收藏',
                     icon: Icon(
-                      _onlyFavorites ? Icons.bookmark : Icons.bookmark_border,
-                      color: _onlyFavorites
+                      _filter.favoriteOnly
+                          ? Icons.bookmark
+                          : Icons.bookmark_border,
+                      color: _filter.favoriteOnly
                           ? colors.terracotta
                           : colors.mutedInk,
                     ),
@@ -344,34 +237,44 @@ class HomePageState extends State<HomePage> {
                 key: const Key('diary-search-field'),
                 controller: _searchController,
                 focusNode: _searchFocusNode,
-                onChanged: (value) => setState(() => _query = value),
+                onChanged: (value) =>
+                    setState(() => _filter = _filter.copyWith(query: value)),
                 decoration: InputDecoration(
                   hintText: '搜索标题、正文、分类或标签',
                   prefixIcon: const Icon(Icons.search),
-                  suffixIcon: IconButton(
-                    tooltip: '筛选',
-                    onPressed: _openFilters,
-                    icon: Icon(
-                      _hasActiveFilters ? Icons.filter_alt : Icons.tune,
-                      color: _hasActiveFilters
-                          ? colors.terracotta
-                          : colors.mutedInk,
-                    ),
-                  ),
+                  suffixIcon: _filter.advancedFilterCount > 0
+                      ? Badge(
+                          label: Text('${_filter.advancedFilterCount}'),
+                          child: _buildFilterButton(colors),
+                        )
+                      : _buildFilterButton(colors),
                 ),
               ),
+              if (!_filter.hidesReflections &&
+                  (reflection.featuredOnThisDay != null ||
+                      reflection.randomEntryAt(_randomRotation) != null)) ...[
+                const SizedBox(height: 12),
+                TimelineReflectionSection(
+                  reflection: reflection,
+                  randomRotation: _randomRotation,
+                  onOpenEntry: widget.onOpenEntry,
+                  onRotateRandom: () => setState(() => _randomRotation += 1),
+                ),
+              ],
               const SizedBox(height: 12),
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
                   children: categories.map((category) {
-                    final selected = category == _category;
+                    final selected = category == _filter.category;
                     return Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: ChoiceChip(
                         label: Text(category),
                         selected: selected,
-                        onSelected: (_) => setState(() => _category = category),
+                        onSelected: (_) => setState(
+                          () => _filter = _filter.copyWith(category: category),
+                        ),
                         selectedColor: colors.hero,
                         labelStyle: TextStyle(
                           color: selected ? colors.onHero : colors.ink,
@@ -392,15 +295,20 @@ class HomePageState extends State<HomePage> {
                 const SizedBox(height: 8),
                 _TagFilters(
                   tags: tags,
-                  selected: _selectedTags,
-                  onToggle: (tag) => setState(() {
-                    if (!_selectedTags.add(tag)) _selectedTags.remove(tag);
-                  }),
+                  selected: _filter.tags,
+                  onToggle: _toggleTag,
                 ),
               ],
               const SizedBox(height: 18),
               if (entries.isEmpty)
-                _EmptyState(query: _query, onOpenEditor: widget.onOpenEditor)
+                _EmptyState(
+                  query: _filter.query,
+                  onOpenEditor: widget.onOpenEditor,
+                  onClearFilters: _filter.hasActiveConditions
+                      ? () =>
+                            setState(() => _filter = _filter.clearConditions())
+                      : null,
+                )
               else
                 ..._buildMobileDayGroups(entries),
             ],
@@ -408,6 +316,23 @@ class HomePageState extends State<HomePage> {
         ),
       ),
     );
+  }
+
+  Widget _buildFilterButton(DiaryThemeColors colors) {
+    return IconButton(
+      tooltip: '筛选',
+      onPressed: _openFilters,
+      icon: Icon(
+        _hasActiveFilters ? Icons.filter_alt : Icons.tune,
+        color: _hasActiveFilters ? colors.terracotta : colors.mutedInk,
+      ),
+    );
+  }
+
+  void _toggleTag(String tag) {
+    final tags = Set<String>.of(_filter.tags);
+    if (!tags.add(tag)) tags.remove(tag);
+    setState(() => _filter = _filter.copyWith(tags: tags));
   }
 
   Widget _buildDesktop(
@@ -479,14 +404,16 @@ class HomePageState extends State<HomePage> {
                             ),
                             IconButton(
                               onPressed: () => setState(
-                                () => _onlyFavorites = !_onlyFavorites,
+                                () => _filter = _filter.copyWith(
+                                  favoriteOnly: !_filter.favoriteOnly,
+                                ),
                               ),
                               tooltip: '只看收藏',
                               icon: Icon(
-                                _onlyFavorites
+                                _filter.favoriteOnly
                                     ? Icons.bookmark
                                     : Icons.bookmark_border,
-                                color: _onlyFavorites
+                                color: _filter.favoriteOnly
                                     ? colors.terracotta
                                     : colors.mutedInk,
                               ),
@@ -498,7 +425,9 @@ class HomePageState extends State<HomePage> {
                           key: const Key('diary-search-field'),
                           controller: _searchController,
                           focusNode: _searchFocusNode,
-                          onChanged: (value) => setState(() => _query = value),
+                          onChanged: (value) => setState(
+                            () => _filter = _filter.copyWith(query: value),
+                          ),
                           decoration: const InputDecoration(
                             hintText: '搜索标题、正文、分类或标签（Ctrl + K）',
                             prefixIcon: Icon(Icons.search),
@@ -507,26 +436,30 @@ class HomePageState extends State<HomePage> {
                         const SizedBox(height: 12),
                         _CategoryFilters(
                           categories: categories,
-                          selected: _category,
-                          onSelected: (category) =>
-                              setState(() => _category = category),
+                          selected: _filter.category,
+                          onSelected: (category) => setState(
+                            () =>
+                                _filter = _filter.copyWith(category: category),
+                          ),
                         ),
                         if (tags.isNotEmpty) ...[
                           const SizedBox(height: 8),
                           _TagFilters(
                             tags: tags,
-                            selected: _selectedTags,
-                            onToggle: (tag) => setState(() {
-                              if (!_selectedTags.add(tag))
-                                _selectedTags.remove(tag);
-                            }),
+                            selected: _filter.tags,
+                            onToggle: _toggleTag,
                           ),
                         ],
                         const SizedBox(height: 18),
                         if (entries.isEmpty)
                           _EmptyState(
-                            query: _query,
+                            query: _filter.query,
                             onOpenEditor: widget.onOpenEditor,
+                            onClearFilters: _filter.hasActiveConditions
+                                ? () => setState(
+                                    () => _filter = _filter.clearConditions(),
+                                  )
+                                : null,
                           )
                         else
                           ..._buildEntryGroups(context, entries),
@@ -592,11 +525,7 @@ class HomePageState extends State<HomePage> {
     }
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final filtering =
-        _query.trim().isNotEmpty ||
-        _category != '全部' ||
-        _selectedTags.isNotEmpty ||
-        _onlyFavorites;
+    final filtering = _filter.hidesReflections;
     return [
       for (final day in days.keys)
         Padding(
@@ -805,18 +734,6 @@ int _usageCompare(String a, String b, List<DiaryEntry> entries) {
 
   final latestCompare = latest(b).compareTo(latest(a));
   return latestCompare != 0 ? latestCompare : a.compareTo(b);
-}
-
-class _HomeFilterSelection {
-  const _HomeFilterSelection({
-    required this.category,
-    required this.tags,
-    required this.onlyFavorites,
-  });
-
-  final String category;
-  final Set<String> tags;
-  final bool onlyFavorites;
 }
 
 DateTime _latestDate(DateTime? old, DateTime next) =>
@@ -1170,10 +1087,15 @@ class _DateMarker extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.query, required this.onOpenEditor});
+  const _EmptyState({
+    required this.query,
+    required this.onOpenEditor,
+    this.onClearFilters,
+  });
 
   final String query;
   final VoidCallback onOpenEditor;
+  final VoidCallback? onClearFilters;
 
   @override
   Widget build(BuildContext context) {
@@ -1197,7 +1119,22 @@ class _EmptyState extends StatelessWidget {
           const SizedBox(height: 6),
           Text('给今天留下一句话吧。', style: Theme.of(context).textTheme.bodyMedium),
           const SizedBox(height: 16),
-          OutlinedButton(onPressed: onOpenEditor, child: const Text('写下第一句')),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.center,
+            children: [
+              if (onClearFilters != null)
+                TextButton(
+                  onPressed: onClearFilters,
+                  child: const Text('清除筛选条件'),
+                ),
+              OutlinedButton(
+                onPressed: onOpenEditor,
+                child: const Text('写下第一句'),
+              ),
+            ],
+          ),
         ],
       ),
     );

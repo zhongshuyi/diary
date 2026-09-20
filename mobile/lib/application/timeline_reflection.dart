@@ -31,23 +31,24 @@ TimelineReflection calculateTimelineReflection({
   final today = _startOfLocalDay(now);
   final eligible = entries.where(_isEligible).toList(growable: false);
 
-  final onThisDay = eligible.where((entry) {
-    final occurredAt = entry.effectiveOccurredAt.toLocal();
-    return occurredAt.month == today.month &&
-        occurredAt.day == today.day &&
-        occurredAt.year < today.year;
-  }).toList()
-    ..sort((left, right) {
-      final byDate = right.effectiveOccurredAt.compareTo(
-        left.effectiveOccurredAt,
-      );
-      return byDate != 0 ? byDate : left.id.compareTo(right.id);
-    });
+  final onThisDay =
+      eligible.where((entry) {
+        final occurredAt = entry.effectiveOccurredAt.toLocal();
+        return occurredAt.month == today.month &&
+            occurredAt.day == today.day &&
+            occurredAt.year < today.year;
+      }).toList()..sort((left, right) {
+        final byDate = right.effectiveOccurredAt.compareTo(
+          left.effectiveOccurredAt,
+        );
+        return byDate != 0 ? byDate : left.id.compareTo(right.id);
+      });
 
-  final randomCandidates = eligible
-      .where((entry) => entry.effectiveOccurredAt.toLocal().isBefore(today))
-      .toList()
-    ..sort((left, right) => left.id.compareTo(right.id));
+  final randomCandidates =
+      eligible
+          .where((entry) => entry.effectiveOccurredAt.toLocal().isBefore(today))
+          .toList()
+        ..sort((left, right) => left.id.compareTo(right.id));
 
   return TimelineReflection(
     today: today,
