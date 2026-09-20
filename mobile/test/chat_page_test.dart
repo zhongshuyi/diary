@@ -117,6 +117,42 @@ void main() {
     );
   });
 
+  testWidgets('shows the profile avatar beside messages only when enabled', (
+    tester,
+  ) async {
+    final entry = DiaryEntry(
+      id: 'avatar-message',
+      createdAt: DateTime(2026, 9, 20, 19),
+      updatedAt: DateTime(2026, 9, 20, 19),
+      title: '头像消息',
+      content: '这条消息应该显示头像。',
+      contentText: '这条消息应该显示头像。',
+      category: '生活',
+    );
+
+    await tester.pumpWidget(
+      _ChatHarness(
+        entries: [entry],
+        showChatAvatar: true,
+        profileAvatarPath: 'missing-avatar.jpg',
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('chat-profile-avatar-avatar-message')),
+      findsOneWidget,
+    );
+
+    await tester.pumpWidget(
+      _ChatHarness(entries: [entry], showChatAvatar: false),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('chat-profile-avatar-avatar-message')),
+      findsNothing,
+    );
+  });
+
   testWidgets('a mood can be sent as its own diary record', (tester) async {
     double? sentMood;
     String? sentMoodLabel;
@@ -366,6 +402,8 @@ class _ChatHarness extends StatelessWidget {
     this.chatTitle = diaryDefaultChatTitle,
     this.chatBackground = const DiaryChatBackground(),
     this.onNavigate,
+    this.showChatAvatar = false,
+    this.profileAvatarPath,
   });
 
   final List<DiaryEntry> entries;
@@ -375,6 +413,8 @@ class _ChatHarness extends StatelessWidget {
   final String chatTitle;
   final DiaryChatBackground chatBackground;
   final ValueChanged<ChatPageDestination>? onNavigate;
+  final bool showChatAvatar;
+  final String? profileAvatarPath;
 
   @override
   Widget build(BuildContext context) {
@@ -384,6 +424,8 @@ class _ChatHarness extends StatelessWidget {
           entries: entries,
           title: chatTitle,
           chatBackground: chatBackground,
+          showChatAvatar: showChatAvatar,
+          profileAvatarPath: profileAvatarPath,
           onSend:
               onSend ??
               (content, images, audio, videos, mood, moodLabel) async {},

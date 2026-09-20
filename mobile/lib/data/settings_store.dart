@@ -34,6 +34,7 @@ class SharedPreferencesDiarySettingsStore implements DiarySettingsStore {
   static const _defaultHomeModeKey = 'diary.settings.default_home_mode';
   static const _chatTitleKey = 'diary.settings.chat_title';
   static const _profileAvatarPathKey = 'diary.settings.profile_avatar_path';
+  static const _showChatAvatarKey = 'diary.settings.show_chat_avatar';
 
   @override
   Future<DiarySettings> load() async {
@@ -96,6 +97,7 @@ class SharedPreferencesDiarySettingsStore implements DiarySettingsStore {
       profileAvatarPath: _optionalPath(
         preferences.getString(_profileAvatarPathKey),
       ),
+      showChatAvatar: preferences.getBool(_showChatAvatarKey) ?? true,
     );
   }
 
@@ -174,6 +176,7 @@ class SharedPreferencesDiarySettingsStore implements DiarySettingsStore {
     } else {
       await preferences.setString(_profileAvatarPathKey, profileAvatarPath);
     }
+    await preferences.setBool(_showChatAvatarKey, settings.showChatAvatar);
   }
 }
 

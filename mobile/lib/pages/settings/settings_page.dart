@@ -141,6 +141,14 @@ class SettingsPage extends StatelessWidget {
                     onTap: () =>
                         _showChatTitleEditor(context, settings.chatTitle),
                   ),
+                  _SwitchTile(
+                    key: const Key('settings-show-chat-avatar'),
+                    title: '显示头像',
+                    subtitle: '在对话中显示头像',
+                    value: settings.showChatAvatar,
+                    onChanged: (value) =>
+                        unawaited(controller.setShowChatAvatar(value)),
+                  ),
                   _SettingsTile(
                     title: const Text('默认首页'),
                     subtitle: Text(settings.defaultHomeMode.label),

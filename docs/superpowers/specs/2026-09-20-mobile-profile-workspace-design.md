@@ -60,6 +60,7 @@ A QUIET PLACE FOR YOU
 - Keep the original banner's colors, text, spacing, and rounded avatar position. Tapping the avatar offers **从相册选择** and, when a local image is set, **恢复默认头像**.
 - Copy a selected image into app-owned profile-avatar storage before saving its local path. A missing or unreadable file falls back to the default icon without crashing the profile page.
 - Sync status is not a primary action in the header; the **同步** row in 数据 is the interactive destination. A nickname is out of scope.
+- **偏好设置 → 记录与对话** provides a persisted **显示头像** switch. It defaults to on and controls whether the same local avatar appears beside outgoing chat messages; it does not affect the profile banner.
 
 ## Group details
 
@@ -93,7 +94,7 @@ Both rows are always visible and sit at the same navigation depth. There is no i
 
 - `ProfilePage` renders the original banner plus the new group ordering. It receives existing callbacks, live sync state, and avatar actions; it does not read repositories or write preferences itself.
 - `MobileDiaryShell` forwards the current `SyncState`, sync destination callback, and avatar values/actions from `DiaryShell`.
-- `ProfileAvatarStore` copies selected files into app-owned storage and removes only its own prior avatar files. `DiarySettings` persists the nullable local path with a backward-compatible default.
+- `ProfileAvatarStore` copies selected files into app-owned storage and removes only its own prior avatar files. `DiarySettings` persists the nullable local path and the chat-avatar visibility preference with backward-compatible defaults.
 - Extract the existing private connection-settings page into a reusable public sync/settings destination, preserving endpoint/token configuration, copy/paste/import behavior, and current error handling.
 - Mobile `SettingsPage` is preference-only after the move. Desktop layout is not restructured by this change.
 
@@ -112,7 +113,8 @@ Add or update tests to cover:
 3. Local-only, syncing, pending, synced, failed, and conflict sync subtitles, including conflict count.
 4. Existing favorite/media/insight/category/recycle/settings/about callbacks remaining connected after relocation.
 5. Avatar persistence, replacement, reset, and the original banner's avatar action.
-6. Narrow and large-text mobile layouts preserving access to all groups.
+6. The visible **显示头像** preference plus enabled/disabled avatar rendering beside chat messages.
+7. Narrow and large-text mobile layouts preserving access to all groups.
 
 ## Non-goals
 
