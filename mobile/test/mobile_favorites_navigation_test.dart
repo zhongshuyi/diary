@@ -58,7 +58,10 @@ DiaryShellActions _actions() {
   );
 }
 
-Widget _buildMobileShell(ValueListenable<List<DiaryEntry>> entries) {
+Widget _buildMobileShell(
+  ValueListenable<List<DiaryEntry>> entries, {
+  Future<void> Function()? onOpenSyncSettings,
+}) {
   return MaterialApp(
     home: ValueListenableBuilder<List<DiaryEntry>>(
       valueListenable: entries,
@@ -66,6 +69,7 @@ Widget _buildMobileShell(ValueListenable<List<DiaryEntry>> entries) {
         entries: value,
         trash: const [],
         actions: _actions(),
+        onOpenSyncSettings: onOpenSyncSettings,
       ),
     ),
   );
@@ -100,5 +104,30 @@ void main() {
     entries.value = [_entry(id: 'saved', title: '保留的一页')];
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('favorites-empty')), findsOneWidget);
+  });
+
+  testWidgets('profile opens sync without sending people into preferences', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    var syncOpened = false;
+
+    await tester.pumpWidget(
+      _buildMobileShell(
+        ValueNotifier<List<DiaryEntry>>([]),
+        onOpenSyncSettings: () async => syncOpened = true,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('我的'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('同步'));
+    await tester.pumpAndSettle();
+
+    expect(syncOpened, isTrue);
   });
 }

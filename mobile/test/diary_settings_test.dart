@@ -145,6 +145,25 @@ void main() {
     expect(restored.dailyReminderTime.label, '06:45');
   });
 
+  testWidgets('mobile preferences do not repeat data and sync controls', (
+    tester,
+  ) async {
+    final controller = SettingsController(store: _MemorySettingsStore());
+    await controller.initialize();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DiaryTheme.light,
+        home: SettingsPage(controller: controller, showDataControls: false),
+      ),
+    );
+
+    expect(find.text('同步与更新'), findsNothing);
+    expect(find.text('清理临时缓存'), findsNothing);
+    expect(find.text('偏好设置'), findsNothing);
+    expect(find.textContaining('阅读、记录和应用习惯'), findsOneWidget);
+  });
+
   test(
     'keeps the reminder disabled when notification permission is denied',
     () async {

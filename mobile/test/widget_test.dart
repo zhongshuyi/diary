@@ -1504,6 +1504,7 @@ void main() {
 
     await tester.tap(find.text('我的'));
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('回收站'), 250);
     await tester.tap(find.text('回收站'));
     await tester.pumpAndSettle();
 

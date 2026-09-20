@@ -36,6 +36,7 @@ class MobileDiaryShell extends StatefulWidget {
     this.conflictCount = 0,
     this.syncState = const SyncState(),
     this.onSyncNow,
+    this.onOpenSyncSettings,
     super.key,
   });
 
@@ -49,6 +50,7 @@ class MobileDiaryShell extends StatefulWidget {
   final int conflictCount;
   final SyncState syncState;
   final Future<void> Function()? onSyncNow;
+  final Future<void> Function()? onOpenSyncSettings;
 
   @override
   State<MobileDiaryShell> createState() => _MobileDiaryShellState();
@@ -190,6 +192,10 @@ class _MobileDiaryShellState extends State<MobileDiaryShell> {
         onOpenAbout: widget.actions.openAbout,
         conflictCount: widget.conflictCount,
         onOpenConflicts: widget.actions.openConflicts,
+        syncState: widget.syncState,
+        onOpenSyncSettings: widget.onOpenSyncSettings == null
+            ? null
+            : () => unawaited(widget.onOpenSyncSettings!()),
         onOpenMedia: () => unawaited(_openMedia()),
         onOpenInsights: () => unawaited(_openInsights()),
         favoriteCount: _favoriteCount,

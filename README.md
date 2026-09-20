@@ -35,3 +35,4 @@ Flutter 工程的原有说明和平台配置保留在 [`mobile/README.md`](mobil
 
 详细约定见 [`docs/architecture.md`](docs/architecture.md) 和 [`docs/sync-contract.md`](docs/sync-contract.md)。
 桌面端需求与 Phase 0–5（当前切片）实施进度见 [`docs/desktop-implementation-plan.md`](docs/desktop-implementation-plan.md)。
+开发机局域网同步服务的启动、路径、IP 与排障说明见 [`docs/sync-service-deployment.md`](docs/sync-service-deployment.md)。

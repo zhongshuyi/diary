@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:diary/app/app_theme.dart';
+import 'package:diary/domain/sync_state.dart';
 import 'package:diary/widgets/page_intro.dart';
 
 class ProfilePage extends StatelessWidget {
@@ -18,6 +19,8 @@ class ProfilePage extends StatelessWidget {
     this.onOpenFavorites,
     this.conflictCount = 0,
     this.onOpenConflicts,
+    this.syncState = const SyncState(),
+    this.onOpenSyncSettings,
     this.desktopLayout = false,
     super.key,
   });
@@ -35,11 +38,32 @@ class ProfilePage extends StatelessWidget {
   final VoidCallback? onOpenFavorites;
   final int conflictCount;
   final VoidCallback? onOpenConflicts;
+  final SyncState syncState;
+  final VoidCallback? onOpenSyncSettings;
   final bool desktopLayout;
 
   @override
   Widget build(BuildContext context) {
     final colors = DiaryThemeColors.of(context);
+    if (!desktopLayout) {
+      return _MobileProfileWorkspace(
+        entryCount: entryCount,
+        trashCount: trashCount,
+        favoriteCount: favoriteCount,
+        conflictCount: conflictCount,
+        syncState: syncState,
+        onOpenFavorites: onOpenFavorites,
+        onOpenMedia: onOpenMedia,
+        onOpenInsights: onOpenInsights,
+        onOpenCategories: onOpenCategories,
+        onOpenRecycle: onOpenRecycle,
+        onOpenSyncSettings: onOpenSyncSettings ?? onOpenSettings,
+        onOpenBackup: onOpenBackup,
+        onOpenConflicts: onOpenConflicts,
+        onOpenSettings: onOpenSettings,
+        onOpenAbout: onOpenAbout,
+      );
+    }
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 28, 20, 110),
       child: Center(
@@ -139,13 +163,68 @@ class ProfilePage extends StatelessWidget {
                   ),
                 ],
               ),
-              if (!desktopLayout) ...[
-                if (onOpenMedia != null ||
-                    onOpenInsights != null ||
-                    onOpenFavorites != null) ...[
-                  const SizedBox(height: 25),
-                  Text('日记工具', style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 9),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MobileProfileWorkspace extends StatelessWidget {
+  const _MobileProfileWorkspace({
+    required this.entryCount,
+    required this.trashCount,
+    required this.favoriteCount,
+    required this.conflictCount,
+    required this.syncState,
+    required this.onOpenFavorites,
+    required this.onOpenMedia,
+    required this.onOpenInsights,
+    required this.onOpenCategories,
+    required this.onOpenRecycle,
+    required this.onOpenSyncSettings,
+    required this.onOpenBackup,
+    required this.onOpenConflicts,
+    required this.onOpenSettings,
+    required this.onOpenAbout,
+  });
+
+  final int entryCount;
+  final int trashCount;
+  final int favoriteCount;
+  final int conflictCount;
+  final SyncState syncState;
+  final VoidCallback? onOpenFavorites;
+  final VoidCallback? onOpenMedia;
+  final VoidCallback? onOpenInsights;
+  final VoidCallback onOpenCategories;
+  final VoidCallback onOpenRecycle;
+  final VoidCallback onOpenSyncSettings;
+  final VoidCallback onOpenBackup;
+  final VoidCallback? onOpenConflicts;
+  final VoidCallback onOpenSettings;
+  final VoidCallback onOpenAbout;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 110),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 720),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _ProfileWorkspaceHeader(
+                entryCount: entryCount,
+                trashCount: trashCount,
+                syncSummary: _syncSubtitle(syncState, conflictCount),
+              ),
+              const SizedBox(height: 26),
+              _ProfileSection(
+                title: '回看',
+                children: [
                   if (onOpenFavorites != null)
                     _ProfileTile(
                       icon: Icons.bookmark_outline,
@@ -170,43 +249,173 @@ class ProfilePage extends StatelessWidget {
                       onTap: onOpenInsights!,
                     ),
                 ],
-                const SizedBox(height: 25),
-                Text('管理', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 9),
-                _ProfileTile(
-                  icon: Icons.tune_outlined,
-                  title: '偏好设置',
-                  subtitle: '主题、启动页与阅读体验',
-                  onTap: onOpenSettings,
-                ),
-                _ProfileTile(
-                  icon: Icons.sell_outlined,
-                  title: '分类与标签',
-                  subtitle: '整理你常写下的主题',
-                  onTap: onOpenCategories,
-                ),
-                _ProfileTile(
-                  icon: Icons.import_export_outlined,
-                  title: '备份与恢复',
-                  subtitle: '用 JSON 保存或迁移你的日记',
-                  onTap: onOpenBackup,
-                ),
-                const SizedBox(height: 25),
-                Text('关于', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 9),
-                _ProfileTile(
-                  icon: Icons.auto_awesome_outlined,
-                  title: '关于此刻',
-                  subtitle: '版本、设计理念与隐私说明',
-                  onTap: onOpenAbout,
-                ),
-              ],
+              ),
+              const SizedBox(height: 22),
+              _ProfileSection(
+                title: '整理',
+                children: [
+                  _ProfileTile(
+                    icon: Icons.sell_outlined,
+                    title: '分类与标签',
+                    subtitle: '整理你常写下的主题',
+                    onTap: onOpenCategories,
+                  ),
+                  _ProfileTile(
+                    icon: Icons.delete_outline,
+                    title: '回收站',
+                    subtitle: trashCount == 0
+                        ? '这里还没有被丢弃的日记'
+                        : '$trashCount 篇待处理',
+                    onTap: onOpenRecycle,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 22),
+              _ProfileSection(
+                title: '数据',
+                children: [
+                  _ProfileTile(
+                    icon: _syncIcon(syncState.status),
+                    title: '同步',
+                    subtitle: _syncSubtitle(syncState, conflictCount),
+                    onTap: onOpenSyncSettings,
+                  ),
+                  _ProfileTile(
+                    icon: Icons.import_export_outlined,
+                    title: '备份与恢复',
+                    subtitle: '用 JSON 保存或迁移你的日记',
+                    onTap: onOpenBackup,
+                  ),
+                  if (conflictCount > 0 && onOpenConflicts != null)
+                    _ProfileTile(
+                      icon: Icons.sync_problem_outlined,
+                      title: '同步冲突',
+                      subtitle: '$conflictCount 篇待确认',
+                      onTap: onOpenConflicts!,
+                    ),
+                ],
+              ),
+              const SizedBox(height: 22),
+              _ProfileSection(
+                title: '应用',
+                children: [
+                  _ProfileTile(
+                    icon: Icons.tune_outlined,
+                    title: '偏好设置',
+                    subtitle: '主题、启动页与阅读体验',
+                    onTap: onOpenSettings,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 22),
+              _ProfileSection(
+                title: '关于',
+                children: [
+                  _ProfileTile(
+                    icon: Icons.auto_awesome_outlined,
+                    title: '关于此刻',
+                    subtitle: '版本、设计理念与隐私说明',
+                    onTap: onOpenAbout,
+                  ),
+                ],
+              ),
             ],
           ),
         ),
       ),
     );
   }
+}
+
+class _ProfileWorkspaceHeader extends StatelessWidget {
+  const _ProfileWorkspaceHeader({
+    required this.entryCount,
+    required this.trashCount,
+    required this.syncSummary,
+  });
+
+  final int entryCount;
+  final int trashCount;
+  final String syncSummary;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
+    return Row(
+      children: [
+        CircleAvatar(
+          radius: 28,
+          backgroundColor: colors.butter,
+          foregroundColor: colors.ink,
+          child: const Icon(Icons.person_outline, size: 28),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('我的空间', style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 3),
+              Text(
+                '已写下 $entryCount 篇日记 · 回收站 $trashCount 篇',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: colors.mutedInk),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                syncSummary,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: colors.mutedInk),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ProfileSection extends StatelessWidget {
+  const _ProfileSection({required this.title, required this.children});
+
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 9),
+        ...children,
+      ],
+    );
+  }
+}
+
+String _syncSubtitle(SyncState state, int conflictCount) {
+  return switch (state.status) {
+    SyncStatus.syncing => '正在同步',
+    SyncStatus.synced => '已同步',
+    SyncStatus.pending => '待同步',
+    SyncStatus.conflict => conflictCount > 0 ? '$conflictCount 篇待确认' : '有同步冲突',
+    SyncStatus.failed => '同步失败 · 点击查看设置',
+    SyncStatus.idle => '本地优先 · 未连接服务器',
+  };
+}
+
+IconData _syncIcon(SyncStatus status) {
+  return switch (status) {
+    SyncStatus.syncing => Icons.sync,
+    SyncStatus.synced => Icons.cloud_done_outlined,
+    SyncStatus.pending => Icons.cloud_upload_outlined,
+    SyncStatus.conflict => Icons.warning_amber_outlined,
+    SyncStatus.failed => Icons.cloud_off_outlined,
+    SyncStatus.idle => Icons.cloud_outlined,
+  };
 }
 
 class _CountCard extends StatelessWidget {
