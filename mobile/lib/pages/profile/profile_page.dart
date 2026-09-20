@@ -14,6 +14,8 @@ class ProfilePage extends StatelessWidget {
     required this.onOpenAbout,
     this.onOpenMedia,
     this.onOpenInsights,
+    this.favoriteCount = 0,
+    this.onOpenFavorites,
     this.conflictCount = 0,
     this.onOpenConflicts,
     this.desktopLayout = false,
@@ -29,6 +31,8 @@ class ProfilePage extends StatelessWidget {
   final VoidCallback onOpenAbout;
   final VoidCallback? onOpenMedia;
   final VoidCallback? onOpenInsights;
+  final int favoriteCount;
+  final VoidCallback? onOpenFavorites;
   final int conflictCount;
   final VoidCallback? onOpenConflicts;
   final bool desktopLayout;
@@ -136,10 +140,21 @@ class ProfilePage extends StatelessWidget {
                 ],
               ),
               if (!desktopLayout) ...[
-                if (onOpenMedia != null || onOpenInsights != null) ...[
+                if (onOpenMedia != null ||
+                    onOpenInsights != null ||
+                    onOpenFavorites != null) ...[
                   const SizedBox(height: 25),
                   Text('日记工具', style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 9),
+                  if (onOpenFavorites != null)
+                    _ProfileTile(
+                      icon: Icons.bookmark_outline,
+                      title: '收藏夹',
+                      subtitle: favoriteCount == 0
+                          ? '还没有收藏的日记'
+                          : '$favoriteCount 篇已收藏',
+                      onTap: onOpenFavorites!,
+                    ),
                   if (onOpenMedia != null)
                     _ProfileTile(
                       icon: Icons.collections_outlined,

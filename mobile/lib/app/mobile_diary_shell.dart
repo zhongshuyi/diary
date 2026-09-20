@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -13,6 +14,7 @@ import 'package:diary/domain/sync_state.dart';
 import 'package:diary/pages/calendar/calendar_page.dart';
 import 'package:diary/pages/chat/chat_page.dart';
 import 'package:diary/pages/entry/quick_capture_sheet.dart';
+import 'package:diary/pages/favorites/favorites_page.dart';
 import 'package:diary/pages/home/home_page.dart';
 import 'package:diary/pages/insights/insights_page.dart';
 import 'package:diary/pages/media/media_page.dart';
@@ -64,10 +66,12 @@ class _MobileDiaryShellState extends State<MobileDiaryShell> {
   int _selectedIndex = _timelineIndex;
   bool _selectedByUser = false;
   Offset? _quickCapturePosition;
+  late final ValueNotifier<List<DiaryEntry>> _favoritesEntries;
 
   @override
   void initState() {
     super.initState();
+    _favoritesEntries = ValueNotifier(List.unmodifiable(widget.entries));
     _selectedIndex = _indexForHomeMode(widget.defaultHomeMode);
     _loadQuickCapturePosition();
   }
@@ -75,6 +79,13 @@ class _MobileDiaryShellState extends State<MobileDiaryShell> {
   @override
   void didUpdateWidget(covariant MobileDiaryShell oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (!identical(widget.entries, oldWidget.entries)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _favoritesEntries.value = List.unmodifiable(widget.entries);
+        }
+      });
+    }
     if (oldWidget.defaultHomeMode != widget.defaultHomeMode &&
         !_selectedByUser) {
       setState(
@@ -88,6 +99,12 @@ class _MobileDiaryShellState extends State<MobileDiaryShell> {
       DiaryHomeMode.timeline => _timelineIndex,
       DiaryHomeMode.chat => _chatIndex,
     };
+  }
+
+  @override
+  void dispose() {
+    _favoritesEntries.dispose();
+    super.dispose();
   }
 
   Future<void> _loadQuickCapturePosition() async {
@@ -176,6 +193,8 @@ class _MobileDiaryShellState extends State<MobileDiaryShell> {
         onOpenConflicts: widget.actions.openConflicts,
         onOpenMedia: () => unawaited(_openMedia()),
         onOpenInsights: () => unawaited(_openInsights()),
+        favoriteCount: _favoriteCount,
+        onOpenFavorites: () => unawaited(_openFavorites()),
       ),
     ];
 
@@ -255,6 +274,33 @@ class _MobileDiaryShellState extends State<MobileDiaryShell> {
               entries: widget.entries,
               onOpenEntry: (entry) =>
                   unawaited(widget.actions.openEntry(entry)),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  int get _favoriteCount => widget.entries
+      .where(
+        (entry) =>
+            entry.isFavorite &&
+            !entry.isInTrash &&
+            !entry.isDeleted &&
+            !entry.isConflict,
+      )
+      .length;
+
+  Future<void> _openFavorites() {
+    return Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          backgroundColor: DiaryThemeColors.of(context).paper,
+          body: SafeArea(
+            child: FavoritesPage(
+              entriesListenable: _favoritesEntries,
+              onOpenEntry: widget.actions.openEntry,
+              onToggleFavorite: widget.actions.toggleFavorite,
             ),
           ),
         ),
