@@ -12,6 +12,7 @@ import 'package:diary/domain/diary_entry.dart';
 import 'package:diary/data/diary_repository.dart';
 import 'package:diary/data/quick_audio_recorder.dart';
 import 'package:diary/data/settings_store.dart';
+import 'package:diary/domain/demo_data.dart';
 import 'package:diary/domain/diary_settings.dart';
 import 'package:diary/main.dart';
 import 'package:diary/pages/calendar/calendar_page.dart';
@@ -936,7 +937,9 @@ void main() {
   );
 
   testWidgets('filters entries with the search field', (tester) async {
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(
+      MyApp(repository: MemoryDiaryRepository(demoEntries)),
+    );
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byKey(const Key('diary-search-field')), '慢下来');

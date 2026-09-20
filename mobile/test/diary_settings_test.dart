@@ -18,7 +18,8 @@ void main() {
 
       await controller.initialize();
       await controller.setThemeMode(DiaryThemeMode.dark);
-      await controller.setThemePreset(DiaryThemePreset.mistBlue);
+      final carbon = DiaryThemePresetCodec.fromWireValue('carbon');
+      await controller.setThemePreset(carbon);
       await controller.setCustomThemeColor(0xFF3E7895);
       await controller.setChatBackground(
         const DiaryChatBackground(imagePath: 'wallpaper.jpg', scale: 1.3),
@@ -31,7 +32,7 @@ void main() {
       await controller.setChatTitle('睡前片刻');
 
       expect(store.value.themeMode, DiaryThemeMode.dark);
-      expect(store.value.themePreset, DiaryThemePreset.mistBlue);
+      expect(store.value.themePreset.wireValue, 'carbon');
       expect(store.value.customThemeColor, 0xFF3E7895);
       expect(store.value.chatBackground.imagePath, 'wallpaper.jpg');
       expect(store.value.chatBackground.scale, 1.3);
@@ -177,10 +178,12 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     final store = SharedPreferencesDiarySettingsStore();
     await store.save(
-      const DiarySettings(themePreset: DiaryThemePreset.evergreen),
+      DiarySettings(
+        themePreset: DiaryThemePresetCodec.fromWireValue('deepSea'),
+      ),
     );
 
-    expect((await store.load()).themePreset, DiaryThemePreset.evergreen);
+    expect((await store.load()).themePreset.wireValue, 'deepSea');
   });
 
   test('custom theme color can be saved and reset', () async {
@@ -206,18 +209,60 @@ void main() {
     },
   );
 
-  test('theme presets update light and dark semantic color tokens', () {
-    final light = DiaryTheme.lightFor(DiaryThemePreset.mistBlue);
-    final dark = DiaryTheme.darkFor(DiaryThemePreset.mistBlue);
+  test('theme presets replace the old palette and keep warm paper default', () {
+    expect(
+      DiaryThemePreset.values.map((preset) => preset.wireValue),
+      equals([
+        'warmPaper',
+        'carbon',
+        'deepSea',
+        'pine',
+        'dusk',
+        'terracotta',
+        'roseMist',
+        'moonstone',
+      ]),
+    );
+    expect(
+      DiaryThemePresetCodec.fromWireValue('mistBlue'),
+      DiaryThemePreset.warmPaper,
+    );
+    expect(
+      DiaryThemePresetCodec.fromWireValue('evergreen'),
+      DiaryThemePreset.warmPaper,
+    );
+    expect(
+      DiaryThemePresetCodec.fromWireValue('lavender'),
+      DiaryThemePreset.warmPaper,
+    );
+  });
 
-    expect(
-      light.extension<DiaryThemeColors>()?.terracotta,
-      const Color(0xFF3E7895),
-    );
-    expect(
-      dark.extension<DiaryThemeColors>()?.terracotta,
-      const Color(0xFF7DBAD4),
-    );
+  test(
+    'carbon theme provides a #181818 dark surface and paired light mode',
+    () {
+      final carbon = DiaryThemePresetCodec.fromWireValue('carbon');
+      final light = DiaryTheme.lightFor(carbon);
+      final dark = DiaryTheme.darkFor(carbon);
+
+      expect(
+        light.extension<DiaryThemeColors>()?.terracotta,
+        const Color(0xFF8A5A2B),
+      );
+      expect(
+        light.extension<DiaryThemeColors>()?.paper,
+        const Color(0xFFF5F5F3),
+      );
+      expect(
+        dark.extension<DiaryThemeColors>()?.paper,
+        const Color(0xFF181818),
+      );
+      expect(dark.colorScheme.onPrimary, const Color(0xFF101010));
+    },
+  );
+
+  test('warm paper primary actions use a high-contrast label', () {
+    expect(DiaryTheme.light.colorScheme.primary, const Color(0xFFB55C44));
+    expect(DiaryTheme.light.colorScheme.onPrimary, Colors.white);
   });
 
   testWidgets('custom color picker stores the selected accent color', (
@@ -241,6 +286,126 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(store.value.customThemeColor, isNotNull);
+  });
+
+  testWidgets(
+    'theme picker presents the full visual theme grid and saves a choice',
+    (tester) async {
+      final store = _MemorySettingsStore();
+      final controller = SettingsController(store: store);
+      await controller.initialize();
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: DiaryTheme.light,
+          home: SettingsPage(controller: controller),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('主题配色').first);
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('theme-preset-grid')), findsOneWidget);
+      expect(
+        find.byKey(const Key('settings-theme-preset-warmPaper')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('settings-theme-preset-carbon')),
+        findsOneWidget,
+      );
+      expect(
+        tester.widget<Text>(find.text('默认')).style?.color,
+        DiaryPalette.ink,
+      );
+
+      await tester.tap(find.byKey(const Key('settings-theme-preset-carbon')));
+      await tester.pumpAndSettle();
+
+      expect(store.value.themePreset.wireValue, 'carbon');
+
+      await tester.tap(find.text('主题配色').first);
+      await tester.pumpAndSettle();
+
+      final themeGrid = find.byKey(const Key('theme-preset-grid'));
+      final themeScrollable = find.descendant(
+        of: themeGrid,
+        matching: find.byType(Scrollable),
+      );
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('settings-theme-preset-deepSea')),
+        240,
+        scrollable: themeScrollable,
+      );
+      expect(
+        find.byKey(const Key('settings-theme-preset-deepSea')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('settings-theme-preset-pine')),
+        findsOneWidget,
+      );
+
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('settings-theme-preset-dusk')),
+        240,
+        scrollable: themeScrollable,
+      );
+      expect(
+        find.byKey(const Key('settings-theme-preset-dusk')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('settings-theme-preset-terracotta')),
+        findsOneWidget,
+      );
+
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('settings-theme-preset-moonstone')),
+        240,
+        scrollable: themeScrollable,
+      );
+      expect(
+        find.byKey(const Key('settings-theme-preset-roseMist')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('settings-theme-preset-moonstone')),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets('theme picker accommodates narrow screens and large text', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final store = _MemorySettingsStore();
+    final controller = SettingsController(store: store);
+    await controller.initialize();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DiaryTheme.light,
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: const TextScaler.linear(1.3)),
+          child: child!,
+        ),
+        home: SettingsPage(controller: controller),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('主题配色').first);
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.byKey(const Key('theme-preset-grid')), findsOneWidget);
   });
 
   testWidgets('settings separates chat choices from connection details', (

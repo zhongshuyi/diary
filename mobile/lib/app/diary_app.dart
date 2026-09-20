@@ -9,7 +9,6 @@ import 'package:diary/application/settings_controller.dart';
 import 'package:diary/data/diary_repository.dart';
 import 'package:diary/data/isar_diary_repository.dart';
 import 'package:diary/data/settings_store.dart';
-import 'package:diary/domain/demo_data.dart';
 
 class MyApp extends StatefulWidget {
   const MyApp({this.repository, this.settingsStore, super.key});
@@ -52,8 +51,7 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    final activeRepository =
-        widget.repository ?? MemoryDiaryRepository(demoEntries);
+    final activeRepository = widget.repository ?? MemoryDiaryRepository();
     final settings = _settingsController.settings;
     return MaterialApp(
       title: '此刻 · diary',
@@ -110,13 +108,11 @@ class _DiaryBootstrapAppState extends State<DiaryBootstrapApp> {
 
   Future<DiaryRepository> _openRepository() async {
     try {
-      return await IsarDiaryRepository.open(
-        initialEntries: demoEntries,
-      ).timeout(const Duration(seconds: 8));
-    } on Object {
-      final fallback = SharedPreferencesDiaryRepository(
-        initialEntries: demoEntries,
+      return await IsarDiaryRepository.open().timeout(
+        const Duration(seconds: 8),
       );
+    } on Object {
+      final fallback = SharedPreferencesDiaryRepository();
       await fallback.load();
       return fallback;
     }

@@ -2,7 +2,16 @@ import 'package:diary/domain/diary_entry.dart';
 
 enum DiaryThemeMode { system, light, dark }
 
-enum DiaryThemePreset { warmPaper, mistBlue, evergreen, lavender }
+enum DiaryThemePreset {
+  warmPaper,
+  carbon,
+  deepSea,
+  pine,
+  dusk,
+  terracotta,
+  roseMist,
+  moonstone,
+}
 
 enum QuickCaptureSide { left, right }
 
@@ -111,12 +120,20 @@ extension DiaryThemePresetCodec on DiaryThemePreset {
     switch (this) {
       case DiaryThemePreset.warmPaper:
         return '暖纸';
-      case DiaryThemePreset.mistBlue:
-        return '雾蓝';
-      case DiaryThemePreset.evergreen:
-        return '森林';
-      case DiaryThemePreset.lavender:
-        return '紫雾';
+      case DiaryThemePreset.carbon:
+        return '碳黑';
+      case DiaryThemePreset.deepSea:
+        return '深海';
+      case DiaryThemePreset.pine:
+        return '松针';
+      case DiaryThemePreset.dusk:
+        return '暮紫';
+      case DiaryThemePreset.terracotta:
+        return '赤陶';
+      case DiaryThemePreset.roseMist:
+        return '雾玫';
+      case DiaryThemePreset.moonstone:
+        return '月岩';
     }
   }
 
@@ -124,12 +141,20 @@ extension DiaryThemePresetCodec on DiaryThemePreset {
     switch (this) {
       case DiaryThemePreset.warmPaper:
         return '温柔、纸感的暖杏色';
-      case DiaryThemePreset.mistBlue:
-        return '清爽、克制的蓝灰色';
-      case DiaryThemePreset.evergreen:
-        return '安静、自然的深绿色';
-      case DiaryThemePreset.lavender:
-        return '轻盈、柔和的紫灰色';
+      case DiaryThemePreset.carbon:
+        return '中性石墨与柔和琥珀';
+      case DiaryThemePreset.deepSea:
+        return '清透蓝灰与深海蓝';
+      case DiaryThemePreset.pine:
+        return '安静松绿与鼠尾草';
+      case DiaryThemePreset.dusk:
+        return '柔雾紫灰与暮色紫';
+      case DiaryThemePreset.terracotta:
+        return '暖灰底上的赤陶色';
+      case DiaryThemePreset.roseMist:
+        return '克制粉灰与雾玫瑰';
+      case DiaryThemePreset.moonstone:
+        return '冷调月岩与银蓝色';
     }
   }
 

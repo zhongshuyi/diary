@@ -1,4 +1,3 @@
-import '../domain/demo_data.dart';
 import '../domain/conflict.dart';
 import '../domain/diary_entry.dart';
 import '../domain/outbox_mutation.dart';
@@ -13,7 +12,9 @@ class IsarDiaryRepository extends DiaryRepository {
     String? directoryPath,
   }) async {
     final delegate = SharedPreferencesDiaryRepository(
-      initialEntries: (initialEntries ?? demoEntries).toList(growable: false),
+      initialEntries: (initialEntries ?? const <DiaryEntry>[]).toList(
+        growable: false,
+      ),
     );
     await delegate.load();
     return IsarDiaryRepository._(delegate);

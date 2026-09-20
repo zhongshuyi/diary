@@ -321,27 +321,42 @@ class SettingsPage extends StatelessWidget {
     final value = await showModalBottomSheet<DiaryThemePreset>(
       context: context,
       showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('主题配色', style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 4),
-              Text(
-                '会同时应用到时间线、对话和编辑页面。',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 12),
-              for (final preset in DiaryThemePreset.values)
-                _ThemePresetTile(
-                  preset: preset,
-                  selected: preset == current,
-                  onTap: () => Navigator.pop(context, preset),
+      isScrollControlled: true,
+      builder: (context) => FractionallySizedBox(
+        heightFactor: .8,
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('主题配色', style: Theme.of(context).textTheme.titleLarge),
+                const SizedBox(height: 4),
+                Text(
+                  '每套配色都有明亮与黑暗模式，会同时应用到时间线、对话和编辑页面。',
+                  style: Theme.of(context).textTheme.bodyMedium,
                 ),
-            ],
+                const SizedBox(height: 16),
+                Expanded(
+                  child: GridView.count(
+                    key: const Key('theme-preset-grid'),
+                    crossAxisCount: 2,
+                    mainAxisSpacing: 10,
+                    crossAxisSpacing: 10,
+                    mainAxisExtent: 172,
+                    children: [
+                      for (final preset in DiaryThemePreset.values)
+                        _ThemePresetTile(
+                          preset: preset,
+                          selected: preset == current,
+                          onTap: () => Navigator.pop(context, preset),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -945,44 +960,79 @@ class _ThemePresetTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = DiaryThemeColors.of(context);
-    final preview = DiaryThemeColors.lightFor(preset);
-    final radius = BorderRadius.circular(16);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
+    final radius = BorderRadius.circular(14);
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: '${preset.label}主题配色',
       child: Material(
-        color: selected
-            ? colors.terracotta.withValues(alpha: .12)
-            : colors.paper,
-        borderRadius: radius,
+        color: colors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: radius,
+          side: BorderSide(
+            color: selected ? colors.terracotta : colors.line,
+            width: selected ? 2 : 1,
+          ),
+        ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           key: ValueKey('settings-theme-preset-${preset.wireValue}'),
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-            child: Row(
+            padding: const EdgeInsets.all(10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _ThemePresetSwatch(colors: preview),
-                const SizedBox(width: 13),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
+                _ThemePresetSwatch(
+                  light: DiaryThemeColors.lightFor(preset),
+                  dark: DiaryThemeColors.darkFor(preset),
+                ),
+                const SizedBox(height: 9),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
                         preset.label,
                         style: Theme.of(context).textTheme.titleMedium,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        preset.description,
-                        style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    if (preset == DiaryThemePreset.warmPaper)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: colors.terracottaSoft,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '默认',
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(color: colors.ink, letterSpacing: 0),
+                        ),
+                      )
+                    else
+                      Icon(
+                        selected
+                            ? Icons.check_circle_rounded
+                            : Icons.radio_button_unchecked_rounded,
+                        size: 18,
+                        color: selected ? colors.terracotta : colors.mutedInk,
                       ),
-                    ],
-                  ),
+                  ],
                 ),
-                Icon(
-                  selected ? Icons.check_circle : Icons.radio_button_unchecked,
-                  color: selected ? colors.terracotta : colors.mutedInk,
+                const SizedBox(height: 2),
+                Text(
+                  preset.description,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colors.mutedInk,
+                    height: 1.25,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -994,44 +1044,79 @@ class _ThemePresetTile extends StatelessWidget {
 }
 
 class _ThemePresetSwatch extends StatelessWidget {
-  const _ThemePresetSwatch({required this.colors});
+  const _ThemePresetSwatch({required this.light, required this.dark});
 
-  final DiaryThemeColors colors;
+  final DiaryThemeColors light;
+  final DiaryThemeColors dark;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 50,
-      height: 34,
-      child: Stack(
-        children: [
-          _SwatchDot(color: colors.paper, left: 0),
-          _SwatchDot(color: colors.terracottaSoft, left: 12),
-          _SwatchDot(color: colors.terracotta, left: 24),
-        ],
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: SizedBox(
+        height: 58,
+        width: double.infinity,
+        child: Stack(
+          children: [
+            Row(
+              children: [
+                Expanded(child: ColoredBox(color: light.paper)),
+                Expanded(child: ColoredBox(color: dark.paper)),
+              ],
+            ),
+            Positioned(
+              left: 11,
+              top: 11,
+              child: _SwatchSurface(
+                background: light.surface,
+                accent: light.terracotta,
+                line: light.line,
+              ),
+            ),
+            Positioned(
+              right: 11,
+              top: 11,
+              child: _SwatchSurface(
+                background: dark.surface,
+                accent: dark.terracotta,
+                line: dark.line,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _SwatchDot extends StatelessWidget {
-  const _SwatchDot({required this.color, required this.left});
+class _SwatchSurface extends StatelessWidget {
+  const _SwatchSurface({
+    required this.background,
+    required this.accent,
+    required this.line,
+  });
 
-  final Color color;
-  final double left;
+  final Color background;
+  final Color accent;
+  final Color line;
 
   @override
   Widget build(BuildContext context) {
-    return Positioned(
-      left: left,
-      top: 4,
-      child: Container(
-        width: 26,
-        height: 26,
-        decoration: BoxDecoration(
-          color: color,
-          shape: BoxShape.circle,
-          border: Border.all(color: DiaryThemeColors.of(context).surface),
+    return Container(
+      width: 48,
+      height: 36,
+      padding: const EdgeInsets.all(7),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: line),
+      ),
+      child: Align(
+        alignment: Alignment.bottomRight,
+        child: Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
         ),
       ),
     );
