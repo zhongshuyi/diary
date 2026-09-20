@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 
 import 'package:diary/app/app_routes.dart';
 import 'package:diary/app/app_theme.dart';
@@ -29,6 +28,7 @@ import 'package:diary/pages/settings/backup_page.dart';
 import 'package:diary/pages/settings/category_page.dart';
 import 'package:diary/pages/settings/settings_page.dart';
 import 'package:diary/pages/share/share_page.dart';
+import 'package:diary/widgets/in_app_photo_picker.dart';
 
 bool diaryUsesDesktopShell(BuildContext context) {
   final mobilePlatform =
@@ -605,14 +605,10 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
   }
 
   Future<void> _pickProfileAvatar() async {
-    widget.lockCoordinator.beginExternalActivity();
     try {
-      final photo = await ImagePicker().pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 92,
-      );
-      if (photo == null) return;
-      final storedPath = await _profileAvatarStore.importFile(photo.path);
+      final photos = await pickDiaryPhotos(context, maxAssets: 1);
+      if (photos.isEmpty) return;
+      final storedPath = await _profileAvatarStore.importFile(photos.single);
       await widget.settingsController.setProfileAvatarPath(storedPath);
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -623,8 +619,6 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('头像更新失败，请重试')));
-    } finally {
-      widget.lockCoordinator.endExternalActivity();
     }
   }
 

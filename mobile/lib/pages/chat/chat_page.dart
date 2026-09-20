@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -11,6 +9,7 @@ import 'package:diary/app/app_theme.dart';
 import 'package:diary/domain/diary_entry.dart';
 import 'package:diary/domain/diary_settings.dart';
 import 'package:diary/widgets/diary_audio_player.dart';
+import 'package:diary/widgets/diary_avatar.dart';
 import 'package:diary/widgets/diary_chat_background.dart';
 import 'package:diary/widgets/diary_image_viewer.dart';
 import 'package:diary/widgets/diary_video_player.dart';
@@ -653,9 +652,10 @@ class _ChatEntryBubble extends StatelessWidget {
           ),
           if (showChatAvatar) ...[
             const SizedBox(width: 8),
-            _ChatProfileAvatar(
-              entryId: entry.id,
-              profileAvatarPath: profileAvatarPath,
+            DiaryAvatar(
+              key: ValueKey('chat-profile-avatar-${entry.id}'),
+              imagePath: profileAvatarPath,
+              size: 40,
             ),
           ],
         ],
@@ -704,44 +704,14 @@ class _ChatImageMessage extends StatelessWidget {
           ),
           if (showChatAvatar) ...[
             const SizedBox(width: 8),
-            _ChatProfileAvatar(
-              entryId: entry.id,
-              profileAvatarPath: profileAvatarPath,
+            DiaryAvatar(
+              key: ValueKey('chat-profile-avatar-${entry.id}'),
+              imagePath: profileAvatarPath,
+              size: 40,
             ),
           ],
         ],
       ),
-    );
-  }
-}
-
-class _ChatProfileAvatar extends StatelessWidget {
-  const _ChatProfileAvatar({
-    required this.entryId,
-    required this.profileAvatarPath,
-  });
-
-  final String entryId;
-  final String? profileAvatarPath;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = DiaryThemeColors.of(context);
-    final path = profileAvatarPath?.trim();
-    return Container(
-      key: ValueKey('chat-profile-avatar-$entryId'),
-      width: 32,
-      height: 32,
-      decoration: BoxDecoration(color: colors.butter, shape: BoxShape.circle),
-      clipBehavior: Clip.antiAlias,
-      child: path == null || path.isEmpty
-          ? Icon(Icons.person_outline, size: 18, color: colors.ink)
-          : Image.file(
-              File(path),
-              fit: BoxFit.cover,
-              errorBuilder: (_, _, _) =>
-                  Icon(Icons.person_outline, size: 18, color: colors.ink),
-            ),
     );
   }
 }
