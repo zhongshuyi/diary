@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 
 import 'package:diary/app/app_theme.dart';
 import 'package:diary/application/timeline_reflection.dart';
+import 'package:diary/application/weekly_summary.dart';
 import 'package:diary/domain/diary_entry.dart';
 
 class TimelineReflectionSection extends StatelessWidget {
   const TimelineReflectionSection({
     required this.reflection,
+    required this.weeklySummary,
     required this.randomRotation,
     required this.onOpenEntry,
     required this.onRotateRandom,
@@ -14,6 +16,7 @@ class TimelineReflectionSection extends StatelessWidget {
   });
 
   final TimelineReflection reflection;
+  final WeeklySummary? weeklySummary;
   final int randomRotation;
   final ValueChanged<DiaryEntry> onOpenEntry;
   final VoidCallback onRotateRandom;
@@ -22,7 +25,10 @@ class TimelineReflectionSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final onThisDay = reflection.featuredOnThisDay;
     final random = reflection.randomEntryAt(randomRotation);
-    if (onThisDay == null && random == null) return const SizedBox.shrink();
+    final summary = weeklySummary;
+    if (onThisDay == null && random == null && summary == null) {
+      return const SizedBox.shrink();
+    }
 
     final colors = DiaryThemeColors.of(context);
     final hasMultipleOnThisDay = reflection.onThisDayEntries.length > 1;
@@ -58,7 +64,7 @@ class TimelineReflectionSection extends StatelessWidget {
                     )
                   : const Icon(Icons.chevron_right_rounded),
             ),
-          if (onThisDay != null && random != null)
+          if (onThisDay != null && (random != null || summary != null))
             Divider(height: 1, indent: 56, color: colors.line),
           if (random != null)
             _ReflectionRow(
@@ -76,6 +82,24 @@ class TimelineReflectionSection extends StatelessWidget {
                     : null,
                 tooltip: '换一条',
                 icon: const Icon(Icons.refresh_rounded, size: 19),
+              ),
+            ),
+          if (random != null && summary != null)
+            Divider(height: 1, indent: 56, color: colors.line),
+          if (summary != null)
+            _ReflectionRow(
+              rowKey: const Key('timeline-weekly-summary'),
+              icon: Icons.calendar_view_week_outlined,
+              label: '上周小结',
+              summary:
+                  '写下 ${summary.recordedDayCount} 天 · ${summary.wordCount} 字',
+              semanticLabel:
+                  '上周小结，写下 ${summary.recordedDayCount} 天，${summary.wordCount} 字',
+              onTap: () => _showWeeklySummary(context, summary),
+              action: TextButton(
+                key: const Key('timeline-weekly-summary-open'),
+                onPressed: () => _showWeeklySummary(context, summary),
+                child: const Text('查看'),
               ),
             ),
         ],
@@ -126,6 +150,119 @@ class TimelineReflectionSection extends StatelessWidget {
       ),
     );
   }
+
+  Future<void> _showWeeklySummary(BuildContext context, WeeklySummary summary) {
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => FractionallySizedBox(
+        heightFactor: .72,
+        child: SafeArea(
+          key: const Key('timeline-weekly-summary-sheet'),
+          child: ListView.separated(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+            itemCount: summary.entries.length + 2,
+            separatorBuilder: (_, index) =>
+                index == 1 ? const SizedBox(height: 10) : const Divider(),
+            itemBuilder: (context, index) {
+              if (index == 0) {
+                return _WeeklySummaryHeader(summary: summary);
+              }
+              if (index == 1) {
+                return Text(
+                  '这周片段',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                );
+              }
+              final entry = summary.entries[index - 2];
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(reflectionSummary(entry), maxLines: 1),
+                subtitle: Text(
+                  '${_dateLabel(entry.effectiveOccurredAt)} · ${entry.category}',
+                ),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  onOpenEntry(entry);
+                },
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WeeklySummaryHeader extends StatelessWidget {
+  const _WeeklySummaryHeader({required this.summary});
+
+  final WeeklySummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('上周小结', style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 4),
+        Text(
+          '${_dateLabel(summary.start)} – ${_dateLabel(summary.end)}',
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: colors.mutedInk),
+        ),
+        const SizedBox(height: 14),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _WeeklyMetric(label: '${summary.recordedDayCount} 天记录'),
+            _WeeklyMetric(label: '${summary.wordCount} 字'),
+            _WeeklyMetric(label: '心情 ${(summary.averageMood * 100).round()}%'),
+            _WeeklyMetric(label: '常写 · ${summary.topCategory}'),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _WeeklyMetric extends StatelessWidget {
+  const _WeeklyMetric({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.hero.withValues(alpha: .08),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        child: Text(
+          label,
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+            color: colors.mutedInk,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _dateLabel(DateTime value) {
+  final local = value.toLocal();
+  return '${local.month}月${local.day}日';
 }
 
 class _ReflectionRow extends StatelessWidget {

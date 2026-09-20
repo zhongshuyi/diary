@@ -162,6 +162,64 @@ void main() {
     );
   });
 
+  testWidgets('shows a prior-week summary with every qualifying entry', (
+    tester,
+  ) async {
+    final today = DateTime.now();
+    final currentWeekStart = DateTime(
+      today.year,
+      today.month,
+      today.day,
+    ).subtract(Duration(days: today.weekday - 1));
+    final priorWeekStart = currentWeekStart.subtract(const Duration(days: 7));
+
+    await tester.pumpWidget(
+      homeWithEntries([
+        entry(
+          'prior-week-first',
+          title: '周报片段甲',
+          occurredAt: priorWeekStart.add(const Duration(days: 1)),
+          category: '生活',
+        ),
+        entry(
+          'prior-week-second',
+          title: '周报片段乙',
+          occurredAt: priorWeekStart.add(const Duration(days: 4)),
+          category: '阅读',
+        ),
+        entry('this-week', title: '不应计入', occurredAt: today),
+      ]),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('timeline-weekly-summary')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('timeline-weekly-summary')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('timeline-weekly-summary-sheet')),
+      findsOneWidget,
+    );
+    final sheet = find.byKey(const Key('timeline-weekly-summary-sheet'));
+    expect(
+      find.descendant(of: sheet, matching: find.text('上周小结')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: sheet, matching: find.text('周报片段甲')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: sheet, matching: find.text('周报片段乙')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: sheet, matching: find.text('不应计入')),
+      findsNothing,
+    );
+  });
+
   testWidgets('hides reflections for search and applies mobile date filters', (
     tester,
   ) async {

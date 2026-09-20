@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:diary/app/app_theme.dart';
 import 'package:diary/application/home_timeline_filter.dart';
 import 'package:diary/application/timeline_reflection.dart';
+import 'package:diary/application/weekly_summary.dart';
 import 'package:diary/domain/diary_entry.dart';
 import 'package:diary/domain/sync_state.dart';
 import 'package:diary/pages/home/home_filter_sheet.dart';
@@ -114,9 +115,14 @@ class HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     final colors = DiaryThemeColors.of(context);
     final entries = _filteredEntries;
+    final now = DateTime.now();
     final reflection = calculateTimelineReflection(
       entries: widget.entries,
-      now: DateTime.now(),
+      now: now,
+    );
+    final weeklySummary = calculateWeeklySummary(
+      entries: widget.entries,
+      now: now,
     );
     final categories =
         <String>{
@@ -133,7 +139,15 @@ class HomePageState extends State<HomePage> {
     if (widget.desktopLayout) {
       return _buildDesktop(context, entries, categories, tags);
     }
-    return _buildMobile(context, entries, categories, tags, colors, reflection);
+    return _buildMobile(
+      context,
+      entries,
+      categories,
+      tags,
+      colors,
+      reflection,
+      weeklySummary,
+    );
   }
 
   Widget _buildMobile(
@@ -143,6 +157,7 @@ class HomePageState extends State<HomePage> {
     List<String> tags,
     DiaryThemeColors colors,
     TimelineReflection reflection,
+    WeeklySummary? weeklySummary,
   ) {
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 22, 16, 110),
@@ -252,10 +267,12 @@ class HomePageState extends State<HomePage> {
               ),
               if (!_filter.hidesReflections &&
                   (reflection.featuredOnThisDay != null ||
-                      reflection.randomEntryAt(_randomRotation) != null)) ...[
+                      reflection.randomEntryAt(_randomRotation) != null ||
+                      weeklySummary != null)) ...[
                 const SizedBox(height: 12),
                 TimelineReflectionSection(
                   reflection: reflection,
+                  weeklySummary: weeklySummary,
                   randomRotation: _randomRotation,
                   onOpenEntry: widget.onOpenEntry,
                   onRotateRandom: () => setState(() => _randomRotation += 1),
