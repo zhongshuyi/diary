@@ -181,6 +181,32 @@ void main() {
     expect(tester.getCenter(button).dx, lessThan(400));
   });
 
+  testWidgets('saving a chat title does not replace the app theme mid-dialog', (
+    tester,
+  ) async {
+    final store = _TestSettingsStore();
+    await tester.pumpWidget(MyApp(settingsStore: store));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('我的'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('偏好设置'));
+    await tester.tap(find.text('偏好设置'));
+    await tester.pumpAndSettle();
+
+    final chatTitleSetting = find.text('对话顶部名称');
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -160));
+    await tester.pumpAndSettle();
+    await tester.tap(chatTitleSetting);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '晚安日记');
+    await tester.tap(find.widgetWithText(FilledButton, '保存'));
+    await tester.pumpAndSettle();
+
+    expect(store.value.chatTitle, '晚安日记');
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('keeps the desktop shell when its window is narrow', (
     tester,
   ) async {

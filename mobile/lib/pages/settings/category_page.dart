@@ -76,7 +76,6 @@ class _CategoryPageState extends State<CategoryPage> {
                       ),
                     ),
                     title: Text(category),
-                    subtitle: Text('用于整理日记与回顾'),
                     trailing: IconButton(
                       onPressed: () => _renameCategory(category),
                       icon: Icon(Icons.edit_outlined, color: colors.mutedInk),
@@ -126,11 +125,6 @@ class _CategoryPageState extends State<CategoryPage> {
                     ),
             ),
           ),
-          const SizedBox(height: 12),
-          Text(
-            '提示：新分类会从下一篇日记开始使用。',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
         ],
       ),
     );
@@ -179,8 +173,9 @@ class _CategoryPageState extends State<CategoryPage> {
 
   Future<void> _addTag() async {
     final name = await _askForName('新增标签');
-    if (name != null && name.isNotEmpty && !_tags.contains(name))
+    if (name != null && name.isNotEmpty && !_tags.contains(name)) {
       setState(() => _tags.add(name));
+    }
   }
 }
 

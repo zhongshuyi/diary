@@ -14,6 +14,7 @@ const {
   moveEntryToTrash,
   restoreEntry,
   deleteEntryPermanently,
+  clearTrash,
   searchEntries,
   listTaxonomyUsage,
   batchSetFavorite,
@@ -55,11 +56,11 @@ function sampleEntry(overrides = {}) {
   };
 }
 
-test('initializes the v2 schema and starts empty', () => {
+test('initializes the v3 schema and starts empty', () => {
   const db = openDatabase(':memory:');
   try {
     initializeDatabase(db);
-    assert.equal(db.prepare("SELECT value FROM app_meta WHERE key = 'schema_version'").get().value, '2');
+    assert.equal(db.prepare("SELECT value FROM app_meta WHERE key = 'schema_version'").get().value, '3');
     assert.equal(db.prepare("SELECT name FROM sqlite_master WHERE name = 'attachments'").get().name, 'attachments');
     assert.deepEqual(listEntries(db), []);
   } finally {
@@ -71,12 +72,14 @@ test('commits an entry and its outbox mutation atomically', () => {
   const db = openDatabase(':memory:');
   try {
     initializeDatabase(db);
-    createOrUpdateEntry(db, sampleEntry(), { deviceId: 'desktop-1' });
+    createOrUpdateEntry(db, sampleEntry({ moodLabel: '平静' }), { deviceId: 'desktop-1' });
     assert.equal(listEntries(db).length, 1);
+    assert.equal(listEntries(db)[0].moodLabel, '平静');
     const mutations = listPendingMutations(db);
     assert.equal(mutations.length, 1);
     assert.equal(mutations[0].entry.id, 'entry-1');
     assert.match(mutations[0].mutationId, /^desktop-1:entry-1:/);
+    assert.equal(mutations[0].entry.moodLabel, '平静');
   } finally {
     closeDatabase(db);
   }
@@ -144,17 +147,51 @@ test('moves an entry to trash and restores it through the same outbox transactio
   }
 });
 
-test('permanently deletes a trashed entry and its search and outbox records atomically', () => {
+test('permanently deletes a trashed entry and queues a synchronized tombstone atomically', () => {
   const db = openDatabase(':memory:');
   try {
     initializeDatabase(db);
     createOrUpdateEntry(db, sampleEntry(), { deviceId: 'desktop-1' });
     moveEntryToTrash(db, 'entry-1', { deviceId: 'desktop-1' });
-    assert.equal(deleteEntryPermanently(db, 'entry-1'), true);
+    assert.equal(deleteEntryPermanently(db, 'entry-1', { deviceId: 'desktop-1', updatedAt: '2026-09-16T09:00:00.000Z' }), true);
     assert.deepEqual(listEntries(db, { includeTrash: true }), []);
-    assert.deepEqual(listPendingMutations(db), []);
+    const [mutation] = listPendingMutations(db);
+    assert.equal(mutation.entry.isDeleted, true);
+    assert.equal(mutation.entry.id, 'entry-1');
     assert.equal(db.prepare('SELECT COUNT(*) AS count FROM entry_search WHERE id = ?').get('entry-1').count, 0);
     assert.equal(deleteEntryPermanently(db, 'missing'), false);
+  } finally {
+    closeDatabase(db);
+  }
+});
+
+test('clears only trashed records and queues a tombstone for each one', () => {
+  const db = openDatabase(':memory:');
+  try {
+    initializeDatabase(db);
+    createOrUpdateEntry(db, sampleEntry({ id: 'keep' }), { deviceId: 'desktop-1' });
+    createOrUpdateEntry(db, sampleEntry({ id: 'trash-one' }), { deviceId: 'desktop-1' });
+    createOrUpdateEntry(db, sampleEntry({ id: 'trash-two' }), { deviceId: 'desktop-1' });
+    moveEntryToTrash(db, 'trash-one', { deviceId: 'desktop-1' });
+    moveEntryToTrash(db, 'trash-two', { deviceId: 'desktop-1' });
+
+    assert.equal(clearTrash(db, { deviceId: 'desktop-1', updatedAt: '2026-09-16T09:00:00.000Z' }), 2);
+    assert.deepEqual(listEntries(db, { includeTrash: true }).map((entry) => entry.id), ['keep']);
+    assert.equal(listPendingMutations(db).filter((mutation) => mutation.entry.isDeleted).length, 2);
+  } finally {
+    closeDatabase(db);
+  }
+});
+
+test('removes a local record when sync receives a permanent deletion tombstone', () => {
+  const db = openDatabase(':memory:');
+  try {
+    initializeDatabase(db);
+    createOrUpdateEntry(db, sampleEntry(), { deviceId: 'desktop-1' });
+    applySyncResult(db, {
+      changes: [{ entry: sampleEntry({ isDeleted: true, isInTrash: true, deletedAt: '2026-09-16T09:00:00.000Z', updatedAt: '2026-09-16T09:00:00.000Z' }) }],
+    });
+    assert.deepEqual(listEntries(db, { includeTrash: true }), []);
   } finally {
     closeDatabase(db);
   }

@@ -10,6 +10,7 @@ import 'package:diary/data/diary_repository.dart';
 import 'package:diary/data/isar_diary_repository.dart';
 import 'package:diary/data/local_daily_reminder_scheduler.dart';
 import 'package:diary/data/settings_store.dart';
+import 'package:diary/domain/diary_settings.dart';
 
 class MyApp extends StatefulWidget {
   const MyApp({this.repository, this.settingsStore, super.key});
@@ -23,19 +24,22 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   late final SettingsController _settingsController;
+  late _AppPresentationSettings _presentationSettings;
   final _lockCoordinator = DiaryLockCoordinator();
 
   @override
   void initState() {
     super.initState();
-    _settingsController =
-        SettingsController(
-            store:
-                widget.settingsStore ?? SharedPreferencesDiarySettingsStore(),
-            dailyReminderScheduler: LocalDailyReminderScheduler(),
-          )
-          ..addListener(_onSettingsChanged)
-          ..initialize();
+    _settingsController = SettingsController(
+      store: widget.settingsStore ?? SharedPreferencesDiarySettingsStore(),
+      dailyReminderScheduler: LocalDailyReminderScheduler(),
+    );
+    _presentationSettings = _AppPresentationSettings.from(
+      _settingsController.settings,
+    );
+    _settingsController
+      ..addListener(_onSettingsChanged)
+      ..initialize();
   }
 
   @override
@@ -48,13 +52,19 @@ class _MyAppState extends State<MyApp> {
   }
 
   void _onSettingsChanged() {
-    if (mounted) setState(() {});
+    final next = _AppPresentationSettings.from(_settingsController.settings);
+    if (next == _presentationSettings) return;
+    if (mounted) {
+      setState(() => _presentationSettings = next);
+    } else {
+      _presentationSettings = next;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final activeRepository = widget.repository ?? MemoryDiaryRepository();
-    final settings = _settingsController.settings;
+    final settings = _presentationSettings;
     return MaterialApp(
       title: '此刻 · diary',
       debugShowCheckedModeBanner: false,
@@ -90,6 +100,44 @@ class _MyAppState extends State<MyApp> {
       ),
     );
   }
+}
+
+/// Settings that affect widgets above the app navigator. Updating an ordinary
+/// preference (such as a chat title) must not replace inherited themes while a
+/// dialog route is still closing.
+class _AppPresentationSettings {
+  const _AppPresentationSettings({
+    required this.themeMode,
+    required this.themePreset,
+    required this.customThemeColor,
+    required this.fontScale,
+  });
+
+  factory _AppPresentationSettings.from(DiarySettings settings) {
+    return _AppPresentationSettings(
+      themeMode: settings.themeMode,
+      themePreset: settings.themePreset,
+      customThemeColor: settings.customThemeColor,
+      fontScale: settings.fontScale,
+    );
+  }
+
+  final DiaryThemeMode themeMode;
+  final DiaryThemePreset themePreset;
+  final int? customThemeColor;
+  final double fontScale;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _AppPresentationSettings &&
+      other.themeMode == themeMode &&
+      other.themePreset == themePreset &&
+      other.customThemeColor == customThemeColor &&
+      other.fontScale == fontScale;
+
+  @override
+  int get hashCode =>
+      Object.hash(themeMode, themePreset, customThemeColor, fontScale);
 }
 
 /// Opens the platform repository after the first Flutter frame is available.

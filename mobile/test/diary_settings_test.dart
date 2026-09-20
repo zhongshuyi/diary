@@ -212,7 +212,7 @@ void main() {
     );
 
     expect(find.byKey(const Key('settings-show-chat-avatar')), findsOneWidget);
-    expect(find.text('在对话中显示头像'), findsOneWidget);
+    expect(find.text('在每条对话消息旁显示你的头像'), findsOneWidget);
   });
 
   test(
@@ -653,14 +653,38 @@ void main() {
       240,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.drag(find.byType(Scrollable).first, const Offset(0, -160));
-    await tester.pumpAndSettle();
-    expect(find.text('数据'), findsOneWidget);
-    await tester.tap(find.byKey(const Key('settings-sync')));
+    final syncSetting = find.byKey(const Key('settings-sync'));
+    await tester.ensureVisible(syncSetting);
+    await tester.tap(syncSetting);
     await tester.pumpAndSettle();
 
     expect(find.text('连接设置'), findsOneWidget);
     expect(find.text('服务器地址'), findsOneWidget);
+  });
+
+  testWidgets('chat avatar visibility can be switched in settings', (
+    tester,
+  ) async {
+    final store = _MemorySettingsStore();
+    final controller = SettingsController(store: store);
+    await controller.initialize();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DiaryTheme.light,
+        home: SettingsPage(controller: controller),
+      ),
+    );
+    final avatarToggle = find.byKey(const Key('settings-show-chat-avatar'));
+    await tester.scrollUntilVisible(
+      avatarToggle,
+      160,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.ensureVisible(avatarToggle);
+    await tester.tap(avatarToggle);
+    await tester.pump();
+
+    expect(store.value.showChatAvatar, isFalse);
   });
 
   testWidgets('chat background picker imports and stores the selected photo', (
