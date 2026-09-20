@@ -258,7 +258,7 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
           openConflicts: _openConflicts,
           batchSetFavorite: (ids, value) =>
               _controller.batchSetFavorite(ids, value),
-          batchMoveToTrash: (ids) => _controller.batchMoveToTrash(ids),
+          batchMoveToTrash: _batchMoveToTrash,
         );
         if (desktop) {
           return DesktopDiaryShell(
@@ -517,9 +517,32 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
   Future<void> _moveToTrash(DiaryEntry entry) async {
     await _controller.moveToTrash(entry);
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('日记已移入回收站')));
+    _showTrashFeedback(1);
+  }
+
+  Future<void> _batchMoveToTrash(Iterable<String> ids) async {
+    final selectedIds = ids.toSet();
+    if (selectedIds.isEmpty) return;
+    await _controller.batchMoveToTrash(selectedIds);
+    if (!mounted) return;
+    _showTrashFeedback(selectedIds.length);
+  }
+
+  void _showTrashFeedback(int count) {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.clearSnackBars();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          count == 1 ? '已移入回收站，可随时恢复' : '已移入回收站，共 $count 篇',
+        ),
+        duration: const Duration(seconds: 2),
+        action: SnackBarAction(
+          label: '查看',
+          onPressed: () => unawaited(_openRecycle()),
+        ),
+      ),
+    );
   }
 
   Future<void> _restoreFromRecycle(DiaryEntry entry) async {

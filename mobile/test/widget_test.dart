@@ -55,6 +55,88 @@ void main() {
     expect(find.byKey(const Key('desktop-window-bar')), findsNothing);
   });
 
+  testWidgets('replaces queued trash feedback after consecutive deletions', (
+    tester,
+  ) async {
+    final now = DateTime.now();
+    await tester.pumpWidget(
+      MyApp(
+        repository: MemoryDiaryRepository([
+          DiaryEntry(
+            id: 'trash-first',
+            createdAt: now,
+            updatedAt: now,
+            title: '第一篇',
+            content: '第一篇',
+            contentText: '第一篇',
+            category: '生活',
+          ),
+          DiaryEntry(
+            id: 'trash-second',
+            createdAt: now.subtract(const Duration(minutes: 1)),
+            updatedAt: now.subtract(const Duration(minutes: 1)),
+            title: '第二篇',
+            content: '第二篇',
+            contentText: '第二篇',
+            category: '生活',
+          ),
+        ]),
+        settingsStore: _TestSettingsStore(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    for (final title in ['第一篇', '第二篇']) {
+      await tester.tap(find.byTooltip('更多操作：$title'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('移入回收站').last);
+      await tester.pumpAndSettle();
+    }
+
+    expect(find.text('查看'), findsOneWidget);
+    await tester.tap(find.text('查看'));
+    await tester.pumpAndSettle();
+    expect(find.byType(SnackBar), findsNothing);
+  });
+
+  testWidgets('summarizes a multi-select trash action once', (tester) async {
+    final now = DateTime.now();
+    final repository = MemoryDiaryRepository([
+      DiaryEntry(
+        id: 'batch-first',
+        createdAt: now,
+        updatedAt: now,
+        title: '甲',
+        content: '甲',
+        contentText: '甲',
+        category: '生活',
+      ),
+      DiaryEntry(
+        id: 'batch-second',
+        createdAt: now.subtract(const Duration(minutes: 1)),
+        updatedAt: now.subtract(const Duration(minutes: 1)),
+        title: '乙',
+        content: '乙',
+        contentText: '乙',
+        category: '生活',
+      ),
+    ]);
+    await tester.pumpWidget(
+      MyApp(repository: repository, settingsStore: _TestSettingsStore()),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.longPress(find.byKey(const Key('mobile-entry-row-batch-first')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('mobile-entry-row-batch-second')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('移入回收站'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('已移入回收站，共 2 篇'), findsOneWidget);
+    expect(await repository.load(), isEmpty);
+  });
+
   testWidgets('opens the saved chat homepage by default', (tester) async {
     final store = _TestSettingsStore()
       ..value = const DiarySettings(defaultHomeMode: DiaryHomeMode.chat);
