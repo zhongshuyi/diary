@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:diary/app/app_theme.dart';
+import 'package:diary/domain/diary_settings.dart';
 import 'package:diary/main.dart';
 import 'package:diary/widgets/draggable_quick_capture.dart';
 
@@ -68,6 +70,36 @@ void main() {
     expect(rect.top, greaterThanOrEqualTo(16));
     expect(rect.right, lessThanOrEqualTo(320 - 16));
     expect(rect.bottom, lessThanOrEqualTo(480 - 16));
+  });
+
+  testWidgets('uses the active accent and a visible dark outline', (
+    tester,
+  ) async {
+    final colors = DiaryThemeColors.darkFor(DiaryThemePreset.carbon);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DiaryTheme.lightFor(DiaryThemePreset.carbon),
+        darkTheme: DiaryTheme.darkFor(DiaryThemePreset.carbon),
+        themeMode: ThemeMode.dark,
+        home: const Scaffold(
+          body: DraggableQuickCaptureFab(onSubmit: _noopSubmit),
+        ),
+      ),
+    );
+
+    final fab = find.byKey(const Key('floating-quick-capture'));
+    final material = tester.widget<Material>(
+      find.descendant(of: fab, matching: find.byType(Material)),
+    );
+    final shape = material.shape! as RoundedRectangleBorder;
+    final icon = tester.widget<Icon>(
+      find.descendant(of: fab, matching: find.byIcon(Icons.bolt_outlined)),
+    );
+
+    expect(material.color, colors.terracottaSoft);
+    expect(shape.side.color, colors.terracotta);
+    expect(shape.side.width, 1.5);
+    expect(icon.color, colors.terracotta);
   });
 }
 

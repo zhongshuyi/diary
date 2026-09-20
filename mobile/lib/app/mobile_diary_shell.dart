@@ -387,7 +387,9 @@ class _AnimatedTabStackState extends State<_AnimatedTabStack>
     );
     return AnimatedBuilder(
       animation: animation,
-      child: IndexedStack(index: widget.index, children: widget.pages),
+      child: RepaintBoundary(
+        child: IndexedStack(index: widget.index, children: widget.pages),
+      ),
       builder: (context, child) {
         final value = animation.value;
         return Transform.translate(
