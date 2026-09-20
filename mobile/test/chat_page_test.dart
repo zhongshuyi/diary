@@ -182,7 +182,6 @@ void main() {
       const Size.square(40),
     );
   });
-
   testWidgets('a mood can be sent as its own diary record', (tester) async {
     double? sentMood;
     String? sentMoodLabel;
@@ -229,10 +228,37 @@ void main() {
 
     await tester.tap(find.byKey(const Key('chat-add-button')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('照片'));
+    await tester.tap(find.text('从相册添加图片'));
     await tester.pumpAndSettle();
 
     expect(requestedMaximum, 9);
+    expect(find.text('已选 1 张'), findsOneWidget);
+  });
+
+  testWidgets('chat camera option imports a captured photo', (tester) async {
+    var cameraCalls = 0;
+    var externalStarts = 0;
+    var externalEnds = 0;
+    await tester.pumpWidget(
+      _ChatHarness(
+        pickCameraPhoto: () async {
+          cameraCalls++;
+          return 'camera-photo.jpg';
+        },
+        onExternalActivityStart: () => externalStarts++,
+        onExternalActivityEnd: () => externalEnds++,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('chat-add-button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('拍照'));
+    await tester.pumpAndSettle();
+
+    expect(cameraCalls, 1);
+    expect(externalStarts, 1);
+    expect(externalEnds, 1);
     expect(find.text('已选 1 张'), findsOneWidget);
   });
 
@@ -429,22 +455,28 @@ class _ChatHarness extends StatelessWidget {
     this.onSend,
     this.onEdit,
     this.pickGalleryPhotos,
+    this.pickCameraPhoto,
     this.chatTitle = diaryDefaultChatTitle,
     this.chatBackground = const DiaryChatBackground(),
     this.onNavigate,
     this.showChatAvatar = false,
     this.profileAvatarPath,
+    this.onExternalActivityStart,
+    this.onExternalActivityEnd,
   });
 
   final List<DiaryEntry> entries;
   final ChatMessageSender? onSend;
   final Future<void> Function(DiaryEntry entry)? onEdit;
   final Future<List<String>> Function(int maxAssets)? pickGalleryPhotos;
+  final Future<String?> Function()? pickCameraPhoto;
   final String chatTitle;
   final DiaryChatBackground chatBackground;
   final ValueChanged<ChatPageDestination>? onNavigate;
   final bool showChatAvatar;
   final String? profileAvatarPath;
+  final VoidCallback? onExternalActivityStart;
+  final VoidCallback? onExternalActivityEnd;
 
   @override
   Widget build(BuildContext context) {
@@ -465,6 +497,9 @@ class _ChatHarness extends StatelessWidget {
           onOpenEditor: () {},
           onImportAttachments: (paths) async => paths,
           pickGalleryPhotos: pickGalleryPhotos,
+          pickCameraPhoto: pickCameraPhoto,
+          onExternalActivityStart: onExternalActivityStart,
+          onExternalActivityEnd: onExternalActivityEnd,
           onNavigate: onNavigate ?? (_) {},
         ),
       ),

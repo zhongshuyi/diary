@@ -60,6 +60,26 @@ function buildDateTime(day) {
   return Number.isNaN(value.getTime()) ? now.toISOString() : value.toISOString();
 }
 
+function createDeletionTombstone(entry, deviceId) {
+  const deletedAt = new Date().toISOString();
+  return {
+    ...entry,
+    deviceId,
+    updatedAt: deletedAt,
+    deletedAt,
+    title: '',
+    content: '',
+    contentText: '',
+    imagePaths: [],
+    audioPaths: [],
+    videoPaths: [],
+    attachmentIds: [],
+    isInTrash: true,
+    isDeleted: true,
+    revision: Math.max(1, Number(entry.revision) || 1) + 1,
+  };
+}
+
 function previewSnapshot() {
   return {
     entries: loadJson(STORAGE.entries, []),
@@ -140,6 +160,10 @@ const previewDb = {
     const current = previewSnapshot();
     let entries = [...current.entries];
     [...changes.map((change) => change.entry), ...conflicts.map((conflict) => conflict.serverEntry)].filter(Boolean).forEach((remote) => {
+      if (remote.isDeleted) {
+        entries = entries.filter((entry) => entry.id !== remote.id);
+        return;
+      }
       const local = entries.find((entry) => entry.id === remote.id);
       if (!local || new Date(remote.updatedAt) >= new Date(local.updatedAt)) entries = [remote, ...entries.filter((entry) => entry.id !== remote.id)];
     });
@@ -175,8 +199,16 @@ const previewDb = {
     const current = previewSnapshot();
     const entry = current.entries.find((item) => item.id === id);
     if (!entry || !entry.isInTrash) return current;
+    const tombstone = createDeletionTombstone(entry, current.deviceId);
+    const mutation = { mutationId: `${current.deviceId}:${entry.id}:${tombstone.updatedAt}`, entry: tombstone };
     localStorage.setItem(STORAGE.entries, JSON.stringify(current.entries.filter((item) => item.id !== id)));
-    localStorage.setItem(STORAGE.outbox, JSON.stringify(current.outbox.filter((item) => item.entry?.id !== id)));
+    localStorage.setItem(STORAGE.outbox, JSON.stringify([...current.outbox.filter((item) => item.entry?.id !== id), mutation]));
+    return previewSnapshot();
+  },
+  async emptyTrash() {
+    const current = previewSnapshot();
+    const trash = current.entries.filter((entry) => entry.isInTrash);
+    for (const entry of trash) await previewDb.deleteEntry(entry.id);
     return previewSnapshot();
   },
   async batchFavorite(ids, isFavorite) {
@@ -271,7 +303,7 @@ function databaseAPI() {
 }
 
 function defaultDraft(date = new Date()) {
-  return { date: dateKey(date), title: '', content: '', contentText: '', editorType: EDITOR_TYPES.plainText, category: '生活', mood: '0.7', moodSet: false, tags: [] };
+  return { date: dateKey(date), title: '', content: '', contentText: '', editorType: EDITOR_TYPES.plainText, category: '生活', mood: '0.7', moodSet: false, moodLabel: null, tags: [] };
 }
 
 const defaultCategories = ['生活', '灵感', '心情', '工作'];
@@ -442,7 +474,7 @@ function App() {
 
   const openComposer = (date = new Date()) => { setEditingId(null); setAttachments([]); setDraft(defaultDraft(date)); setDraftStatus('idle'); setComposerOpen(true); };
   const findEntry = (id) => stateRef.current.entries.find((item) => item.id === id) || stateRef.current.searchResults?.find((item) => item.id === id);
-  const editEntry = (id) => { const entry = findEntry(id); if (!entry) return; setEditingId(id); setAttachments([...(entry.imagePaths || []), ...(entry.videoPaths || []), ...(entry.audioPaths || [])]); setDraft({ ...defaultDraft(new Date(entry.occurredAt || entry.createdAt)), title: entry.title === '未命名的一刻' ? '' : entry.title, content: entry.content || entry.contentText || '', contentText: entryContentText(entry), editorType: normalizeEditorType(entry.editorType), category: entry.category || '生活', mood: String(entry.mood ?? 0.7), moodSet: entry.moodSet === true || entry.mood !== null, tags: entry.tags || [] }); setDraftStatus('idle'); setComposerOpen(true); };
+  const editEntry = (id) => { const entry = findEntry(id); if (!entry) return; setEditingId(id); setAttachments([...(entry.imagePaths || []), ...(entry.videoPaths || []), ...(entry.audioPaths || [])]); setDraft({ ...defaultDraft(new Date(entry.occurredAt || entry.createdAt)), title: entry.title === '未命名的一刻' ? '' : entry.title, content: entry.content || entry.contentText || '', contentText: entryContentText(entry), editorType: normalizeEditorType(entry.editorType), category: entry.category || '生活', mood: String(entry.mood ?? 0.7), moodSet: entry.moodSet === true || entry.mood !== null, moodLabel: entry.moodLabel || null, tags: entry.tags || [] }); setDraftStatus('idle'); setComposerOpen(true); };
 
   const syncNow = async () => {
     if (stateRef.current.syncing || !stateRef.current.bootstrapped || !stateRef.current.deviceId) return;
@@ -484,7 +516,7 @@ function App() {
   const saveEntry = async ({ inline = false } = {}) => {
     const editorType = normalizeEditorType(draft.editorType);
     const contentText = draftContentText(draft).trim();
-    if (!contentText && attachments.length === 0) { showToast('写几句话，或添加一个附件'); document.querySelector('#inline-content-input, #content-input')?.focus(); return; }
+    if (!contentText && attachments.length === 0 && !draft.moodLabel) { showToast('写几句话、添加附件，或记录此刻心情'); document.querySelector('#inline-content-input, #content-input')?.focus(); return; }
     const current = stateRef.current;
     if (!current.bootstrapped || !current.deviceId) { showToast('本地数据库正在准备，请稍后再试'); return; }
     const existing = current.entries.find((entry) => entry.id === editingId);
@@ -493,7 +525,7 @@ function App() {
     const videoPaths = attachments.filter((path) => mediaKind(path) === 'video');
     const audioPaths = attachments.filter((path) => mediaKind(path) === 'audio');
     const content = editorType === EDITOR_TYPES.richText ? toRichTextContent(draft.content) : String(draft.content || '').trim();
-    const entry = { schemaVersion: 1, id: editingId || createId('entry'), createdAt: existing?.createdAt || buildDateTime(draft.date), occurredAt: buildDateTime(draft.date), updatedAt: now, title: draft.title.trim(), content, contentText, editorType, mood: draft.moodSet ? Number(draft.mood) : null, moodSet: draft.moodSet === true, category: draft.category, tags: draft.tags || existing?.tags || [], imagePaths, audioPaths, videoPaths, weather: existing?.weather || [], positions: existing?.positions || [], latitude: existing?.latitude ?? null, longitude: existing?.longitude ?? null, colorValue: existing?.colorValue || 0xffe4e0ed, isFavorite: existing?.isFavorite || false, isInTrash: false };
+    const entry = { schemaVersion: 1, id: editingId || createId('entry'), createdAt: existing?.createdAt || buildDateTime(draft.date), occurredAt: buildDateTime(draft.date), updatedAt: now, title: draft.title.trim(), content, contentText, editorType, mood: draft.moodSet ? Number(draft.mood) : null, moodSet: draft.moodSet === true, moodLabel: draft.moodLabel || null, category: draft.category, tags: draft.tags || existing?.tags || [], imagePaths, audioPaths, videoPaths, weather: existing?.weather || [], positions: existing?.positions || [], latitude: existing?.latitude ?? null, longitude: existing?.longitude ?? null, colorValue: existing?.colorValue || 0xffe4e0ed, isFavorite: existing?.isFavorite || false, isInTrash: false };
     try {
       const result = await databaseAPI().saveEntry(entry);
       if (!result?.snapshot) throw new Error('本地保存失败');
@@ -598,12 +630,25 @@ function App() {
   };
 
   const permanentlyDelete = async (id) => {
-    if (!window.confirm('永久删除这条记录？正文、搜索索引和待同步变更都会被移除，无法撤销。')) return;
+    if (!window.confirm('永久删除这条记录？删除会同步到所有设备，旧记录不会再次出现，无法撤销。')) return;
     try {
       const result = await databaseAPI().deleteEntry(id);
       applySnapshot(result);
       showToast('记录已永久删除');
+      window.setTimeout(syncNow, 0);
     } catch { showToast('永久删除失败'); }
+  };
+
+  const emptyRecycle = async () => {
+    const count = stateRef.current.entries.filter((entry) => entry.isInTrash).length;
+    if (!count) return;
+    if (!window.confirm(`清空回收站中的 ${count} 条记录？删除会同步到所有设备，无法恢复。`)) return;
+    try {
+      const result = await databaseAPI().emptyTrash?.();
+      applySnapshot(result);
+      showToast('回收站已清空');
+      window.setTimeout(syncNow, 0);
+    } catch { showToast('清空回收站失败'); }
   };
 
   const batchAction = async (action, ids) => {
@@ -724,7 +769,7 @@ function App() {
   if (view === 'conflicts') {
     return <div className="window-shell"><Titlebar theme={theme} onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')} onOpenCommand={() => setCommandOpen(true)} /><div className="app-layout"><SidebarRail view={view} onView={setView} onNew={focusInlineComposer} syncKind={syncState.kind} syncLabel={syncState.label} /><main className="main-area"><ViewTransition view={view}><section className="view-panel"><ConflictView conflicts={conflicts} onResolve={resolveConflictValue} /></section></ViewTransition></main></div>{commandPalette}</div>;
   }
-  return <div className="window-shell"><Titlebar theme={theme} onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')} onOpenCommand={() => setCommandOpen(true)} /><div className="app-layout"><SidebarRail view={view} onView={setView} onNew={focusInlineComposer} syncKind={syncState.kind} syncLabel={syncState.label} /><main className="main-area"><ViewTransition view={view}>{view !== 'timeline' && view !== 'media' && <WorkspaceHeader view={view} entryCount={activeEntries.length} search={search} onSearch={handleSearchChange} onSync={syncNow} onNew={focusInlineComposer} />}{view === 'timeline' && <section className="view-panel desk-view"><TodayView entries={filteredEntries} onEdit={editEntry} onPreview={openMediaViewer} onToggleFavorite={toggleFavorite} onCopy={copyEntry} onTrash={trashEntry} onFocusComposer={focusInlineComposer} composer={{ draft, setDraft, attachments, setAttachments, editing: false, categoryOptions, tagOptions, draftStatus, onSave: () => saveEntry({ inline: true }), onNotify: showToast }} /></section>}{view === 'all' && <section className="view-panel"><EntriesView entries={visibleAllEntries} hasMore={searchActive ? searchHasMore : entryCount > entries.length} loading={searchLoading || loadingMore} searchError={searchError} search={search} filters={searchFilters} categories={categoryOptions} tags={tagOptions} onFiltersChange={setSearchFilters} onClearFilters={clearSearchFilters} onBatchAction={batchAction} onLoadMore={loadMoreEntries} onEdit={editEntry} onPreview={openMediaViewer} onToggleFavorite={toggleFavorite} onCopy={copyEntry} onTrash={trashEntry} /></section>}{view === 'recycle' && <section className="view-panel"><RecycleBinView entries={visibleTrashEntries} search={search} filters={searchFilters} categories={categoryOptions} tags={tagOptions} searchError={searchError} loading={searchLoading} hasMore={searchActive ? searchHasMore : false} onLoadMore={loadMoreEntries} onFiltersChange={setSearchFilters} onClearFilters={clearSearchFilters} onEdit={editEntry} onPreview={openMediaViewer} onRestore={restoreEntry} onDeletePermanent={permanentlyDelete} /></section>}{view === 'tags' && <section className="view-panel"><TagsView entries={entries} taxonomy={taxonomy} categories={categoryOptions} onSelect={selectTag} onSelectCategory={selectCategory} onRenameTag={renameTagValue} onDeleteTag={deleteTagValue} onRenameCategory={renameCategoryValue} onDeleteCategory={deleteCategoryValue} /></section>}{view === 'calendar' && <section className="view-panel"><CalendarView entries={activeEntries} selectedDate={selectedDate} setSelectedDate={setSelectedDate} onNew={openComposer} onEdit={editEntry} onPreview={openMediaViewer} /></section>}{view === 'media' && <section className="view-panel media-view-panel"><LibraryView entries={activeEntries} search={search} onPreview={openMediaViewer} /></section>}{view === 'insights' && <section className="view-panel"><InsightsView entries={activeEntries} /></section>}{view === 'settings' && <section className="view-panel"><SettingsView serverUrl={serverUrl} setServerUrl={setServerUrl} onSave={saveSettings} attachmentHealth={attachmentHealth} onExportBackup={exportBackup} onImportBackup={importBackup} /></section>}{PLACEHOLDERS[view] && <section className="view-panel"><PlaceholderView title={PLACEHOLDERS[view][0]} description={PLACEHOLDERS[view][1]} onBack={() => setView('timeline')} /></section>}</ViewTransition></main></div>{composerOpen && <QuickCapture draft={draft} setDraft={setDraft} attachments={attachments} setAttachments={setAttachments} editing={Boolean(editingId)} categoryOptions={categoryOptions} tagOptions={tagOptions} draftStatus={draftStatus} onSave={saveEntry} onClose={() => setComposerOpen(false)} onNotify={showToast} />}{mediaViewer && <MediaViewer items={mediaViewer.items} activeIndex={mediaViewer.activeIndex} onActiveIndexChange={(activeIndex) => setMediaViewer((current) => current ? { ...current, activeIndex } : null)} onClose={() => setMediaViewer(null)} onOpenEntry={openEntryFromMedia} onRelocate={relocateAttachment} />}{commandPalette}<div className={`toast ${toast.message ? 'show' : ''}`} id="toast" role="status"><span>{toast.message}</span>{toast.action && <button type="button" onClick={async () => { const action = toast.action; setToast({ message: '', action: null }); await action.run?.(); }}>{toast.action.label || '撤销'}</button>}</div></div>;
+  return <div className="window-shell"><Titlebar theme={theme} onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')} onOpenCommand={() => setCommandOpen(true)} /><div className="app-layout"><SidebarRail view={view} onView={setView} onNew={focusInlineComposer} syncKind={syncState.kind} syncLabel={syncState.label} /><main className="main-area"><ViewTransition view={view}>{view !== 'timeline' && view !== 'media' && <WorkspaceHeader view={view} entryCount={activeEntries.length} search={search} onSearch={handleSearchChange} onSync={syncNow} onNew={focusInlineComposer} />}{view === 'timeline' && <section className="view-panel desk-view"><TodayView entries={filteredEntries} onEdit={editEntry} onPreview={openMediaViewer} onToggleFavorite={toggleFavorite} onCopy={copyEntry} onTrash={trashEntry} onFocusComposer={focusInlineComposer} composer={{ draft, setDraft, attachments, setAttachments, editing: false, categoryOptions, tagOptions, draftStatus, onSave: () => saveEntry({ inline: true }), onNotify: showToast }} /></section>}{view === 'all' && <section className="view-panel"><EntriesView entries={visibleAllEntries} hasMore={searchActive ? searchHasMore : entryCount > entries.length} loading={searchLoading || loadingMore} searchError={searchError} search={search} filters={searchFilters} categories={categoryOptions} tags={tagOptions} onFiltersChange={setSearchFilters} onClearFilters={clearSearchFilters} onBatchAction={batchAction} onLoadMore={loadMoreEntries} onEdit={editEntry} onPreview={openMediaViewer} onToggleFavorite={toggleFavorite} onCopy={copyEntry} onTrash={trashEntry} /></section>}{view === 'recycle' && <section className="view-panel"><RecycleBinView entries={visibleTrashEntries} search={search} filters={searchFilters} categories={categoryOptions} tags={tagOptions} searchError={searchError} loading={searchLoading} hasMore={searchActive ? searchHasMore : false} onLoadMore={loadMoreEntries} onFiltersChange={setSearchFilters} onClearFilters={clearSearchFilters} onEdit={editEntry} onPreview={openMediaViewer} onRestore={restoreEntry} onDeletePermanent={permanentlyDelete} onEmpty={emptyRecycle} /></section>}{view === 'tags' && <section className="view-panel"><TagsView entries={entries} taxonomy={taxonomy} categories={categoryOptions} onSelect={selectTag} onSelectCategory={selectCategory} onRenameTag={renameTagValue} onDeleteTag={deleteTagValue} onRenameCategory={renameCategoryValue} onDeleteCategory={deleteCategoryValue} /></section>}{view === 'calendar' && <section className="view-panel"><CalendarView entries={activeEntries} selectedDate={selectedDate} setSelectedDate={setSelectedDate} onNew={openComposer} onEdit={editEntry} onPreview={openMediaViewer} /></section>}{view === 'media' && <section className="view-panel media-view-panel"><LibraryView entries={activeEntries} search={search} onPreview={openMediaViewer} /></section>}{view === 'insights' && <section className="view-panel"><InsightsView entries={activeEntries} /></section>}{view === 'settings' && <section className="view-panel"><SettingsView serverUrl={serverUrl} setServerUrl={setServerUrl} onSave={saveSettings} attachmentHealth={attachmentHealth} onExportBackup={exportBackup} onImportBackup={importBackup} /></section>}{PLACEHOLDERS[view] && <section className="view-panel"><PlaceholderView title={PLACEHOLDERS[view][0]} description={PLACEHOLDERS[view][1]} onBack={() => setView('timeline')} /></section>}</ViewTransition></main></div>{composerOpen && <QuickCapture draft={draft} setDraft={setDraft} attachments={attachments} setAttachments={setAttachments} editing={Boolean(editingId)} categoryOptions={categoryOptions} tagOptions={tagOptions} draftStatus={draftStatus} onSave={saveEntry} onClose={() => setComposerOpen(false)} onNotify={showToast} />}{mediaViewer && <MediaViewer items={mediaViewer.items} activeIndex={mediaViewer.activeIndex} onActiveIndexChange={(activeIndex) => setMediaViewer((current) => current ? { ...current, activeIndex } : null)} onClose={() => setMediaViewer(null)} onOpenEntry={openEntryFromMedia} onRelocate={relocateAttachment} />}{commandPalette}<div className={`toast ${toast.message ? 'show' : ''}`} id="toast" role="status"><span>{toast.message}</span>{toast.action && <button type="button" onClick={async () => { const action = toast.action; setToast({ message: '', action: null }); await action.run?.(); }}>{toast.action.label || '撤销'}</button>}</div></div>;
 }
 
 function QuickCaptureWindow() {
@@ -803,8 +848,8 @@ function QuickCaptureWindow() {
   const saveCapture = async () => {
     const editorType = normalizeEditorType(draft.editorType);
     const contentText = draftContentText(draft).trim();
-    if (!contentText && attachments.length === 0) {
-      notify('写几句话，或添加一个附件');
+    if (!contentText && attachments.length === 0 && !draft.moodLabel) {
+      notify('写几句话、添加附件，或记录此刻心情');
       document.querySelector('#content-input')?.focus();
       return;
     }
@@ -813,7 +858,7 @@ function QuickCaptureWindow() {
     const videoPaths = attachments.filter((path) => mediaKind(path) === 'video');
     const audioPaths = attachments.filter((path) => mediaKind(path) === 'audio');
     const content = editorType === EDITOR_TYPES.richText ? toRichTextContent(draft.content) : String(draft.content || '').trim();
-    const entry = { schemaVersion: 1, id: createId('entry'), createdAt: buildDateTime(draft.date), occurredAt: buildDateTime(draft.date), updatedAt: now, title: draft.title.trim(), content, contentText, editorType, mood: draft.moodSet ? Number(draft.mood) : null, moodSet: draft.moodSet === true, category: draft.category, tags: draft.tags || [], imagePaths, audioPaths, videoPaths, weather: [], positions: [], latitude: null, longitude: null, colorValue: 0xffe4e0ed, isFavorite: false, isInTrash: false };
+    const entry = { schemaVersion: 1, id: createId('entry'), createdAt: buildDateTime(draft.date), occurredAt: buildDateTime(draft.date), updatedAt: now, title: draft.title.trim(), content, contentText, editorType, mood: draft.moodSet ? Number(draft.mood) : null, moodSet: draft.moodSet === true, moodLabel: draft.moodLabel || null, category: draft.category, tags: draft.tags || [], imagePaths, audioPaths, videoPaths, weather: [], positions: [], latitude: null, longitude: null, colorValue: 0xffe4e0ed, isFavorite: false, isInTrash: false };
     try {
       const result = await databaseAPI().saveEntry(entry);
       if (!result?.snapshot) throw new Error('本地保存失败');

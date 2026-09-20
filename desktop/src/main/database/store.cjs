@@ -36,6 +36,7 @@ const {
   deleteCategory,
   listAttachmentHealth,
   deleteEntryPermanently,
+  clearTrash,
   searchEntries,
 } = require('./repository.cjs');
 
@@ -292,7 +293,17 @@ function createDiaryStore({ userDataPath }) {
   }
 
   function permanentlyDeleteEntry(id) {
-    deleteEntryPermanently(db, id);
+    deleteEntryPermanently(db, id, {
+      deviceId: getSyncState(db, 'device_id', 'desktop'),
+    });
+    return snapshot();
+  }
+
+  function emptyTrash() {
+    clearTrash(db, {
+      deviceId: getSyncState(db, 'device_id', 'desktop'),
+    });
+    return snapshot();
     return snapshot();
   }
 
@@ -703,6 +714,7 @@ function createDiaryStore({ userDataPath }) {
     renameCategory: renameCategoryValue,
     deleteCategory: deleteCategoryValue,
     permanentlyDeleteEntry,
+    emptyTrash,
     search,
     close: () => closeDatabase(db),
   };

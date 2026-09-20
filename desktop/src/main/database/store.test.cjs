@@ -80,6 +80,22 @@ test('lists database entries in bounded pages for the desktop library', () => {
   }
 });
 
+test('clears the recycle bin through the desktop store and retains sync tombstones', () => {
+  const userDataPath = fs.mkdtempSync(path.join(os.tmpdir(), 'diary-store-trash-'));
+  const store = createDiaryStore({ userDataPath });
+  try {
+    store.saveEntry(legacyEntry('trash-one', '待清理'));
+    store.trashEntry('trash-one');
+    const snapshot = store.emptyTrash();
+    assert.deepEqual(snapshot.entries, []);
+    assert.equal(snapshot.outbox.length, 1);
+    assert.equal(snapshot.outbox[0].entry.isDeleted, true);
+  } finally {
+    store.close();
+    fs.rmSync(userDataPath, { recursive: true, force: true });
+  }
+});
+
 test('registers external attachments into managed storage with hash metadata', () => {
   const userDataPath = fs.mkdtempSync(path.join(os.tmpdir(), 'diary-store-asset-'));
   const sourcePath = path.join(userDataPath, '..', `diary-source-${Date.now()}.png`);

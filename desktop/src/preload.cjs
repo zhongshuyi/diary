@@ -76,6 +76,7 @@ contextBridge.exposeInMainWorld('diaryAPI', {
     renameCategory: (from, to) => ipcRenderer.invoke('db:renameCategory', from, to),
     deleteCategory: (value) => ipcRenderer.invoke('db:deleteCategory', value),
     deleteEntry: (id) => ipcRenderer.invoke('db:deleteEntry', id),
+    emptyTrash: () => ipcRenderer.invoke('db:emptyTrash'),
     search: (query, options) => ipcRenderer.invoke('db:search', query, options),
   },
 });

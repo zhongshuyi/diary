@@ -560,6 +560,7 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
   }
 
   Widget _attachmentControls(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
     final photos = _attachments
         .where((path) => diaryMediaKindForPath(path) == DiaryMediaKind.image)
         .toList(growable: false);
@@ -579,32 +580,55 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
               diaryMediaKindForPath(path) != DiaryMediaKind.video,
         )
         .toList(growable: false);
+    final attachmentButton = SizedBox(
+      height: 52,
+      child: OutlinedButton.icon(
+        onPressed: _pickingAttachment || _recordingActive
+            ? null
+            : _addAttachment,
+        icon: const Icon(Icons.add_photo_alternate_outlined, size: 18),
+        label: const Text('添加附件'),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: colors.ink,
+          backgroundColor: colors.surface,
+          side: BorderSide(color: colors.line),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+      ),
+    );
+    final recordButton = SizedBox(
+      height: 52,
+      child: HoldToRecordButton(
+        buttonKey: const Key('entry-hold-record'),
+        enabled: !_pickingAttachment && !_saving,
+        onActivityChanged: _setRecordingActivity,
+        onError: _showRecordingError,
+        onRecorded: _addRecordedAudio,
+        recorder: widget.audioRecorder,
+      ),
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            OutlinedButton.icon(
-              onPressed: _pickingAttachment || _recordingActive
-                  ? null
-                  : _addAttachment,
-              icon: const Icon(Icons.add_photo_alternate_outlined, size: 18),
-              label: const Text('添加附件'),
-            ),
-            SizedBox(
-              width: 180,
-              child: HoldToRecordButton(
-                buttonKey: const Key('entry-hold-record'),
-                enabled: !_pickingAttachment && !_saving,
-                onActivityChanged: _setRecordingActivity,
-                onError: _showRecordingError,
-                onRecorded: _addRecordedAudio,
-                recorder: widget.audioRecorder,
-              ),
-            ),
-          ],
+        LayoutBuilder(
+          builder: (context, constraints) => constraints.maxWidth >= 280
+              ? Row(
+                  children: [
+                    Expanded(child: attachmentButton),
+                    const SizedBox(width: 8),
+                    Expanded(child: recordButton),
+                  ],
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    attachmentButton,
+                    const SizedBox(height: 8),
+                    recordButton,
+                  ],
+                ),
         ),
         if (_attachments.isNotEmpty) ...[
           const SizedBox(height: 10),

@@ -105,10 +105,10 @@ export function EntriesView({ entries, hasMore = false, loading = false, searchE
   </section>;
 }
 
-export function RecycleBinView({ entries, search = '', filters, categories, tags, searchError = '', loading = false, hasMore = false, onLoadMore, onFiltersChange, onClearFilters, onEdit, onPreview, onRestore, onDeletePermanent }) {
+export function RecycleBinView({ entries, search = '', filters, categories, tags, searchError = '', loading = false, hasMore = false, onLoadMore, onFiltersChange, onClearFilters, onEdit, onPreview, onRestore, onDeletePermanent, onEmpty }) {
   return <section className="records-page" aria-label="回收站">
-    <div className="records-intro"><div><p className="section-kicker">LIBRARY / TRASH</p><h2>回收站</h2><p>这里的记录不会出现在日常时间线，可恢复或永久删除。</p></div><span className="records-count">{entries.length} 条</span></div>
-    <div className="trash-notice"><Archive size={15} /><span>永久删除会立即移除正文、搜索索引和待同步 mutation，无法撤销。</span></div>
+    <div className="records-intro"><div><p className="section-kicker">LIBRARY / TRASH</p><h2>回收站</h2><p>这里的记录不会出现在日常时间线，可恢复或永久删除。</p></div><div className="recycle-intro-actions"><span className="records-count">{entries.length} 条</span>{entries.length > 0 && <button type="button" className="recycle-empty-button" onClick={onEmpty}>清空回收站</button>}</div></div>
+    <div className="trash-notice"><Archive size={15} /><span>永久删除会同步到所有设备，旧记录不会再次出现，无法撤销。</span></div>
     {filters && <SearchFilters filters={filters} categories={categories} tags={tags} onChange={onFiltersChange} onClear={onClearFilters} />}
     {searchError && <div className="records-error" role="alert">搜索失败：{searchError}</div>}
     {entries.length ? <EntryTimelineGroups entries={entries} renderEntry={(entry) => <EntryCard key={entry.id} entry={entry} isTrash highlightQuery={search} onEdit={onEdit} onPreview={onPreview} onRestore={onRestore} onDeletePermanent={onDeletePermanent} />} /> : <div className="timeline-list records-list">{loading ? <div className="records-loading" role="status">正在查找记录…</div> : <EmptyRecords trash />}</div>}
