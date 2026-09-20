@@ -15,7 +15,10 @@ class FavoritesFilter {
   bool get hasActiveConditions => category != '全部' || tags.isNotEmpty;
 
   bool matches(DiaryEntry entry) {
-    if (!entry.isFavorite || entry.isInTrash || entry.isDeleted || entry.isConflict) {
+    if (!entry.isFavorite ||
+        entry.isInTrash ||
+        entry.isDeleted ||
+        entry.isConflict) {
       return false;
     }
     return entry.matches(query) &&
