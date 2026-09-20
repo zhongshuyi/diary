@@ -25,6 +25,7 @@ class TimelineReflectionSection extends StatelessWidget {
     if (onThisDay == null && random == null) return const SizedBox.shrink();
 
     final colors = DiaryThemeColors.of(context);
+    final hasMultipleOnThisDay = reflection.onThisDayEntries.length > 1;
     return Container(
       key: const Key('timeline-reflection-section'),
       decoration: BoxDecoration(
@@ -42,12 +43,18 @@ class TimelineReflectionSection extends StatelessWidget {
               summary: reflectionSummary(onThisDay),
               semanticLabel:
                   '${_onThisDayLabel(onThisDay)}，${reflectionSummary(onThisDay)}',
-              onTap: () => onOpenEntry(onThisDay),
-              action: reflection.onThisDayEntries.length > 1
+              onTap: () {
+                if (hasMultipleOnThisDay) {
+                  _showAllOnThisDay(context);
+                  return;
+                }
+                onOpenEntry(onThisDay);
+              },
+              action: hasMultipleOnThisDay
                   ? TextButton(
                       key: const Key('timeline-on-this-day-all'),
                       onPressed: () => _showAllOnThisDay(context),
-                      child: Text('共 ${reflection.onThisDayEntries.length} 条'),
+                      child: Text('查看 ${reflection.onThisDayEntries.length} 条'),
                     )
                   : const Icon(Icons.chevron_right_rounded),
             ),

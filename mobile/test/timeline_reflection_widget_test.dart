@@ -101,7 +101,7 @@ void main() {
     expect(opened?.id, 'last-year');
   });
 
-  testWidgets('lists every same-day entry and rotates random rereads', (
+  testWidgets('opens every same-day entry from the summary row', (
     tester,
   ) async {
     final today = DateTime.now();
@@ -143,7 +143,7 @@ void main() {
       isNot(summary),
     );
 
-    await tester.tap(find.byKey(const Key('timeline-on-this-day-all')));
+    await tester.tap(find.byKey(const Key('timeline-on-this-day')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('timeline-on-this-day-sheet')), findsOneWidget);
     expect(
