@@ -158,12 +158,35 @@ class DiaryEntryCard extends StatelessWidget {
               duration: DiaryMotion.duration(context, DiaryMotion.standard),
               switchInCurve: DiaryMotion.curve(context, Curves.easeOutBack),
               switchOutCurve: DiaryMotion.curve(context, Curves.easeIn),
-              child: Icon(
-                key: ValueKey(entry.isFavorite),
-                entry.isFavorite ? Icons.bookmark : Icons.bookmark_border,
-                size: 17,
-                color: entry.isFavorite ? colors.terracotta : colors.mutedInk,
-              ),
+              child: onFavorite == null
+                  ? Icon(
+                      key: ValueKey(entry.isFavorite),
+                      entry.isFavorite ? Icons.bookmark : Icons.bookmark_border,
+                      size: 17,
+                      color: entry.isFavorite
+                          ? colors.terracotta
+                          : colors.mutedInk,
+                    )
+                  : IconButton(
+                      key: ValueKey(entry.isFavorite),
+                      tooltip: entry.isFavorite ? '取消收藏' : '收藏',
+                      onPressed: onFavorite,
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints.tightFor(
+                        width: 34,
+                        height: 34,
+                      ),
+                      icon: Icon(
+                        entry.isFavorite
+                            ? Icons.bookmark
+                            : Icons.bookmark_border,
+                        size: 18,
+                        color: entry.isFavorite
+                            ? colors.terracotta
+                            : colors.mutedInk,
+                      ),
+                    ),
             ),
           ],
         ),
