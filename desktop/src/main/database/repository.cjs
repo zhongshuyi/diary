@@ -42,13 +42,14 @@ function normalizeEntry(entry) {
   if (!id) throw new TypeError('Entry id is required');
   const mood = entry.mood === null || entry.mood === undefined ? null : Number(entry.mood);
   if (mood !== null && (!Number.isFinite(mood) || mood < 0 || mood > 1)) throw new TypeError('Mood must be between 0 and 1');
+  const isDeleted = entry.isDeleted === true;
   return {
     schemaVersion: Number(entry.schemaVersion) || 1,
     id,
     createdAt,
     occurredAt,
     updatedAt,
-    deletedAt: entry.isInTrash ? readDate(entry.deletedAt, updatedAt) : (entry.deletedAt ?? null),
+    deletedAt: entry.isInTrash || isDeleted ? readDate(entry.deletedAt, updatedAt) : (entry.deletedAt ?? null),
     deviceId: readString(entry.deviceId),
     isConflict: entry.isConflict === true,
     conflictOf: entry.conflictOf == null ? null : readString(entry.conflictOf),
@@ -58,6 +59,7 @@ function normalizeEntry(entry) {
     contentText: readString(entry.contentText ?? entry.content),
     editorType: readString(entry.editorType, 'plain_text'),
     mood,
+    moodLabel: entry.moodLabel == null ? null : (readString(entry.moodLabel).trim() || null),
     moodSet: entry.moodSet === true || mood !== null,
     category: readString(entry.category, '生活') || '未分类',
     tags: readList(entry.tags),
@@ -71,7 +73,8 @@ function normalizeEntry(entry) {
     longitude: entry.longitude === null || entry.longitude === undefined ? null : Number(entry.longitude),
     colorValue: Number(entry.colorValue) || 0xffe4e0ed,
     isFavorite: entry.isFavorite === true,
-    isInTrash: Boolean(entry.isInTrash || entry.deletedAt),
+    isInTrash: Boolean(entry.isInTrash || entry.deletedAt || isDeleted),
+    isDeleted,
     revision: Math.max(1, Number(entry.revision) || 1),
   };
 }
@@ -123,7 +126,7 @@ function encodeEntry(entry) {
   const normalized = normalizeEntry(entry);
   return {
     ...normalized,
-    isInTrash: Boolean(normalized.deletedAt),
+    isInTrash: Boolean(normalized.deletedAt || normalized.isDeleted),
   };
 }
 
@@ -133,11 +136,11 @@ function writeEntryRecord(db, entry, { deviceId = 'desktop', enqueue = true, mut
   const sql = `
     INSERT INTO entries (
       id, schema_version, created_at, occurred_at, updated_at, deleted_at,
-      title, content, content_text, editor_type, mood, mood_set, category,
+      title, content, content_text, editor_type, mood, mood_label, mood_set, category,
       tags_json, image_paths_json, audio_paths_json, video_paths_json,
       weather_json, positions_json, latitude, longitude, color_value,
       is_favorite, revision
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       schema_version = excluded.schema_version,
       occurred_at = excluded.occurred_at,
@@ -148,6 +151,7 @@ function writeEntryRecord(db, entry, { deviceId = 'desktop', enqueue = true, mut
       content_text = excluded.content_text,
       editor_type = excluded.editor_type,
       mood = excluded.mood,
+      mood_label = excluded.mood_label,
       mood_set = excluded.mood_set,
       category = excluded.category,
       tags_json = excluded.tags_json,
@@ -174,6 +178,7 @@ function writeEntryRecord(db, entry, { deviceId = 'desktop', enqueue = true, mut
     normalized.contentText,
     normalized.editorType,
     normalized.mood,
+    normalized.moodLabel,
     normalized.moodSet ? 1 : 0,
     normalized.category,
     JSON.stringify(normalized.tags),
@@ -189,7 +194,7 @@ function writeEntryRecord(db, entry, { deviceId = 'desktop', enqueue = true, mut
     normalized.revision,
   );
   db.prepare('DELETE FROM entry_search WHERE id = ?').run(normalized.id);
-  db.prepare('INSERT INTO entry_search(id, body) VALUES (?, ?)').run(normalized.id, [normalized.title, normalized.contentText, normalized.category, ...normalized.tags].join(' '));
+  db.prepare('INSERT INTO entry_search(id, body) VALUES (?, ?)').run(normalized.id, [normalized.title, normalized.contentText, normalized.moodLabel || '', normalized.category, ...normalized.tags].join(' '));
   if (assets !== undefined) syncEntryAttachments(db, normalized.id, assets);
   if (enqueue) {
     const id = mutationId || `${deviceId}:${normalized.id}:${normalized.updatedAt}`;
@@ -225,6 +230,7 @@ function rowToEntry(row) {
     contentText: row.content_text,
     editorType: row.editor_type,
     mood: row.mood === null ? null : Number(row.mood),
+    moodLabel: row.mood_label || null,
     moodSet: Boolean(row.mood_set),
     category: row.category,
     tags: parseList(row.tags_json),
@@ -432,17 +438,67 @@ function deleteCategory(db, value, options = {}) {
   return updateEntriesTaxonomy(db, (entry) => entry.category === target ? { category: '未分类' } : null, options);
 }
 
-function deleteEntryPermanently(db, id) {
+function removeEntryRecord(db, id) {
+  db.prepare('DELETE FROM entry_search WHERE id = ?').run(id);
+  db.prepare('DELETE FROM entry_attachments WHERE entry_id = ?').run(id);
+  db.prepare('DELETE FROM entries WHERE id = ?').run(id);
+  db.exec("UPDATE attachments SET state = 'orphaned' WHERE id NOT IN (SELECT attachment_id FROM entry_attachments)");
+}
+
+function createDeletionTombstone(entry, { deviceId = 'desktop', updatedAt = nowIso() } = {}) {
+  return normalizeEntry({
+    ...entry,
+    deviceId,
+    updatedAt,
+    deletedAt: updatedAt,
+    title: '',
+    content: '',
+    contentText: '',
+    moodLabel: null,
+    imagePaths: [],
+    audioPaths: [],
+    videoPaths: [],
+    attachmentIds: [],
+    isInTrash: true,
+    isDeleted: true,
+    revision: Math.max(1, Number(entry.revision) || 1) + 1,
+  });
+}
+
+function enqueueTombstone(db, tombstone, deviceId) {
+  const mutationId = `${deviceId}:${tombstone.id}:${tombstone.updatedAt}`;
+  db.prepare('DELETE FROM outbox WHERE entry_id = ?').run(tombstone.id);
+  db.prepare('INSERT INTO outbox(mutation_id, entry_id, payload_json, created_at) VALUES (?, ?, ?, ?)').run(
+    mutationId,
+    tombstone.id,
+    JSON.stringify({ mutationId, entry: tombstone }),
+    nowIso(),
+  );
+}
+
+function deleteEntryPermanently(db, id, options = {}) {
+  const { deviceId = 'desktop', updatedAt = nowIso() } = options;
   return withTransaction(db, () => {
     const row = db.prepare('SELECT * FROM entries WHERE id = ?').get(id);
     if (!row) return false;
     if (!row.deleted_at) throw new Error('Only trashed entries can be permanently deleted');
-    db.prepare('DELETE FROM entry_search WHERE id = ?').run(id);
-    db.prepare('DELETE FROM entry_attachments WHERE entry_id = ?').run(id);
-    db.prepare('DELETE FROM outbox WHERE entry_id = ?').run(id);
-    db.prepare('DELETE FROM entries WHERE id = ?').run(id);
-    db.exec("UPDATE attachments SET state = 'orphaned' WHERE id NOT IN (SELECT attachment_id FROM entry_attachments)");
+    const tombstone = createDeletionTombstone(rowToEntry(row), { deviceId, updatedAt });
+    removeEntryRecord(db, id);
+    enqueueTombstone(db, tombstone, deviceId);
     return true;
+  });
+}
+
+function clearTrash(db, options = {}) {
+  const { deviceId = 'desktop', updatedAt = nowIso() } = options;
+  return withTransaction(db, () => {
+    const rows = db.prepare('SELECT * FROM entries WHERE deleted_at IS NOT NULL').all();
+    rows.forEach((row) => {
+      const tombstone = createDeletionTombstone(rowToEntry(row), { deviceId, updatedAt });
+      removeEntryRecord(db, row.id);
+      enqueueTombstone(db, tombstone, deviceId);
+    });
+    return rows.length;
   });
 }
 
@@ -573,6 +629,10 @@ function applySyncResult(db, { changes = [], conflicts = [], acknowledgedMutatio
   return withTransaction(db, () => {
     for (const candidate of candidates) {
       const normalized = normalizeEntry(candidate.entry);
+      if (normalized.isDeleted) {
+        removeEntryRecord(db, normalized.id);
+        continue;
+      }
       if (normalized.isConflict) continue;
       const local = db.prepare('SELECT updated_at FROM entries WHERE id = ?').get(normalized.id);
       if (!local || Date.parse(normalized.updatedAt) >= Date.parse(local.updated_at)) {
@@ -586,6 +646,10 @@ function applySyncResult(db, { changes = [], conflicts = [], acknowledgedMutatio
       if (!conflict?.conflictId) {
         if (conflict?.serverEntry) {
           const normalized = normalizeEntry(conflict.serverEntry);
+          if (normalized.isDeleted) {
+            removeEntryRecord(db, normalized.id);
+            return;
+          }
           const local = db.prepare('SELECT updated_at FROM entries WHERE id = ?').get(normalized.id);
           if (!local || Date.parse(normalized.updatedAt) >= Date.parse(local.updated_at)) writeEntryRecord(db, normalized, { enqueue: false, assets: conflict.serverAssets });
         }
@@ -596,6 +660,10 @@ function applySyncResult(db, { changes = [], conflicts = [], acknowledgedMutatio
       addConflict.run(conflict.conflictId, conflict.entryId || conflictEntry.conflictOf || '', JSON.stringify(conflictEntry), JSON.stringify(conflict.serverEntry || {}), conflict.sourceDeviceId || '', conflict.mutationId || '', nowIso());
       if (conflict.serverEntry) {
         const normalized = normalizeEntry(conflict.serverEntry);
+        if (normalized.isDeleted) {
+          removeEntryRecord(db, normalized.id);
+          return;
+        }
         const local = db.prepare('SELECT updated_at FROM entries WHERE id = ?').get(normalized.id);
         if (!local || Date.parse(normalized.updatedAt) >= Date.parse(local.updated_at)) writeEntryRecord(db, normalized, { enqueue: false, assets: conflict.serverAssets });
       }
@@ -676,6 +744,7 @@ module.exports = {
   renameCategory,
   deleteCategory,
   deleteEntryPermanently,
+  clearTrash,
   listAttachmentHealth,
   searchEntries,
   getSyncState,

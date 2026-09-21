@@ -1,4 +1,4 @@
-const CURRENT_SCHEMA_VERSION = 2;
+const CURRENT_SCHEMA_VERSION = 3;
 
 const BASE_SCHEMA = `
   CREATE TABLE IF NOT EXISTS app_meta (
@@ -18,6 +18,7 @@ const BASE_SCHEMA = `
     content_text TEXT NOT NULL DEFAULT '',
     editor_type TEXT NOT NULL DEFAULT 'plain_text',
     mood REAL,
+    mood_label TEXT,
     mood_set INTEGER NOT NULL DEFAULT 0 CHECK (mood_set IN (0, 1)),
     category TEXT NOT NULL DEFAULT '生活',
     tags_json TEXT NOT NULL DEFAULT '[]',
@@ -116,10 +117,21 @@ const BASE_SCHEMA = `
   );
 `;
 
+function hasColumn(db, table, column) {
+  return db.prepare(`PRAGMA table_info(${table})`).all().some((item) => item.name === column);
+}
+
+function applyMigrations(db) {
+  // SQLite does not add columns to an existing CREATE TABLE IF NOT EXISTS table.
+  // Keep this explicit so installed desktop databases retain mobile-only fields.
+  if (!hasColumn(db, 'entries', 'mood_label')) db.exec('ALTER TABLE entries ADD COLUMN mood_label TEXT');
+}
+
 function initializeDatabase(db) {
   db.exec('BEGIN IMMEDIATE;');
   try {
     db.exec(BASE_SCHEMA);
+    applyMigrations(db);
     const current = db.prepare("SELECT value FROM app_meta WHERE key = 'schema_version'").get();
     if (!current) {
       db.prepare("INSERT INTO app_meta(key, value) VALUES ('schema_version', ?)").run(String(CURRENT_SCHEMA_VERSION));

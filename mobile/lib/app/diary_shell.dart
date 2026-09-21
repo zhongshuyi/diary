@@ -28,6 +28,7 @@ import 'package:diary/pages/settings/backup_page.dart';
 import 'package:diary/pages/settings/category_page.dart';
 import 'package:diary/pages/settings/settings_page.dart';
 import 'package:diary/pages/share/share_page.dart';
+import 'package:diary/widgets/avatar_cropper.dart';
 import 'package:diary/widgets/in_app_photo_picker.dart';
 
 bool diaryUsesDesktopShell(BuildContext context) {
@@ -542,9 +543,7 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
     messenger.clearSnackBars();
     messenger.showSnackBar(
       SnackBar(
-          content: Text(
-            count == 1 ? '已移入回收站，可随时恢复' : '已移入回收站，共 $count 篇',
-          ),
+        content: Text(count == 1 ? '已移入回收站，可随时恢复' : '已移入回收站，共 $count 篇'),
         duration: const Duration(seconds: 2),
         action: SnackBarAction(
           label: '查看',
@@ -606,9 +605,25 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
 
   Future<void> _pickProfileAvatar() async {
     try {
-      final photos = await pickDiaryPhotos(context, maxAssets: 1);
-      if (photos.isEmpty) return;
-      final storedPath = await _profileAvatarStore.importFile(photos.single);
+      final source = await chooseDiaryPhotoSource(context, title: '更换头像');
+      if (source == null || !mounted) return;
+      final runsOutsideApp = source == DiaryPhotoSource.camera;
+      final photos = await (() async {
+        if (runsOutsideApp) widget.lockCoordinator.beginExternalActivity();
+        try {
+          return await pickDiaryPhotoSource(
+            context,
+            source: source,
+            maxAssets: 1,
+          );
+        } finally {
+          if (runsOutsideApp) widget.lockCoordinator.endExternalActivity();
+        }
+      })();
+      if (!mounted || photos.isEmpty) return;
+      final cropped = await cropDiaryAvatar(context, photos.single);
+      if (!mounted || cropped == null) return;
+      final storedPath = await _profileAvatarStore.savePng(cropped);
       await widget.settingsController.setProfileAvatarPath(storedPath);
       if (!mounted) return;
       ScaffoldMessenger.of(

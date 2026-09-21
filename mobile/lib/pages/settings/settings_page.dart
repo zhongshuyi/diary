@@ -50,7 +50,7 @@ class SettingsPage extends StatelessWidget {
             title: const Text('设置'),
           ),
           body: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 35),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 35),
             children: [
               Text(
                 showDataControls
@@ -143,8 +143,8 @@ class SettingsPage extends StatelessWidget {
                   ),
                   _SwitchTile(
                     key: const Key('settings-show-chat-avatar'),
-                    title: '显示头像',
-                    subtitle: '在对话中显示头像',
+                    title: '对话显示头像',
+                    subtitle: '在每条对话消息旁显示你的头像',
                     value: settings.showChatAvatar,
                     onChanged: (value) =>
                         unawaited(controller.setShowChatAvatar(value)),
@@ -550,32 +550,10 @@ class SettingsPage extends StatelessWidget {
     BuildContext context,
     String current,
   ) async {
-    final textController = TextEditingController(text: current);
     final value = await showDialog<String>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('对话顶部名称'),
-        content: TextField(
-          controller: textController,
-          autofocus: true,
-          maxLength: 16,
-          textInputAction: TextInputAction.done,
-          onSubmitted: (value) => Navigator.pop(dialogContext, value),
-          decoration: const InputDecoration(hintText: '例如：我的日记'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, textController.text),
-            child: const Text('保存'),
-          ),
-        ],
-      ),
+      builder: (_) => _ChatTitleDialog(initialValue: current),
     );
-    textController.dispose();
     if (value != null) await controller.setChatTitle(value);
   }
 
@@ -613,6 +591,56 @@ class SettingsPage extends StatelessWidget {
   }
 }
 
+class _ChatTitleDialog extends StatefulWidget {
+  const _ChatTitleDialog({required this.initialValue});
+
+  final String initialValue;
+
+  @override
+  State<_ChatTitleDialog> createState() => _ChatTitleDialogState();
+}
+
+class _ChatTitleDialogState extends State<_ChatTitleDialog> {
+  late final TextEditingController _textController;
+
+  @override
+  void initState() {
+    super.initState();
+    _textController = TextEditingController(text: widget.initialValue);
+  }
+
+  @override
+  void dispose() {
+    _textController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('对话顶部名称'),
+      content: TextField(
+        controller: _textController,
+        autofocus: true,
+        maxLength: 16,
+        textInputAction: TextInputAction.done,
+        onSubmitted: (value) => Navigator.pop(context, value),
+        decoration: const InputDecoration(hintText: '例如：我的日记'),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, _textController.text),
+          child: const Text('保存'),
+        ),
+      ],
+    );
+  }
+}
+
 class SyncSettingsPage extends StatelessWidget {
   const SyncSettingsPage({required this.controller, super.key});
 
@@ -630,15 +658,8 @@ class SyncSettingsPage extends StatelessWidget {
         title: const Text('同步'),
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
         children: [
-          Text(
-            '连接信息集中在这里，日常使用时无需反复看到复杂表单。',
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: colors.mutedInk),
-          ),
-          const SizedBox(height: 18),
           _Section(
             title: '连接设置',
             children: [_SyncSettings(controller: controller)],
@@ -853,11 +874,6 @@ class _SyncSettingsState extends State<_SyncSettings> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          '连接你自己的同步服务器；留空即可保持纯本地模式。',
-          style: Theme.of(context).textTheme.bodyMedium,
-        ),
-        const SizedBox(height: 14),
         TextField(
           controller: _endpoint,
           keyboardType: TextInputType.url,
@@ -884,7 +900,7 @@ class _SyncSettingsState extends State<_SyncSettings> {
         ),
         const SizedBox(height: 12),
         Text(
-          '跨设备连接配置包含访问令牌，仅在自己的受信设备间传递。',
+          '复制内容包含访问令牌，请仅发送给自己的设备。',
           style: Theme.of(context).textTheme.bodySmall,
         ),
         const SizedBox(height: 10),
@@ -961,15 +977,15 @@ class _Section extends StatelessWidget {
 
 class _SwitchTile extends StatelessWidget {
   const _SwitchTile({
+    super.key,
     required this.title,
-    required this.subtitle,
+    this.subtitle,
     required this.value,
     required this.onChanged,
-    super.key,
   });
 
   final String title;
-  final String subtitle;
+  final String? subtitle;
   final bool value;
   final ValueChanged<bool> onChanged;
 
@@ -977,7 +993,7 @@ class _SwitchTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return _SettingsTile(
       title: Text(title),
-      subtitle: Text(subtitle),
+      subtitle: subtitle == null ? null : Text(subtitle!),
       onTap: () => onChanged(!value),
       trailing: Switch.adaptive(value: value, onChanged: onChanged),
     );

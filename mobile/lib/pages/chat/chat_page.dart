@@ -52,6 +52,7 @@ class ChatPage extends StatefulWidget {
     this.showChatAvatar = false,
     this.profileAvatarPath,
     this.pickGalleryPhotos,
+    this.pickCameraPhoto,
     this.onExternalActivityStart,
     this.onExternalActivityEnd,
     super.key,
@@ -70,6 +71,7 @@ class ChatPage extends StatefulWidget {
   final bool showChatAvatar;
   final String? profileAvatarPath;
   final Future<List<String>> Function(int maxAssets)? pickGalleryPhotos;
+  final Future<String?> Function()? pickCameraPhoto;
   final VoidCallback? onExternalActivityStart;
   final VoidCallback? onExternalActivityEnd;
 
@@ -128,23 +130,13 @@ class _ChatPageState extends State<ChatPage> {
     setState(() => _enteringMessageIds.remove(entryId));
   }
 
-  List<_ChatDay> _groupedEntries() {
+  List<DiaryEntry> _sortedEntries() {
     final sorted = List<DiaryEntry>.of(widget.entries)
       ..sort(
         (left, right) =>
             left.effectiveOccurredAt.compareTo(right.effectiveOccurredAt),
       );
-    final days = <_ChatDay>[];
-    for (final entry in sorted) {
-      final occurredAt = entry.effectiveOccurredAt;
-      final date = DateTime(occurredAt.year, occurredAt.month, occurredAt.day);
-      if (days.isEmpty || !DateUtils.isSameDay(days.last.date, date)) {
-        days.add(_ChatDay(date: date, entries: [entry]));
-      } else {
-        days.last.entries.add(entry);
-      }
-    }
-    return days;
+    return sorted;
   }
 
   Future<void> _showEntryActions(DiaryEntry entry) async {
@@ -199,7 +191,7 @@ class _ChatPageState extends State<ChatPage> {
   @override
   Widget build(BuildContext context) {
     final colors = DiaryThemeColors.of(context);
-    final days = _groupedEntries();
+    final entries = _sortedEntries();
     return ColoredBox(
       color: colors.paper,
       child: Column(
@@ -214,17 +206,17 @@ class _ChatPageState extends State<ChatPage> {
                       'chat-background-image-${widget.chatBackground.imagePath}',
                     )
                   : null,
-              child: days.isEmpty
+              child: entries.isEmpty
                   ? const _EmptyChat()
                   : ListView.builder(
                       key: const Key('chat-message-list'),
                       controller: _scrollController,
                       padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
-                      itemCount: days.length,
+                      itemCount: entries.length,
                       itemBuilder: (context, index) {
-                        final day = days[index];
-                        return _ChatDaySection(
-                          day: day,
+                        final entry = entries[index];
+                        return _ChatEntryItem(
+                          entry: entry,
                           enteringMessageIds: _enteringMessageIds,
                           onMessageEntranceFinished: _finishMessageEntrance,
                           onOpenEntry: widget.onOpenEntry,
@@ -242,6 +234,7 @@ class _ChatPageState extends State<ChatPage> {
             onOpenEditor: widget.onOpenEditor,
             onImportAttachments: widget.onImportAttachments,
             pickGalleryPhotos: widget.pickGalleryPhotos,
+            pickCameraPhoto: widget.pickCameraPhoto,
             onExternalActivityStart: widget.onExternalActivityStart,
             onExternalActivityEnd: widget.onExternalActivityEnd,
           ),
@@ -373,14 +366,6 @@ class _EmptyChat extends StatelessWidget {
             Icon(Icons.forum_outlined, size: 42, color: colors.terracotta),
             const SizedBox(height: 14),
             Text('从一句话开始', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 7),
-            Text(
-              '这里会按时间收拢你的想法、照片、视频和语音。',
-              textAlign: TextAlign.center,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(color: colors.mutedInk),
-            ),
           ],
         ),
       ),
@@ -388,9 +373,9 @@ class _EmptyChat extends StatelessWidget {
   }
 }
 
-class _ChatDaySection extends StatelessWidget {
-  const _ChatDaySection({
-    required this.day,
+class _ChatEntryItem extends StatelessWidget {
+  const _ChatEntryItem({
+    required this.entry,
     required this.enteringMessageIds,
     required this.onMessageEntranceFinished,
     required this.onOpenEntry,
@@ -399,7 +384,7 @@ class _ChatDaySection extends StatelessWidget {
     required this.profileAvatarPath,
   });
 
-  final _ChatDay day;
+  final DiaryEntry entry;
   final Set<String> enteringMessageIds;
   final ValueChanged<String> onMessageEntranceFinished;
   final ValueChanged<DiaryEntry> onOpenEntry;
@@ -409,38 +394,33 @@ class _ChatDaySection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        for (final entry in day.entries)
-          KeyedSubtree(
-            key: ValueKey('chat-entry-${entry.id}'),
-            child: _ChatMessageEntrance(
-              animate: enteringMessageIds.contains(entry.id),
-              onEnd: () => onMessageEntranceFinished(entry.id),
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(top: 13, bottom: 8),
-                    child: Text(
-                      _chatTimestampLabel(entry.effectiveOccurredAt),
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: DiaryThemeColors.of(context).mutedInk,
-                      ),
-                    ),
-                  ),
-                  _ChatEntryBubble(
-                    entry: entry,
-                    onOpen: () => onOpenEntry(entry),
-                    onLongPress: () => unawaited(onLongPress(entry)),
-                    showChatAvatar: showChatAvatar,
-                    profileAvatarPath: profileAvatarPath,
-                  ),
-                ],
+    return KeyedSubtree(
+      key: ValueKey('chat-entry-${entry.id}'),
+      child: _ChatMessageEntrance(
+        animate: enteringMessageIds.contains(entry.id),
+        onEnd: () => onMessageEntranceFinished(entry.id),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 13, bottom: 8),
+              child: Text(
+                _chatTimestampLabel(entry.effectiveOccurredAt),
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: DiaryThemeColors.of(context).mutedInk,
+                ),
               ),
             ),
-          ),
-      ],
+            _ChatEntryBubble(
+              entry: entry,
+              onOpen: () => onOpenEntry(entry),
+              onLongPress: () => unawaited(onLongPress(entry)),
+              showChatAvatar: showChatAvatar,
+              profileAvatarPath: profileAvatarPath,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -617,6 +597,8 @@ class _ChatEntryBubble extends StatelessWidget {
                                       compact: true,
                                       chatStyle: true,
                                       chatStyleHighContrast: isVoiceOnly,
+                                      loadMetadata: false,
+                                      loadWaveform: false,
                                     ),
                                     if (index < entry.audioPaths.length - 1)
                                       const SizedBox(height: 8),
@@ -930,6 +912,7 @@ class _ChatComposer extends StatefulWidget {
     required this.onOpenEditor,
     required this.onImportAttachments,
     this.pickGalleryPhotos,
+    this.pickCameraPhoto,
     this.onExternalActivityStart,
     this.onExternalActivityEnd,
   });
@@ -939,6 +922,7 @@ class _ChatComposer extends StatefulWidget {
   final VoidCallback onOpenEditor;
   final Future<List<String>> Function(List<String> paths) onImportAttachments;
   final Future<List<String>> Function(int maxAssets)? pickGalleryPhotos;
+  final Future<String?> Function()? pickCameraPhoto;
   final VoidCallback? onExternalActivityStart;
   final VoidCallback? onExternalActivityEnd;
 
@@ -978,39 +962,55 @@ class _ChatComposerState extends State<_ChatComposer> {
     if (_isSending || _isImporting) return;
     final choice = await showModalBottomSheet<_ChatAttachmentAction>(
       context: context,
+      isScrollControlled: true,
       builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.image_outlined),
-              title: const Text('照片'),
-              onTap: () => Navigator.pop(context, _ChatAttachmentAction.image),
-            ),
-            ListTile(
-              leading: const Icon(Icons.videocam_outlined),
-              title: const Text('从相册添加视频'),
-              onTap: () =>
-                  Navigator.pop(context, _ChatAttachmentAction.videoGallery),
-            ),
-            ListTile(
-              leading: const Icon(Icons.video_camera_back_outlined),
-              title: const Text('录制视频'),
-              onTap: () =>
-                  Navigator.pop(context, _ChatAttachmentAction.videoCamera),
-            ),
-            ListTile(
-              leading: const Icon(Icons.mic_none_outlined),
-              title: const Text('录音'),
-              onTap: () => Navigator.pop(context, _ChatAttachmentAction.audio),
-            ),
-            ListTile(
-              leading: const Icon(Icons.edit_note_outlined),
-              title: const Text('写完整日记'),
-              onTap: () => Navigator.pop(context, _ChatAttachmentAction.entry),
-            ),
-            const SizedBox(height: 8),
-          ],
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * .8,
+          ),
+          child: ListView(
+            shrinkWrap: true,
+            padding: EdgeInsets.zero,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.image_outlined),
+                title: const Text('从相册添加图片'),
+                onTap: () =>
+                    Navigator.pop(context, _ChatAttachmentAction.image),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined),
+                title: const Text('拍照'),
+                onTap: () =>
+                    Navigator.pop(context, _ChatAttachmentAction.imageCamera),
+              ),
+              ListTile(
+                leading: const Icon(Icons.videocam_outlined),
+                title: const Text('从相册添加视频'),
+                onTap: () =>
+                    Navigator.pop(context, _ChatAttachmentAction.videoGallery),
+              ),
+              ListTile(
+                leading: const Icon(Icons.video_camera_back_outlined),
+                title: const Text('录制视频'),
+                onTap: () =>
+                    Navigator.pop(context, _ChatAttachmentAction.videoCamera),
+              ),
+              ListTile(
+                leading: const Icon(Icons.mic_none_outlined),
+                title: const Text('录音'),
+                onTap: () =>
+                    Navigator.pop(context, _ChatAttachmentAction.audio),
+              ),
+              ListTile(
+                leading: const Icon(Icons.edit_note_outlined),
+                title: const Text('写完整日记'),
+                onTap: () =>
+                    Navigator.pop(context, _ChatAttachmentAction.entry),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
         ),
       ),
     );
@@ -1018,6 +1018,9 @@ class _ChatComposerState extends State<_ChatComposer> {
     switch (choice) {
       case _ChatAttachmentAction.image:
         await _pickImages();
+        break;
+      case _ChatAttachmentAction.imageCamera:
+        await _takePhoto();
         break;
       case _ChatAttachmentAction.videoGallery:
         await _pickVideo(ImageSource.gallery);
@@ -1047,6 +1050,15 @@ class _ChatComposerState extends State<_ChatComposer> {
     );
   }
 
+  Future<void> _takePhoto() async {
+    final remaining = 9 - _imagePaths.length;
+    if (remaining <= 0) {
+      _showMessage('一次最多添加 9 张照片');
+      return;
+    }
+    await _importExternal(_pickCameraPhoto, _imagePaths);
+  }
+
   bool get _usesInAppPhotoPicker =>
       widget.pickGalleryPhotos != null ||
       switch (defaultTargetPlatform) {
@@ -1062,6 +1074,17 @@ class _ChatComposerState extends State<_ChatComposer> {
     }
     final files = await ImagePicker().pickMultiImage(imageQuality: 92);
     return files.map((file) => file.path).toList(growable: false);
+  }
+
+  Future<List<String>> _pickCameraPhoto() async {
+    final overriddenPicker = widget.pickCameraPhoto;
+    final path = overriddenPicker == null
+        ? (await ImagePicker().pickImage(
+            source: ImageSource.camera,
+            imageQuality: 92,
+          ))?.path
+        : await overriddenPicker();
+    return path == null ? const [] : [path];
   }
 
   Future<void> _pickVideo(ImageSource source) async {
@@ -1636,15 +1659,15 @@ String _chatTimestampLabel(DateTime value) {
   return '$month/$day ${diaryTimeLabel(value)}';
 }
 
-class _ChatDay {
-  _ChatDay({required this.date, required this.entries});
-
-  final DateTime date;
-  final List<DiaryEntry> entries;
-}
-
 enum _ChatEntryAction { edit, delete }
 
-enum _ChatAttachmentAction { image, videoGallery, videoCamera, audio, entry }
+enum _ChatAttachmentAction {
+  image,
+  imageCamera,
+  videoGallery,
+  videoCamera,
+  audio,
+  entry,
+}
 
 enum ChatPageDestination { timeline, calendar, media, insights, profile }

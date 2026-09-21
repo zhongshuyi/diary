@@ -29,6 +29,7 @@ export function normalizeEntryV2(value = {}) {
     contentText: normalizedString(entry.contentText, normalizedString(entry.content)),
     editorType: EDITOR_TYPES.has(entry.editorType) ? entry.editorType : 'plain_text',
     mood,
+    moodLabel: entry.moodLabel == null ? null : (normalizedString(entry.moodLabel).trim() || null),
     category: normalizedString(entry.category, '生活'),
     tags: normalizedStringList(entry.tags),
     attachmentIds: normalizedStringList(entry.attachmentIds),

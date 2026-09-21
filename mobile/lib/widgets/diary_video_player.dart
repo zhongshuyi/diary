@@ -36,14 +36,20 @@ class _DiaryVideoPreviewState extends State<DiaryVideoPreview> {
   @override
   void initState() {
     super.initState();
-    _thumbnail = _DiaryVideoThumbnails.load(widget.path);
+    _thumbnail = _DiaryVideoThumbnails.load(
+      widget.path,
+      compact: widget.compact,
+    );
   }
 
   @override
   void didUpdateWidget(covariant DiaryVideoPreview oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.path != widget.path) {
-      _thumbnail = _DiaryVideoThumbnails.load(widget.path);
+    if (oldWidget.path != widget.path || oldWidget.compact != widget.compact) {
+      _thumbnail = _DiaryVideoThumbnails.load(
+        widget.path,
+        compact: widget.compact,
+      );
     }
   }
 
@@ -164,22 +170,45 @@ class _DiaryVideoPreviewState extends State<DiaryVideoPreview> {
 }
 
 class _DiaryVideoThumbnails {
-  static final Map<String, Future<Uint8List?>> _cache = {};
+  static const _maxCachedThumbnails = 48;
+  static final Map<_VideoThumbnailKey, Future<Uint8List?>> _cache = {};
 
-  static Future<Uint8List?> load(String path) =>
-      _cache.putIfAbsent(path, () async {
-        try {
-          return await VideoThumbnail.thumbnailData(
-            video: path,
-            imageFormat: ImageFormat.JPEG,
-            maxWidth: 960,
-            timeMs: 750,
-            quality: 76,
-          );
-        } on Object {
-          return null;
-        }
-      });
+  static Future<Uint8List?> load(String path, {required bool compact}) {
+    final key = _VideoThumbnailKey(path: path, compact: compact);
+    final cached = _cache.remove(key);
+    if (cached != null) {
+      _cache[key] = cached;
+      return cached;
+    }
+    while (_cache.length >= _maxCachedThumbnails) {
+      _cache.remove(_cache.keys.first);
+    }
+    final thumbnail = VideoThumbnail.thumbnailData(
+      video: path,
+      imageFormat: ImageFormat.JPEG,
+      maxWidth: compact ? 360 : 640,
+      timeMs: 750,
+      quality: 76,
+    ).catchError((Object _) => null);
+    _cache[key] = thumbnail;
+    return thumbnail;
+  }
+}
+
+class _VideoThumbnailKey {
+  const _VideoThumbnailKey({required this.path, required this.compact});
+
+  final String path;
+  final bool compact;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _VideoThumbnailKey &&
+      other.path == path &&
+      other.compact == compact;
+
+  @override
+  int get hashCode => Object.hash(path, compact);
 }
 
 Future<void> showDiaryVideoPlayer(

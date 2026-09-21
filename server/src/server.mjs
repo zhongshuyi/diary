@@ -101,6 +101,7 @@ function normalizeEntry(value) {
     contentText: entry.contentText ?? entry.content ?? '',
     editorType: entry.editorType ?? 'plain_text',
     mood: Number(entry.mood ?? 0.5),
+    moodLabel: entry.moodLabel == null ? null : String(entry.moodLabel),
     category: entry.category ?? '生活',
     tags: Array.isArray(entry.tags) ? entry.tags : [],
     imagePaths: Array.isArray(entry.imagePaths) ? entry.imagePaths : [],

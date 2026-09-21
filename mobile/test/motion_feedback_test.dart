@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:diary/app/app_theme.dart';
 import 'package:diary/app/diary_motion.dart';
 import 'package:diary/domain/diary_entry.dart';
+import 'package:diary/domain/diary_settings.dart';
 import 'package:diary/pages/calendar/calendar_page.dart';
 import 'package:diary/widgets/entry_card.dart';
 
@@ -106,4 +108,39 @@ void main() {
 
     expect(opened, isTrue);
   });
+
+  testWidgets(
+    'uses the active theme color for calendar marks and aligns rows',
+    (tester) async {
+      final today = DateTime.now();
+      final colors = DiaryThemeColors.lightFor(DiaryThemePreset.deepSea);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: DiaryTheme.lightFor(DiaryThemePreset.deepSea),
+          home: CalendarPage(
+            entries: [_entry(date: today)],
+            onOpenEntry: (_) {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final mark = tester.widget<Container>(
+        find.byKey(Key('calendar-mark-${today.day}')),
+      );
+      expect((mark.decoration! as BoxDecoration).color, colors.terracotta);
+
+      final time = tester.getRect(
+        find.byKey(const Key('calendar-entry-time-motion-entry')),
+      );
+      final dot = tester.getRect(
+        find.byKey(const Key('calendar-entry-mark-motion-entry')),
+      );
+      final title = tester.getRect(
+        find.byKey(const Key('calendar-entry-title-motion-entry')),
+      );
+      expect(time.center.dy, closeTo(title.center.dy, .1));
+      expect(dot.center.dy, closeTo(title.center.dy, .1));
+    },
+  );
 }

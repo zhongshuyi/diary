@@ -1,19 +1,18 @@
-import java.io.FileInputStream
 import java.util.Properties
-
-val signingPropertiesFile = rootProject.file("key.properties")
-check(signingPropertiesFile.exists()) {
-    "Missing Android signing configuration: ${signingPropertiesFile.path}"
-}
-val signingProperties = Properties().apply {
-    load(FileInputStream(signingPropertiesFile))
-}
 
 plugins {
     id("com.android.application")
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+val keystoreProperties = Properties().apply {
+    val propertiesFile = rootProject.file("key.properties")
+    check(propertiesFile.isFile) {
+        "Release signing configuration is missing: ${propertiesFile.absolutePath}"
+    }
+    propertiesFile.inputStream().use(::load)
 }
 
 android {
@@ -44,10 +43,10 @@ android {
 
     signingConfigs {
         create("release") {
-            keyAlias = signingProperties.getProperty("keyAlias")
-            keyPassword = signingProperties.getProperty("keyPassword")
-            storeFile = file(signingProperties.getProperty("storeFile"))
-            storePassword = signingProperties.getProperty("storePassword")
+            keyAlias = keystoreProperties.getProperty("keyAlias")
+            keyPassword = keystoreProperties.getProperty("keyPassword")
+            storeFile = file(keystoreProperties.getProperty("storeFile"))
+            storePassword = keystoreProperties.getProperty("storePassword")
         }
     }
 
