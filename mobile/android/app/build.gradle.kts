@@ -1,3 +1,14 @@
+import java.io.FileInputStream
+import java.util.Properties
+
+val signingPropertiesFile = rootProject.file("key.properties")
+check(signingPropertiesFile.exists()) {
+    "Missing Android signing configuration: ${signingPropertiesFile.path}"
+}
+val signingProperties = Properties().apply {
+    load(FileInputStream(signingPropertiesFile))
+}
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -31,6 +42,15 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            keyAlias = signingProperties.getProperty("keyAlias")
+            keyPassword = signingProperties.getProperty("keyPassword")
+            storeFile = file(signingProperties.getProperty("storeFile"))
+            storePassword = signingProperties.getProperty("storePassword")
+        }
+    }
+
     buildTypes {
         debug {
             applicationIdSuffix = ".dev"
@@ -41,9 +61,7 @@ android {
             versionNameSuffix = "-profile"
         }
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }
