@@ -1,3 +1,6 @@
+import 'dart:math' as math;
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:diary/app/app_theme.dart';
@@ -25,10 +28,11 @@ class _MediaPageState extends State<MediaPage> {
   final _searchController = TextEditingController();
   DiaryMediaKind? _filter;
   String _query = '';
+  late List<_MediaItem> _allItems;
 
-  List<_MediaItem> _collectItems() {
+  List<_MediaItem> _collectItems(List<DiaryEntry> entries) {
     final result = <_MediaItem>[];
-    for (final entry in widget.entries) {
+    for (final entry in entries) {
       for (final path in entry.imagePaths) {
         result.add(
           _MediaItem(
@@ -53,6 +57,20 @@ class _MediaPageState extends State<MediaPage> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _allItems = _collectItems(widget.entries);
+  }
+
+  @override
+  void didUpdateWidget(covariant MediaPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!listEquals(oldWidget.entries, widget.entries)) {
+      _allItems = _collectItems(widget.entries);
+    }
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
@@ -60,93 +78,111 @@ class _MediaPageState extends State<MediaPage> {
 
   @override
   Widget build(BuildContext context) {
-    final allItems = _collectItems();
-    final items = allItems
+    final items = _allItems
         .where(
           (item) =>
               (_filter == null || item.kind == _filter) && item.matches(_query),
         )
         .toList(growable: false);
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 28, 20, 110),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 980),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const DiaryPageIntro(
-                eyebrow: 'EVERYTHING YOU KEPT',
-                title: '媒体库',
-                description: '把图片、声音和文件放在一起，回到那一天。',
-              ),
-              const SizedBox(height: 20),
-              _MediaSummary(items: allItems),
-              const SizedBox(height: 16),
-              TextField(
-                key: const Key('media-search-field'),
-                controller: _searchController,
-                onChanged: (value) => setState(() => _query = value),
-                decoration: InputDecoration(
-                  hintText: '搜索文件名、日记标题或内容',
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon: _query.isEmpty
-                      ? null
-                      : IconButton(
-                          tooltip: '清除媒体搜索',
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() => _query = '');
-                          },
-                          icon: const Icon(Icons.close),
-                        ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    _filterChip(context, '全部', null),
-                    for (final kind in DiaryMediaKind.values)
-                      _filterChip(context, diaryMediaKindLabel(kind), kind),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              if (items.isEmpty)
-                _EmptyMediaState(
-                  hasMedia: allItems.isNotEmpty,
-                  hasQuery: _query.trim().isNotEmpty,
-                )
-              else
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final columns = constraints.maxWidth >= 720 ? 4 : 2;
-                    return GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: items.length,
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: columns,
-                        crossAxisSpacing: 10,
-                        mainAxisSpacing: 10,
-                        childAspectRatio: .93,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final contentWidth = math.min(980.0, constraints.maxWidth - 40);
+        final horizontalPadding = math.max(
+          20.0,
+          (constraints.maxWidth - contentWidth) / 2,
+        );
+        final columns = contentWidth >= 720 ? 4 : 2;
+        final header = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const DiaryPageIntro(
+              eyebrow: 'EVERYTHING YOU KEPT',
+              title: '媒体库',
+              description: '把图片、声音和文件放在一起，回到那一天。',
+            ),
+            const SizedBox(height: 20),
+            _MediaSummary(items: _allItems),
+            const SizedBox(height: 16),
+            TextField(
+              key: const Key('media-search-field'),
+              controller: _searchController,
+              onChanged: (value) => setState(() => _query = value),
+              decoration: InputDecoration(
+                hintText: '搜索文件名、日记标题或内容',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _query.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: '清除媒体搜索',
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _query = '');
+                        },
+                        icon: const Icon(Icons.close),
                       ),
-                      itemBuilder: (context, index) {
-                        final item = items[index];
-                        return _MediaCard(
-                          item: item,
-                          onTap: () => widget.onOpenEntry(item.entry),
-                        );
-                      },
+              ),
+            ),
+            const SizedBox(height: 12),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _filterChip(context, '全部', null),
+                  for (final kind in DiaryMediaKind.values)
+                    _filterChip(context, diaryMediaKindLabel(kind), kind),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (items.isEmpty)
+              _EmptyMediaState(
+                hasMedia: _allItems.isNotEmpty,
+                hasQuery: _query.trim().isNotEmpty,
+              )
+            else
+              const SizedBox(height: 0),
+          ],
+        );
+        return CustomScrollView(
+          cacheExtent: 500,
+          slivers: [
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(
+                horizontalPadding,
+                28,
+                horizontalPadding,
+                items.isEmpty ? 110 : 16,
+              ),
+              sliver: SliverToBoxAdapter(child: header),
+            ),
+            if (items.isNotEmpty)
+              SliverPadding(
+                padding: EdgeInsets.fromLTRB(
+                  horizontalPadding,
+                  0,
+                  horizontalPadding,
+                  110,
+                ),
+                sliver: SliverGrid.builder(
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: columns,
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 10,
+                    childAspectRatio: .82,
+                  ),
+                  itemCount: items.length,
+                  itemBuilder: (context, index) {
+                    final item = items[index];
+                    return _MediaCard(
+                      item: item,
+                      onTap: () => widget.onOpenEntry(item.entry),
                     );
                   },
                 ),
-            ],
-          ),
-        ),
-      ),
+              ),
+          ],
+        );
+      },
     );
   }
 
@@ -174,27 +210,24 @@ class _MediaPageState extends State<MediaPage> {
 }
 
 class _MediaItem {
-  const _MediaItem({
-    required this.entry,
-    required this.path,
-    required this.kind,
-  });
+  _MediaItem({required this.entry, required this.path, required this.kind})
+    : _searchableText = [
+        path.split(RegExp(r'[\\/]')).last,
+        entry.title,
+        entry.contentText,
+        entry.category,
+        ...entry.tags,
+      ].join(' ').toLowerCase();
 
   final DiaryEntry entry;
   final String path;
   final DiaryMediaKind kind;
+  final String _searchableText;
 
   bool matches(String query) {
     final normalized = query.trim().toLowerCase();
     if (normalized.isEmpty) return true;
-    final fileName = path.split(RegExp(r'[\\/]')).last;
-    return [
-      fileName,
-      entry.title,
-      entry.contentText,
-      entry.category,
-      ...entry.tags,
-    ].join(' ').toLowerCase().contains(normalized);
+    return _searchableText.contains(normalized);
   }
 }
 

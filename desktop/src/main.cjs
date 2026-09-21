@@ -2,6 +2,7 @@ const { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, Menu, na
 const crypto = require('node:crypto');
 const fs = require('node:fs/promises');
 const path = require('node:path');
+const { pathToFileURL } = require('node:url');
 const { createDiaryStore } = require('./main/database/store.cjs');
 const { DEFAULT_QUICK_CAPTURE_ACCELERATOR, formatAccelerator, normalizeAccelerator } = require('./main/shortcut.cjs');
 const {
@@ -368,6 +369,7 @@ ipcMain.handle('assets:read', async (_event, assetPath, options = {}) => {
   try {
     const resolvedPath = path.resolve(assetPath);
     if (!isWithinDirectory(path.resolve(mediaDirectory()), resolvedPath)) return null;
+    if (options?.url === true) return pathToFileURL(resolvedPath).href;
     const extension = path.extname(resolvedPath).toLowerCase();
     if (options?.thumbnail === true && ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'].includes(extension)) {
       const image = nativeImage.createFromPath(resolvedPath);
@@ -377,10 +379,7 @@ ipcMain.handle('assets:read', async (_event, assetPath, options = {}) => {
       const thumbnail = image.resize({ width: Math.max(1, Math.round(size.width * scale)), height: Math.max(1, Math.round(size.height * scale)), quality: 'good' });
       return thumbnail.toDataURL();
     }
-    const file = await fs.readFile(resolvedPath);
-    if (file.byteLength > 128 * 1024 * 1024) return null;
-    const mime = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp', '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime', '.mkv': 'video/x-matroska', '.avi': 'video/x-msvideo', '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.m4a': 'audio/mp4', '.aac': 'audio/aac', '.ogg': 'audio/ogg', '.flac': 'audio/flac' }[extension] || 'application/octet-stream';
-    return `data:${mime};base64,${file.toString('base64')}`;
+    return pathToFileURL(resolvedPath).href;
   } catch {
     return null;
   }
@@ -520,6 +519,7 @@ ipcMain.handle('db:deleteTag', (_event, value) => diaryStore?.deleteTag(value) |
 ipcMain.handle('db:renameCategory', (_event, from, to) => diaryStore?.renameCategory(from, to) || null);
 ipcMain.handle('db:deleteCategory', (_event, value) => diaryStore?.deleteCategory(value) || null);
 ipcMain.handle('db:deleteEntry', (_event, id) => diaryStore?.permanentlyDeleteEntry(id) || null);
+ipcMain.handle('db:emptyTrash', () => diaryStore?.emptyTrash() || null);
 ipcMain.handle('db:search', (_event, query, options) => diaryStore?.search(query, options) || []);
 ipcMain.handle('backup:export', async () => {
   if (!mainWindow || !diaryStore) return { cancelled: true };

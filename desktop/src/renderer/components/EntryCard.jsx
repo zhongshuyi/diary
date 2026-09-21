@@ -1,4 +1,4 @@
-import { Copy, FileImage, Film, Heart, MoreHorizontal, Music2, RotateCcw, Trash2 } from 'lucide-react';
+import { CloudSun, Copy, FileImage, Film, Frown, Heart, Meh, MoreHorizontal, Music2, RotateCcw, Smile, Sun, Trash2 } from 'lucide-react';
 import { Fragment, useEffect, useId, useRef, useState } from 'react';
 import { AssetPreview } from './AssetPreview';
 import { entryContentText } from '../lib/content';
@@ -13,6 +13,15 @@ function HighlightedText({ text, query }) {
   return parts.map((part, index) => part.toLowerCase() === normalized.toLowerCase() ? <mark key={`${part}-${index}`}>{part}</mark> : <Fragment key={`${part}-${index}`}>{part}</Fragment>);
 }
 
+function moodPresentation(label) {
+  const value = String(label || '').trim();
+  if (value === '阴天') return { icon: CloudSun, tone: 'cloudy', label: value };
+  if (value === '低落') return { icon: Frown, tone: 'low', label: value };
+  if (value === '平静') return { icon: Smile, tone: 'calm', label: value };
+  if (value === '明亮') return { icon: Sun, tone: 'bright', label: value };
+  return { icon: Meh, tone: 'neutral', label: value || '平常' };
+}
+
 export function EntryCard({ entry, highlightQuery = '', selectable = false, selected = false, onSelect, onEdit, onPreview, onToggleFavorite, onCopy, onTrash, onRestore, onDeletePermanent, isTrash = false }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const cardRef = useRef(null);
@@ -25,6 +34,11 @@ export function EntryCard({ entry, highlightQuery = '', selectable = false, sele
   const previewItems = media.map((path) => ({ path, entryId: entry.id, title: displayTitle }));
   const excerpt = hasTitle ? content : content.split(/\r?\n/).slice(1).join(' ').trim();
   const isImageOnly = media.length > 0 && media.every((path) => mediaKind(path) === 'image') && !hasTitle && !content.trim();
+  const isMoodOnly = Boolean(entry.moodLabel && !hasTitle && !content.trim() && media.length === 0);
+  const mood = moodPresentation(entry.moodLabel);
+  const MoodIcon = mood.icon;
+  const isImageGallery = media.length > 0 && media.every((path) => mediaKind(path) === 'image');
+  const visibleMedia = media.slice(0, isImageGallery ? 4 : 3);
   const MediaIcon = media.some((path) => mediaKind(path) === 'video') ? Film : media.some((path) => mediaKind(path) === 'audio') ? Music2 : FileImage;
   const canManage = isTrash ? Boolean(onRestore || onDeletePermanent) : Boolean(onToggleFavorite || onCopy || onTrash);
   const runAction = (action) => { setMenuOpen(false); action?.(entry.id); };
@@ -55,19 +69,19 @@ export function EntryCard({ entry, highlightQuery = '', selectable = false, sele
     </div>}
   </>;
 
-  return <article ref={cardRef} className={`entry-card ${isTrash ? 'trashed' : ''} ${selected ? 'selected' : ''} ${menuOpen ? 'is-menu-open' : ''} ${isImageOnly ? 'image-only' : ''}`} tabIndex="0" aria-label={isImageOnly ? '仅图片记录' : displayTitle} onClick={() => onEdit?.(entry.id)} onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onEdit?.(entry.id); } }}>
+  return <article ref={cardRef} className={`entry-card ${isTrash ? 'trashed' : ''} ${selected ? 'selected' : ''} ${menuOpen ? 'is-menu-open' : ''} ${isImageOnly ? 'image-only' : ''} ${isMoodOnly ? `mood-only mood-${mood.tone}` : ''}`} tabIndex="0" aria-label={isImageOnly ? '仅图片记录' : isMoodOnly ? `此刻心情：${mood.label}` : displayTitle} onClick={() => onEdit?.(entry.id)} onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onEdit?.(entry.id); } }}>
     {!isImageOnly && <div className="entry-card-line"><span className="entry-card-dot"></span><span className="entry-time">{timeLabel(entry.occurredAt || entry.createdAt)}</span></div>}
     <div className="entry-card-body">
-      {isImageOnly ? <div className="image-only-actions">{actions}</div> : <div className="entry-card-title">
+      {isMoodOnly ? <div className="mood-only-content"><span className="mood-only-icon"><MoodIcon size={22} strokeWidth={1.8} /></span><div><span>此刻心情</span><strong>{mood.label}</strong></div><div className="mood-only-actions">{actions}</div></div> : isImageOnly ? <div className="image-only-actions">{actions}</div> : <div className="entry-card-title">
         {selectable && <label className="entry-select" onClick={(event) => event.stopPropagation()}><input type="checkbox" checked={selected} onChange={() => onSelect?.(entry.id)} aria-label={`选择${displayTitle}`} /></label>}
         <h3 className={!hasTitle ? 'generated-title' : ''}><HighlightedText text={displayTitle} query={highlightQuery} /></h3>
         {entry.isFavorite && <Heart className="entry-favorite" size={13} fill="currentColor" aria-label="已收藏" />}
         <span className="entry-category"><HighlightedText text={entry.category || '生活'} query={highlightQuery} /></span>
         {actions}
       </div>}
-      {!isImageOnly && excerpt && <p><HighlightedText text={excerpt} query={highlightQuery} /></p>}
-      {media.length > 0 && <div className="entry-images">{media.slice(0, 3).map((path, index) => <button type="button" className="entry-media-button" key={path} aria-label={`预览${fileName(path)}`} onClick={(event) => { event.stopPropagation(); onPreview?.(previewItems, index); }}><AssetPreview path={path} className="entry-image" controls={false} /></button>)}{media.length > 3 && <button type="button" className="more-images" onClick={(event) => { event.stopPropagation(); onPreview?.(previewItems, 3); }}>+{media.length - 3}</button>}</div>}
-      {!isImageOnly && <div className="entry-meta"><span>{content.length} 字</span>{media.length > 0 && <span><MediaIcon size={13} />{media.length} 个附件</span>}<span className="entry-edit-hint">打开编辑</span></div>}
+      {!isImageOnly && !isMoodOnly && excerpt && <p><HighlightedText text={excerpt} query={highlightQuery} /></p>}
+      {media.length > 0 && <div className={`entry-images ${isImageGallery ? `image-gallery image-gallery-${Math.min(media.length, 4)}` : ''}`}>{visibleMedia.map((path, index) => <button type="button" className="entry-media-button" key={path} aria-label={`预览${fileName(path)}`} onClick={(event) => { event.stopPropagation(); onPreview?.(previewItems, index); }}><AssetPreview path={path} className="entry-image" controls={false} /></button>)}{media.length > visibleMedia.length && <button type="button" className="more-images" onClick={(event) => { event.stopPropagation(); onPreview?.(previewItems, visibleMedia.length); }}>+{media.length - visibleMedia.length}</button>}</div>}
+      {!isImageOnly && !isMoodOnly && <div className="entry-meta"><span>{content.length} 字</span>{media.length > 0 && <span><MediaIcon size={13} />{media.length} 个附件</span>}<span className="entry-edit-hint">打开编辑</span></div>}
     </div>
   </article>;
 }

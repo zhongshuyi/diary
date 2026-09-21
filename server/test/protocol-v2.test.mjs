@@ -14,11 +14,12 @@ test('v2 request normalizes cursor and mutation entry', () => {
   assert.equal(result.mutations[0].entry.revision, 1);
 });
 
-test('v2 entry preserves conflict, tombstone and attachment fields', () => {
-  const entry = normalizeEntryV2({ id: 'conflict:e-1:m-2', isConflict: true, isDeleted: true, conflictOf: 'e-1', attachmentIds: ['asset-a', 'asset-a'] });
+test('v2 entry preserves conflict, tombstone, mood and attachment fields', () => {
+  const entry = normalizeEntryV2({ id: 'conflict:e-1:m-2', isConflict: true, isDeleted: true, conflictOf: 'e-1', moodLabel: '平静', attachmentIds: ['asset-a', 'asset-a'] });
   assert.equal(entry.isConflict, true);
   assert.equal(entry.isDeleted, true);
   assert.equal(entry.conflictOf, 'e-1');
+  assert.equal(entry.moodLabel, '平静');
   assert.deepEqual(entry.attachmentIds, ['asset-a']);
 });
 

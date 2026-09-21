@@ -6,6 +6,28 @@ const { initializeDatabase } = require('./migrations.cjs');
 const { importLegacyData, readMigrationReport } = require('./legacy-migration.cjs');
 const { listEntries, listPendingMutations } = require('./repository.cjs');
 
+test('upgrades an installed v2 database with the mood label column', () => {
+  const db = openDatabase(':memory:');
+  try {
+    db.exec(`
+      CREATE TABLE app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+      INSERT INTO app_meta(key, value) VALUES ('schema_version', '2');
+      CREATE TABLE entries (
+        id TEXT PRIMARY KEY,
+        occurred_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        deleted_at TEXT,
+        category TEXT NOT NULL DEFAULT '生活'
+      );
+    `);
+    initializeDatabase(db);
+    assert.equal(db.prepare("SELECT value FROM app_meta WHERE key = 'schema_version'").get().value, '3');
+    assert.equal(db.prepare("SELECT name FROM pragma_table_info('entries') WHERE name = 'mood_label'").get().name, 'mood_label');
+  } finally {
+    closeDatabase(db);
+  }
+});
+
 test('imports v1 entries, outbox, cursor, and settings with an auditable report', () => {
   const db = openDatabase(':memory:');
   try {

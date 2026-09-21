@@ -75,6 +75,7 @@ class _DraggableQuickCaptureFabState extends State<DraggableQuickCaptureFab> {
 
   Widget _button(Offset position) {
     final colors = DiaryThemeColors.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return GestureDetector(
       onPanStart: (_) => setState(() => _dragging = true),
       onPanUpdate: (details) {
@@ -92,20 +93,26 @@ class _DraggableQuickCaptureFabState extends State<DraggableQuickCaptureFab> {
           label: '快速记录',
           hint: '点击打开速记，拖动调整位置',
           child: Material(
-            color: colors.hero,
-            elevation: 5,
-            shadowColor: colors.hero.withValues(alpha: .28),
+            color: colors.terracottaSoft,
+            elevation: isDark ? 7 : 5,
+            shadowColor: colors.terracotta.withValues(
+              alpha: isDark ? .42 : .28,
+            ),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(21),
+              side: BorderSide(
+                color: colors.terracotta,
+                width: isDark ? 1.5 : 1,
+              ),
             ),
             clipBehavior: Clip.antiAlias,
             child: InkWell(
               onTap: _openSheet,
-              splashColor: colors.terracotta.withValues(alpha: .25),
+              splashColor: colors.terracotta.withValues(alpha: .2),
               child: Center(
                 child: Icon(
                   Icons.bolt_outlined,
-                  color: colors.butter,
+                  color: colors.terracotta,
                   size: 27,
                 ),
               ),

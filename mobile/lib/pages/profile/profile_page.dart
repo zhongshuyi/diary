@@ -97,17 +97,12 @@ class ProfilePage extends StatelessWidget {
                 ),
                 child: Row(
                   children: [
-                    Container(
-                      width: 58,
-                      height: 58,
-                      decoration: BoxDecoration(
-                        color: colors.butter,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Icon(
-                        Icons.person_outline,
-                        size: 29,
-                        color: colors.ink,
+                    DiaryAvatar(
+                      imagePath: profileAvatarPath,
+                      size: 58,
+                      onTap: onPickAvatar,
+                      editIndicatorKey: const Key(
+                        'profile-desktop-avatar-edit-indicator',
                       ),
                     ),
                     const SizedBox(width: 15),
@@ -131,7 +126,17 @@ class ProfilePage extends StatelessWidget {
                         ],
                       ),
                     ),
-                    Icon(Icons.verified_user_outlined, color: colors.sage),
+                    if ((profileAvatarPath?.trim().isNotEmpty ?? false) &&
+                        onClearAvatar != null)
+                      IconButton(
+                        key: const Key('profile-desktop-avatar-reset-button'),
+                        tooltip: '恢复默认头像',
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () async => await onClearAvatar!.call(),
+                        icon: Icon(Icons.restart_alt, color: colors.onHero),
+                      )
+                    else
+                      Icon(Icons.verified_user_outlined, color: colors.sage),
                   ],
                 ),
               ),

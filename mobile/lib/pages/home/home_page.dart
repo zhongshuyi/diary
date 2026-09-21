@@ -174,21 +174,23 @@ class HomePageState extends State<HomePage> {
                       ? null
                       : () async {
                           await widget.onBatchFavorite!(_selectedIds, true);
-                          if (mounted)
+                          if (mounted) {
                             setState(() {
                               _selectionMode = false;
                               _selectedIds.clear();
                             });
+                          }
                         },
                   onDelete: widget.onBatchDelete == null
                       ? null
                       : () async {
                           await widget.onBatchDelete!(_selectedIds);
-                          if (mounted)
+                          if (mounted) {
                             setState(() {
                               _selectionMode = false;
                               _selectedIds.clear();
                             });
+                          }
                         },
                   onClose: () => setState(() {
                     _selectionMode = false;
@@ -595,8 +597,9 @@ class HomePageState extends State<HomePage> {
             entry: entry,
             onTap: () => _selectionMode
                 ? setState(() {
-                    if (!_selectedIds.add(entry.id))
+                    if (!_selectedIds.add(entry.id)) {
                       _selectedIds.remove(entry.id);
+                    }
                   })
                 : widget.onOpenEntry(entry),
             onLongPress: () => setState(() {
