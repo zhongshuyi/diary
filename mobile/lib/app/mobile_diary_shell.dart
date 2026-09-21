@@ -219,12 +219,16 @@ class _MobileDiaryShellState extends State<MobileDiaryShell> {
     final dark = Theme.of(context).brightness == Brightness.dark;
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
+        statusBarColor: _selectedIndex == _chatIndex
+            ? colors.surface
+            : Colors.transparent,
         statusBarIconBrightness: dark ? Brightness.light : Brightness.dark,
         statusBarBrightness: dark ? Brightness.dark : Brightness.light,
       ),
       child: Scaffold(
-        backgroundColor: colors.paper,
+        backgroundColor: _selectedIndex == _chatIndex
+            ? colors.surface
+            : colors.paper,
         body: SafeArea(
           top: true,
           bottom: false,
