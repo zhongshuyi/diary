@@ -4,11 +4,13 @@ import 'dart:ui' show Tristate;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:image_picker/image_picker.dart';
 
 import 'package:diary/domain/diary_entry.dart';
+import 'package:diary/app/app_theme.dart';
 import 'package:diary/data/diary_repository.dart';
 import 'package:diary/data/quick_audio_recorder.dart';
 import 'package:diary/data/settings_store.dart';
@@ -147,6 +149,26 @@ void main() {
     expect(find.text('我的日记'), findsOneWidget);
     expect(find.byKey(const Key('mobile-quick-capture-fab')), findsNothing);
     expect(find.byType(DiaryBottomNavigation), findsNothing);
+  });
+
+  testWidgets('uses the chat header color for the status bar', (tester) async {
+    final store = _TestSettingsStore()
+      ..value = const DiarySettings(defaultHomeMode: DiaryHomeMode.chat);
+    await tester.pumpWidget(MyApp(settingsStore: store));
+    await tester.pumpAndSettle();
+
+    final overlay = tester.widget<AnnotatedRegion<SystemUiOverlayStyle>>(
+      find.byWidgetPredicate(
+        (widget) => widget is AnnotatedRegion<SystemUiOverlayStyle>,
+      ),
+    );
+    final colors = DiaryThemeColors.of(tester.element(find.text('我的日记')));
+    final shellScaffold = tester.widget<Scaffold>(
+      find.ancestor(of: find.text('我的日记'), matching: find.byType(Scaffold)),
+    );
+
+    expect(overlay.value.statusBarColor, colors.surface);
+    expect(shellScaffold.backgroundColor, colors.surface);
   });
 
   testWidgets('quick action follows the saved left or right setting', (
