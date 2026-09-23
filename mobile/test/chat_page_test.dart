@@ -8,6 +8,21 @@ import 'package:diary/widgets/diary_audio_player.dart';
 import 'package:diary/widgets/diary_video_player.dart';
 
 void main() {
+  testWidgets('keeps the message field clear of the keyboard', (tester) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetViewInsets);
+
+    await tester.pumpWidget(const _ChatHarness());
+    await tester.pumpAndSettle();
+
+    final field = find.byKey(const Key('chat-message-field'));
+    expect(tester.getBottomLeft(field).dy, lessThanOrEqualTo(484));
+  });
+
   testWidgets('sends a text message through the shared diary callback', (
     tester,
   ) async {
