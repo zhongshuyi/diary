@@ -9,6 +9,46 @@ import 'package:diary/pages/entry/entry_detail_page.dart';
 import 'package:diary/pages/entry/entry_editor_page.dart';
 
 void main() {
+  testWidgets('only stores a mood when the writer selects one', (tester) async {
+    final store = MemoryDiaryDraftStore();
+    DiaryEntry? saved;
+    await tester.pumpWidget(
+      _editor(
+        store,
+        onSave: (entry) async {
+          saved = entry;
+        },
+      ),
+    );
+    await tester.enterText(
+      find.byKey(const Key('entry-content-field')),
+      '普通的一天',
+    );
+    await tester.tap(find.text('保存日记'));
+    await tester.pumpAndSettle();
+    expect(saved?.moodLabel, isNull);
+
+    saved = null;
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpWidget(
+      _editor(
+        store,
+        onSave: (entry) async {
+          saved = entry;
+        },
+      ),
+    );
+    await tester.enterText(
+      find.byKey(const Key('entry-content-field')),
+      '今天心情很好',
+    );
+    await tester.ensureVisible(find.text('明亮'));
+    await tester.tap(find.text('明亮'));
+    await tester.tap(find.text('保存日记'));
+    await tester.pumpAndSettle();
+    expect(saved?.moodLabel, '明亮');
+  });
+
   testWidgets('autosaves editor content after the draft debounce', (
     tester,
   ) async {

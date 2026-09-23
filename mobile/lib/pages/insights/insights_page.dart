@@ -13,18 +13,23 @@ class InsightsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = DiaryThemeColors.of(context);
-    final recent = entries
+    final moodEntries = entries
+        .where((entry) => entry.hasExplicitMood)
+        .toList();
+    final recent = moodEntries
         .take(7)
         .toList(growable: false)
         .reversed
         .toList(growable: false);
-    final averageMood = entries.isEmpty
-        ? 0.0
-        : entries.map((entry) => entry.mood).reduce((a, b) => a + b) /
-              entries.length;
+    final averageMood = moodEntries.isEmpty
+        ? null
+        : moodEntries.map((entry) => entry.mood).reduce((a, b) => a + b) /
+              moodEntries.length;
     final moodCounts = <String, int>{};
-    for (final entry in entries) {
-      final label = diaryMoodLabel(entry.mood);
+    for (final entry in moodEntries) {
+      final label = entry.moodLabel?.trim().isNotEmpty == true
+          ? entry.moodLabel!.trim()
+          : diaryMoodLabel(entry.mood);
       moodCounts[label] = (moodCounts[label] ?? 0) + 1;
     }
     return SingleChildScrollView(
@@ -58,7 +63,9 @@ class InsightsPage extends StatelessWidget {
                         tint: colors.sage,
                       ),
                       _Metric(
-                        number: '${(averageMood * 100).round()}%',
+                        number: averageMood == null
+                            ? '—'
+                            : '${(averageMood * 100).round()}%',
                         label: '平均心情',
                         tint: colors.butter,
                       ),
@@ -104,7 +111,7 @@ class InsightsPage extends StatelessWidget {
                         child: recent.isEmpty
                             ? Center(
                                 child: Text(
-                                  '写下第一篇日记后，这里会出现你的情绪轨迹。',
+                                  '主动标记心情后，这里会出现你的情绪轨迹。',
                                   style: Theme.of(context).textTheme.bodyMedium,
                                 ),
                               )
@@ -201,7 +208,7 @@ class InsightsPage extends StatelessWidget {
                       const SizedBox(height: 17),
                       if (moodCounts.isEmpty)
                         Text(
-                          '写下第一篇日记之后，这里会慢慢长出你的情绪天气。',
+                          '主动标记心情后，这里会慢慢长出你的情绪天气。',
                           style: Theme.of(context).textTheme.bodyMedium,
                         )
                       else
@@ -224,7 +231,7 @@ class InsightsPage extends StatelessWidget {
                                   child: ClipRRect(
                                     borderRadius: BorderRadius.circular(4),
                                     child: LinearProgressIndicator(
-                                      value: item.value / entries.length,
+                                      value: item.value / moodEntries.length,
                                       minHeight: 8,
                                       backgroundColor: colors.paper,
                                       color: colors.terracotta,

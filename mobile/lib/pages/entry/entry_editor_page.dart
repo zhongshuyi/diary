@@ -84,7 +84,7 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
   late final quill.QuillController _quillController;
   late DiaryEditorType _editorType;
   late String _category;
-  late String _selectedMood;
+  String? _selectedMood;
   List<String> _attachments = const [];
   bool _saving = false;
   bool _pickingAttachment = false;
@@ -107,7 +107,11 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
     _category =
         entry?.category ??
         (widget.categories.isEmpty ? '生活' : widget.categories.first);
-    _selectedMood = diaryMoodLabel(entry?.mood ?? .5);
+    _selectedMood = _moods.contains(entry?.moodLabel)
+        ? entry!.moodLabel
+        : entry != null && entry.mood != .5
+        ? diaryMoodLabel(entry.mood)
+        : null;
     _attachments = [
       ...(entry?.imagePaths ?? widget.initialImagePaths),
       ...?entry?.audioPaths,
@@ -250,7 +254,7 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
         _category = category;
       }
       final mood = _stringValue(draft['mood']);
-      if (_moods.contains(mood)) _selectedMood = mood;
+      _selectedMood = _moods.contains(mood) ? mood : null;
       _tagsController.text = _stringValue(draft['tagsText']);
       if (_tagsController.text.isEmpty && draft['tags'] is List) {
         _tagsController.text = (draft['tags'] as List).whereType<String>().join(
@@ -832,7 +836,7 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
     return ChoiceChip(
       label: Text(mood),
       selected: selected,
-      onSelected: (_) => setState(() => _selectedMood = mood),
+      onSelected: (_) => setState(() => _selectedMood = selected ? null : mood),
       showCheckmark: false,
       selectedColor: colors.hero,
       backgroundColor: colors.surface,
@@ -1115,6 +1119,7 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
       contentText: plainText,
       editorType: _editorType,
       mood: _moodValue(_selectedMood),
+      moodLabel: _selectedMood,
       category: _category,
       tags: _tagsController.text
           .split(',')
@@ -1158,7 +1163,7 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
   }
 }
 
-double _moodValue(String mood) {
+double _moodValue(String? mood) {
   const values = {'阴天': .1, '低落': .3, '平常': .5, '平静': .7, '明亮': .9};
   return values[mood] ?? .5;
 }

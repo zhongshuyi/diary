@@ -171,6 +171,9 @@ class _DesktopDiaryShellState extends State<DesktopDiaryShell> {
         showChatAvatar: widget.settingsController.settings.showChatAvatar,
         profileAvatarPath: widget.settingsController.settings.profileAvatarPath,
         onSend: widget.actions.saveChatMessage,
+        onLoadDraft: widget.actions.loadDraft,
+        onSaveDraft: widget.actions.saveDraft,
+        onClearDraft: widget.actions.clearDraft,
         onOpenEntry: (entry) => unawaited(_openEntry(entry)),
         onEdit: (entry) async {
           await _openEditor(entry);

@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:diary/app/diary_shell.dart';
 import 'package:diary/app/mobile_diary_shell.dart';
 import 'package:diary/domain/diary_entry.dart';
+import 'package:diary/pages/entry/quick_capture_sheet.dart';
 
 DiaryEntry _entry({
   required String id,
@@ -25,9 +26,11 @@ DiaryEntry _entry({
   );
 }
 
-DiaryShellActions _actions() {
+DiaryShellActions _actions({
+  Future<void> Function([DiaryEntry? entry])? onOpenEditor,
+}) {
   return DiaryShellActions(
-    openEditor: ([DiaryEntry? _]) async {},
+    openEditor: onOpenEditor ?? ([DiaryEntry? _]) async {},
     openEditorFromQuick: (_, _) async {},
     openEntry: (_) async {},
     toggleFavorite: (_) async {},
@@ -77,6 +80,45 @@ Widget _buildMobileShell(
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  testWidgets('launcher shortcuts open chat, quick capture, and the editor', (
+    tester,
+  ) async {
+    final request = ValueNotifier<String?>(null);
+    var editorOpened = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MobileDiaryShell(
+          entries: const [],
+          trash: const [],
+          shortcutRequest: request,
+          actions: _actions(
+            onOpenEditor: ([DiaryEntry? _]) async {
+              editorOpened = true;
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    request.value = 'open-chat';
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('chat-message-field')), findsOneWidget);
+    expect(request.value, isNull);
+
+    request.value = 'quick-capture';
+    await tester.pumpAndSettle();
+    expect(find.byType(QuickCaptureSheet), findsOneWidget);
+    Navigator.of(tester.element(find.byType(QuickCaptureSheet))).pop();
+    await tester.pumpAndSettle();
+
+    request.value = 'new-entry';
+    await tester.pumpAndSettle();
+    expect(editorOpened, isTrue);
+    await tester.pumpWidget(const SizedBox.shrink());
+    request.dispose();
+  });
 
   testWidgets('profile opens Favorites with the live favorite count', (
     tester,

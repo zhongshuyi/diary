@@ -20,7 +20,7 @@ class WeeklySummary {
   final List<DiaryEntry> entries;
   final int recordedDayCount;
   final int wordCount;
-  final double averageMood;
+  final double? averageMood;
   final String topCategory;
 
   int get entryCount => entries.length;
@@ -73,15 +73,19 @@ WeeklySummary? calculateWeeklySummary({
       return byCount != 0 ? byCount : left.key.compareTo(right.key);
     });
 
+  final moodEntries = weeklyEntries
+      .where((entry) => entry.hasExplicitMood)
+      .toList();
   return WeeklySummary(
     start: priorWeekStart,
     end: priorWeekEnd,
     entries: List.unmodifiable(weeklyEntries),
     recordedDayCount: recordedDays.length,
     wordCount: weeklyEntries.fold(0, (sum, entry) => sum + entry.wordCount),
-    averageMood:
-        weeklyEntries.fold<double>(0, (sum, entry) => sum + entry.mood) /
-        weeklyEntries.length,
+    averageMood: moodEntries.isEmpty
+        ? null
+        : moodEntries.fold<double>(0, (sum, entry) => sum + entry.mood) /
+              moodEntries.length,
     topCategory: topCategory.first.key,
   );
 }

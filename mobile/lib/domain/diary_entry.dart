@@ -88,6 +88,11 @@ class DiaryEntry {
   final DiaryEditorType editorType;
   final double mood;
   final String? moodLabel;
+
+  // Older entries saved a chosen non-neutral mood without a label. A value of
+  // .5 is ambiguous because it was also the default for an unmarked entry.
+  bool get hasExplicitMood =>
+      (moodLabel?.trim().isNotEmpty ?? false) || mood != .5;
   final String category;
   final List<String> tags;
   final List<String> attachmentIds;
