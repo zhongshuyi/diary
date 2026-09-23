@@ -1233,10 +1233,11 @@ class _ChatComposerState extends State<_ChatComposer> {
   @override
   Widget build(BuildContext context) {
     final colors = DiaryThemeColors.of(context);
+    final keyboardVisible = View.of(context).viewInsets.bottom > 0;
     return SafeArea(
       top: false,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(12, 9, 12, 10),
+        padding: EdgeInsets.fromLTRB(12, 9, 12, keyboardVisible ? 16 : 10),
         decoration: BoxDecoration(
           color: colors.surface,
           border: Border(top: BorderSide(color: colors.line)),
