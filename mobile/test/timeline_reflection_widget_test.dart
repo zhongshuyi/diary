@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:diary/domain/diary_entry.dart';
 import 'package:diary/pages/home/home_page.dart';
+import 'package:diary/widgets/day_entry_card.dart';
 
 DiaryEntry entry(
   String id, {
@@ -61,6 +62,24 @@ Widget homeWithEntries(
 }
 
 void main() {
+  testWidgets('builds only nearby day cards on a long mobile timeline', (
+    tester,
+  ) async {
+    final today = DateTime.now();
+    final entries = [
+      for (var index = 0; index < 100; index++)
+        entry(
+          'day-$index',
+          occurredAt: DateTime(today.year, today.month, today.day - index, 10),
+        ),
+    ];
+    await tester.pumpWidget(homeWithEntries(entries));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(DayEntryCard).evaluate().length, lessThan(20));
+    expect(find.text('day-99'), findsNothing);
+  });
+
   testWidgets('shows compact reflections and opens their original entry', (
     tester,
   ) async {

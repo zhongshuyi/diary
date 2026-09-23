@@ -22,33 +22,45 @@ class DiaryChatBackgroundLayer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        ColoredBox(color: fallbackColor),
-        if (background.hasImage)
-          IgnorePointer(
-            child: Opacity(
-              opacity: background.opacity,
-              child: ClipRect(
-                child: Transform.scale(
-                  scale: background.scale,
-                  alignment: Alignment(
-                    background.alignmentX,
-                    background.alignmentY,
-                  ),
-                  child: LocalMediaPreview(
-                    key: imageKey,
-                    path: background.imagePath!,
-                    kind: DiaryMediaKind.image,
-                    fit: BoxFit.cover,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cacheWidth = constraints.maxWidth.isFinite
+            ? (constraints.maxWidth *
+                      MediaQuery.devicePixelRatioOf(context) *
+                      background.scale)
+                  .round()
+                  .clamp(1, 2048)
+            : null;
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            ColoredBox(color: fallbackColor),
+            if (background.hasImage)
+              IgnorePointer(
+                child: Opacity(
+                  opacity: background.opacity,
+                  child: ClipRect(
+                    child: Transform.scale(
+                      scale: background.scale,
+                      alignment: Alignment(
+                        background.alignmentX,
+                        background.alignmentY,
+                      ),
+                      child: LocalMediaPreview(
+                        key: imageKey,
+                        path: background.imagePath!,
+                        kind: DiaryMediaKind.image,
+                        fit: BoxFit.cover,
+                        cacheWidth: cacheWidth,
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
-          ),
-        child,
-      ],
+            child,
+          ],
+        );
+      },
     );
   }
 }

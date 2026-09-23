@@ -81,11 +81,11 @@ class MainActivity : FlutterFragmentActivity() {
     private fun registerShortcuts() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N_MR1) return
         val manager = getSystemService(ShortcutManager::class.java) ?: return
-        fun shortcut(id: String, label: String, action: String, rank: Int): ShortcutInfo =
+        fun shortcut(id: String, label: String, action: String, icon: Int, rank: Int): ShortcutInfo =
             ShortcutInfo.Builder(this, id)
                 .setShortLabel(label)
                 .setLongLabel(label)
-                .setIcon(Icon.createWithResource(this, R.mipmap.ic_launcher))
+                .setIcon(Icon.createWithResource(this, icon))
                 .setIntent(Intent(this, MainActivity::class.java).apply {
                     this.action = action
                     addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
@@ -93,9 +93,9 @@ class MainActivity : FlutterFragmentActivity() {
                 .setRank(rank)
                 .build()
         manager.dynamicShortcuts = listOf(
-            shortcut("quick-capture", "快速记录", "com.ling.diary.action.QUICK_CAPTURE", 0),
-            shortcut("open-chat", "打开对话", "com.ling.diary.action.OPEN_CHAT", 1),
-            shortcut("new-entry", "写完整日记", "com.ling.diary.action.NEW_ENTRY", 2),
+            shortcut("quick-capture", "快速记录", "com.ling.diary.action.QUICK_CAPTURE", R.drawable.ic_shortcut_quick_capture, 0),
+            shortcut("open-chat", "打开对话", "com.ling.diary.action.OPEN_CHAT", R.drawable.ic_shortcut_chat, 1),
+            shortcut("new-entry", "写完整日记", "com.ling.diary.action.NEW_ENTRY", R.drawable.ic_shortcut_new_entry, 2),
         )
     }
 

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'package:diary/app/app_theme.dart';
+import 'package:diary/app/diary_motion.dart';
 import 'package:diary/application/home_timeline_filter.dart';
 import 'package:diary/application/timeline_reflection.dart';
 import 'package:diary/application/weekly_summary.dart';
@@ -57,6 +59,15 @@ class HomePageState extends State<HomePage> {
   bool _selectionMode = false;
   final Set<String> _selectedIds = <String>{};
   final Set<DateTime> _toggledDays = <DateTime>{};
+  List<DiaryEntry>? _overviewSource;
+  DateTime? _overviewDay;
+  ({
+    TimelineReflection reflection,
+    WeeklySummary? weeklySummary,
+    List<String> categories,
+    List<String> tags,
+  })?
+  _overview;
 
   void focusSearch() {
     _searchFocusNode.requestFocus();
@@ -78,25 +89,15 @@ class HomePageState extends State<HomePage> {
   bool get _hasActiveFilters => _filter.hasActiveConditions;
 
   Future<void> _openFilters() async {
-    final categories =
-        <String>{
-          '全部',
-          ...widget.entries.map((entry) => entry.category),
-        }.toList()..sort(
-          (left, right) => left == '全部'
-              ? -1
-              : right == '全部'
-              ? 1
-              : _usageCompare(left, right, widget.entries),
-        );
+    final overview = _overviewFor(DateTime.now());
     final result = await showModalBottomSheet<HomeTimelineFilter>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (_) => HomeFilterSheet(
         initialFilter: _filter,
-        categories: categories,
-        tags: _sortedTags(widget.entries),
+        categories: overview.categories,
+        tags: overview.tags,
         now: DateTime.now(),
       ),
     );
@@ -111,31 +112,40 @@ class HomePageState extends State<HomePage> {
         .toList(growable: false);
   }
 
+  ({
+    TimelineReflection reflection,
+    WeeklySummary? weeklySummary,
+    List<String> categories,
+    List<String> tags,
+  })
+  _overviewFor(DateTime now) {
+    final day = DateTime(now.year, now.month, now.day);
+    if (!identical(_overviewSource, widget.entries) || _overviewDay != day) {
+      _overviewSource = widget.entries;
+      _overviewDay = day;
+      _overview = (
+        reflection: calculateTimelineReflection(
+          entries: widget.entries,
+          now: now,
+        ),
+        weeklySummary: calculateWeeklySummary(
+          entries: widget.entries,
+          now: now,
+        ),
+        categories: _sortedCategories(widget.entries),
+        tags: _sortedTags(widget.entries),
+      );
+    }
+    return _overview!;
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = DiaryThemeColors.of(context);
     final entries = _filteredEntries;
-    final now = DateTime.now();
-    final reflection = calculateTimelineReflection(
-      entries: widget.entries,
-      now: now,
-    );
-    final weeklySummary = calculateWeeklySummary(
-      entries: widget.entries,
-      now: now,
-    );
-    final categories =
-        <String>{
-          '全部',
-          ...widget.entries.map((entry) => entry.category),
-        }.toList()..sort(
-          (a, b) => a == '全部'
-              ? -1
-              : b == '全部'
-              ? 1
-              : _usageCompare(a, b, widget.entries),
-        );
-    final tags = _sortedTags(widget.entries);
+    final overview = _overviewFor(DateTime.now());
+    final categories = overview.categories;
+    final tags = overview.tags;
     if (widget.desktopLayout) {
       return _buildDesktop(context, entries, categories, tags);
     }
@@ -145,8 +155,8 @@ class HomePageState extends State<HomePage> {
       categories,
       tags,
       colors,
-      reflection,
-      weeklySummary,
+      overview.reflection,
+      overview.weeklySummary,
     );
   }
 
@@ -159,181 +169,242 @@ class HomePageState extends State<HomePage> {
     TimelineReflection reflection,
     WeeklySummary? weeklySummary,
   ) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 22, 16, 110),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 720),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (_selectionMode)
-                _SelectionToolbar(
-                  count: _selectedIds.length,
-                  onFavorite: widget.onBatchFavorite == null
-                      ? null
-                      : () async {
-                          await widget.onBatchFavorite!(_selectedIds, true);
-                          if (mounted) {
-                            setState(() {
-                              _selectionMode = false;
-                              _selectedIds.clear();
-                            });
-                          }
-                        },
-                  onDelete: widget.onBatchDelete == null
-                      ? null
-                      : () async {
-                          await widget.onBatchDelete!(_selectedIds);
-                          if (mounted) {
-                            setState(() {
-                              _selectionMode = false;
-                              _selectedIds.clear();
-                            });
-                          }
-                        },
-                  onClose: () => setState(() {
-                    _selectionMode = false;
-                    _selectedIds.clear();
-                  }),
-                ),
-              Row(
-                children: [
-                  Expanded(
-                    child: _Header(
-                      onOpenEditor: widget.onOpenEditor,
-                      showAction: false,
+    final dayGroups = entries.isEmpty
+        ? <Widget>[]
+        : _buildMobileDayGroups(entries);
+    return CustomScrollView(
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 22, 16, 0),
+          sliver: SliverToBoxAdapter(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 720),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    AnimatedSize(
+                      duration: DiaryMotion.duration(
+                        context,
+                        DiaryMotion.standard,
+                      ),
+                      curve: DiaryMotion.curve(context, Curves.easeOutCubic),
+                      alignment: Alignment.topCenter,
+                      child: _selectionMode
+                          ? _SelectionToolbar(
+                              count: _selectedIds.length,
+                              onFavorite: widget.onBatchFavorite == null
+                                  ? null
+                                  : () async {
+                                      await widget.onBatchFavorite!(
+                                        _selectedIds,
+                                        true,
+                                      );
+                                      if (mounted) {
+                                        setState(() {
+                                          _selectionMode = false;
+                                          _selectedIds.clear();
+                                        });
+                                      }
+                                    },
+                              onDelete: widget.onBatchDelete == null
+                                  ? null
+                                  : () async {
+                                      await widget.onBatchDelete!(_selectedIds);
+                                      if (mounted) {
+                                        setState(() {
+                                          _selectionMode = false;
+                                          _selectedIds.clear();
+                                        });
+                                      }
+                                    },
+                              onClose: () => setState(() {
+                                _selectionMode = false;
+                                _selectedIds.clear();
+                              }),
+                            )
+                          : const SizedBox(width: double.infinity),
                     ),
-                  ),
-                  _SyncIndicator(
-                    state: widget.syncState,
-                    onSyncNow: widget.onSyncNow,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    Row(
                       children: [
-                        Text(
-                          '最近的日记',
-                          style: Theme.of(context).textTheme.headlineSmall,
+                        Expanded(
+                          child: _Header(
+                            onOpenEditor: widget.onOpenEditor,
+                            showAction: false,
+                          ),
                         ),
-                        const SizedBox(height: 5),
-                        Text(
-                          '${widget.entries.length} 个被你认真生活过的瞬间',
-                          style: Theme.of(context).textTheme.bodyMedium,
+                        _SyncIndicator(
+                          state: widget.syncState,
+                          onSyncNow: widget.onSyncNow,
                         ),
                       ],
                     ),
-                  ),
-                  IconButton(
-                    onPressed: () => setState(
-                      () => _filter = _filter.copyWith(
-                        favoriteOnly: !_filter.favoriteOnly,
+                    const SizedBox(height: 16),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '最近的日记',
+                                style: Theme.of(
+                                  context,
+                                ).textTheme.headlineSmall,
+                              ),
+                              const SizedBox(height: 5),
+                              Text(
+                                '${widget.entries.length} 个被你认真生活过的瞬间',
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => setState(
+                            () => _filter = _filter.copyWith(
+                              favoriteOnly: !_filter.favoriteOnly,
+                            ),
+                          ),
+                          tooltip: '只看收藏',
+                          icon: Icon(
+                            _filter.favoriteOnly
+                                ? Icons.bookmark
+                                : Icons.bookmark_border,
+                            color: _filter.favoriteOnly
+                                ? colors.terracotta
+                                : colors.mutedInk,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 15),
+                    TextField(
+                      key: const Key('diary-search-field'),
+                      controller: _searchController,
+                      focusNode: _searchFocusNode,
+                      onChanged: (value) => setState(
+                        () => _filter = _filter.copyWith(query: value),
+                      ),
+                      decoration: InputDecoration(
+                        hintText: '搜索标题、正文、分类或标签',
+                        prefixIcon: const Icon(Icons.search),
+                        suffixIcon: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (_searchController.text.isNotEmpty)
+                              IconButton(
+                                key: const Key('diary-search-clear'),
+                                tooltip: '清除搜索',
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(
+                                    () => _filter = _filter.copyWith(query: ''),
+                                  );
+                                  _searchFocusNode.requestFocus();
+                                },
+                                icon: const Icon(Icons.close_rounded, size: 18),
+                              ),
+                            _filter.advancedFilterCount > 0
+                                ? Badge(
+                                    label: Text(
+                                      '${_filter.advancedFilterCount}',
+                                    ),
+                                    child: _buildFilterButton(colors),
+                                  )
+                                : _buildFilterButton(colors),
+                          ],
+                        ),
                       ),
                     ),
-                    tooltip: '只看收藏',
-                    icon: Icon(
-                      _filter.favoriteOnly
-                          ? Icons.bookmark
-                          : Icons.bookmark_border,
-                      color: _filter.favoriteOnly
-                          ? colors.terracotta
-                          : colors.mutedInk,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 15),
-              TextField(
-                key: const Key('diary-search-field'),
-                controller: _searchController,
-                focusNode: _searchFocusNode,
-                onChanged: (value) =>
-                    setState(() => _filter = _filter.copyWith(query: value)),
-                decoration: InputDecoration(
-                  hintText: '搜索标题、正文、分类或标签',
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon: _filter.advancedFilterCount > 0
-                      ? Badge(
-                          label: Text('${_filter.advancedFilterCount}'),
-                          child: _buildFilterButton(colors),
-                        )
-                      : _buildFilterButton(colors),
-                ),
-              ),
-              if (!_filter.hidesReflections &&
-                  (reflection.featuredOnThisDay != null ||
-                      reflection.randomEntryAt(_randomRotation) != null ||
-                      weeklySummary != null)) ...[
-                const SizedBox(height: 12),
-                TimelineReflectionSection(
-                  reflection: reflection,
-                  weeklySummary: weeklySummary,
-                  randomRotation: _randomRotation,
-                  onOpenEntry: widget.onOpenEntry,
-                  onRotateRandom: () => setState(() => _randomRotation += 1),
-                ),
-              ],
-              const SizedBox(height: 12),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: categories.map((category) {
-                    final selected = category == _filter.category;
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: ChoiceChip(
-                        label: Text(category),
-                        selected: selected,
-                        onSelected: (_) => setState(
-                          () => _filter = _filter.copyWith(category: category),
-                        ),
-                        selectedColor: colors.hero,
-                        labelStyle: TextStyle(
-                          color: selected ? colors.onHero : colors.ink,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        ),
-                        side: BorderSide(
-                          color: selected ? colors.hero : colors.line,
-                        ),
-                        backgroundColor: colors.surface,
-                        showCheckmark: false,
+                    if (!_filter.hidesReflections &&
+                        (reflection.featuredOnThisDay != null ||
+                            reflection.randomEntryAt(_randomRotation) != null ||
+                            weeklySummary != null)) ...[
+                      const SizedBox(height: 12),
+                      TimelineReflectionSection(
+                        reflection: reflection,
+                        weeklySummary: weeklySummary,
+                        randomRotation: _randomRotation,
+                        onOpenEntry: widget.onOpenEntry,
+                        onRotateRandom: () =>
+                            setState(() => _randomRotation += 1),
                       ),
-                    );
-                  }).toList(),
+                    ],
+                    const SizedBox(height: 12),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: categories.map((category) {
+                          final selected = category == _filter.category;
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: ChoiceChip(
+                              label: Text(category),
+                              selected: selected,
+                              onSelected: (_) => setState(
+                                () => _filter = _filter.copyWith(
+                                  category: category,
+                                ),
+                              ),
+                              selectedColor: colors.hero,
+                              labelStyle: TextStyle(
+                                color: selected ? colors.onHero : colors.ink,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                              side: BorderSide(
+                                color: selected ? colors.hero : colors.line,
+                              ),
+                              backgroundColor: colors.surface,
+                              showCheckmark: false,
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                    if (tags.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      _TagFilters(
+                        tags: tags,
+                        selected: _filter.tags,
+                        onToggle: _toggleTag,
+                      ),
+                    ],
+                    const SizedBox(height: 18),
+                    if (entries.isEmpty)
+                      _EmptyState(
+                        query: _filter.query,
+                        onOpenEditor: widget.onOpenEditor,
+                        onClearFilters: _filter.hasActiveConditions
+                            ? () => setState(
+                                () => _filter = _filter.clearConditions(),
+                              )
+                            : null,
+                      ),
+                  ],
                 ),
               ),
-              if (tags.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                _TagFilters(
-                  tags: tags,
-                  selected: _filter.tags,
-                  onToggle: _toggleTag,
-                ),
-              ],
-              const SizedBox(height: 18),
-              if (entries.isEmpty)
-                _EmptyState(
-                  query: _filter.query,
-                  onOpenEditor: widget.onOpenEditor,
-                  onClearFilters: _filter.hasActiveConditions
-                      ? () =>
-                            setState(() => _filter = _filter.clearConditions())
-                      : null,
-                )
-              else
-                ..._buildMobileDayGroups(entries),
-            ],
+            ),
           ),
         ),
-      ),
+        if (dayGroups.isNotEmpty)
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 110),
+            sliver: SliverList.builder(
+              itemCount: dayGroups.length,
+              itemBuilder: (context, index) => Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 720),
+                  child: dayGroups[index],
+                ),
+              ),
+            ),
+          )
+        else
+          const SliverToBoxAdapter(child: SizedBox(height: 110)),
+      ],
     );
   }
 
@@ -352,6 +423,14 @@ class HomePageState extends State<HomePage> {
     final tags = Set<String>.of(_filter.tags);
     if (!tags.add(tag)) tags.remove(tag);
     setState(() => _filter = _filter.copyWith(tags: tags));
+  }
+
+  void _toggleMobileSelection(DiaryEntry entry) {
+    HapticFeedback.selectionClick();
+    setState(() {
+      if (!_selectedIds.add(entry.id)) _selectedIds.remove(entry.id);
+      _selectionMode = _selectedIds.isNotEmpty;
+    });
   }
 
   Widget _buildDesktop(
@@ -557,16 +636,9 @@ class HomePageState extends State<HomePage> {
               if (!_toggledDays.add(day)) _toggledDays.remove(day);
             }),
             onOpenEntry: (entry) => _selectionMode
-                ? setState(() {
-                    if (!_selectedIds.add(entry.id)) {
-                      _selectedIds.remove(entry.id);
-                    }
-                  })
+                ? _toggleMobileSelection(entry)
                 : widget.onOpenEntry(entry),
-            onLongPressEntry: (entry) => setState(() {
-              _selectionMode = true;
-              if (!_selectedIds.add(entry.id)) _selectedIds.remove(entry.id);
-            }),
+            onLongPressEntry: _toggleMobileSelection,
             onFavorite: widget.onToggleFavorite,
             onShare: widget.onShare,
             onDelete: widget.onDelete,
@@ -732,23 +804,28 @@ List<String> _sortedTags(List<DiaryEntry> entries) {
   return values;
 }
 
-int _usageCompare(String a, String b, List<DiaryEntry> entries) {
-  int count(String value) => entries
-      .where((entry) => entry.category == value && !entry.isInTrash)
-      .length;
-  final countCompare = count(b).compareTo(count(a));
-  if (countCompare != 0) return countCompare;
-  DateTime latest(String value) {
-    final dates = entries
-        .where((entry) => entry.category == value && !entry.isInTrash)
-        .map((entry) => entry.effectiveOccurredAt);
-    return dates.isEmpty
-        ? DateTime.fromMillisecondsSinceEpoch(0)
-        : dates.reduce((a, b) => a.isAfter(b) ? a : b);
+List<String> _sortedCategories(List<DiaryEntry> entries) {
+  final usage = <String, _Usage>{};
+  final categories = <String>{'全部'};
+  for (final entry in entries) {
+    categories.add(entry.category);
+    if (entry.isInTrash) continue;
+    final old = usage[entry.category];
+    usage[entry.category] = _Usage(
+      (old?.count ?? 0) + 1,
+      _latestDate(old?.latest, entry.effectiveOccurredAt),
+    );
   }
-
-  final latestCompare = latest(b).compareTo(latest(a));
-  return latestCompare != 0 ? latestCompare : a.compareTo(b);
+  return categories.toList()..sort((a, b) {
+    if (a == '全部') return -1;
+    if (b == '全部') return 1;
+    final countCompare = (usage[b]?.count ?? 0).compareTo(usage[a]?.count ?? 0);
+    if (countCompare != 0) return countCompare;
+    final latestCompare = (usage[b]?.latest ?? DateTime(1970)).compareTo(
+      usage[a]?.latest ?? DateTime(1970),
+    );
+    return latestCompare != 0 ? latestCompare : a.compareTo(b);
+  });
 }
 
 DateTime _latestDate(DateTime? old, DateTime next) =>

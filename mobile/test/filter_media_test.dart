@@ -66,6 +66,38 @@ void main() {
     expect(find.text('周末散步'), findsNothing);
   });
 
+  testWidgets('clears a timeline search without reopening filters', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: HomePage(
+            entries: [
+              _entry(id: 'work', title: '工作记录', category: '工作'),
+              _entry(id: 'walk', title: '周末散步', category: '生活'),
+            ],
+            onOpenEditor: () {},
+            onOpenEntry: (_) {},
+            onToggleFavorite: (_) {},
+            onShare: (_) {},
+            onDelete: (_) {},
+            onQuickCapture: (_) async {},
+          ),
+        ),
+      ),
+    );
+    await tester.enterText(find.byKey(const Key('diary-search-field')), '工作');
+    await tester.pumpAndSettle();
+
+    expect(find.text('工作记录'), findsOneWidget);
+    expect(find.text('周末散步'), findsNothing);
+    await tester.tap(find.byKey(const Key('diary-search-clear')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('周末散步'), findsOneWidget);
+  });
+
   testWidgets('searches media by attachment and entry text', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -85,6 +117,17 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+
+    expect(find.text('sunrise.jpg'), findsNothing);
+    expect(find.text('山里的早晨'), findsOneWidget);
+    expect(find.text('2026年9月17日 · 旅行'), findsOneWidget);
+
+    await tester.enterText(
+      find.byKey(const Key('media-search-field')),
+      'sunrise.jpg',
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('山里的早晨'), findsOneWidget);
 
     await tester.enterText(
       find.byKey(const Key('media-search-field')),

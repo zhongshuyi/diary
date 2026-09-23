@@ -61,6 +61,117 @@ void main() {
     expect(tester.getBottomLeft(field).dy, lessThanOrEqualTo(484));
   });
 
+  testWidgets('opening the keyboard does not grow the composer', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetViewInsets);
+
+    await tester.pumpWidget(const _ChatHarness());
+    await tester.pumpAndSettle();
+    final composer = find.byKey(const Key('chat-composer'));
+    final surface = find.byKey(const Key('chat-input-surface'));
+    final initialHeight = tester.getSize(composer).height;
+    final initialInputHeight = tester.getSize(surface).height;
+
+    tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+    await tester.pumpAndSettle();
+    expect(tester.getSize(composer).height, initialHeight);
+    expect(tester.getSize(surface).height, initialInputHeight);
+
+    await tester.enterText(find.byKey(const Key('chat-message-field')), '你好');
+    await tester.pumpAndSettle();
+    expect(tester.getSize(composer).height, initialHeight);
+    expect(tester.getSize(surface).height, initialInputHeight);
+  });
+
+  testWidgets('composer controls keep equal size and stable spacing', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const _ChatHarness());
+    await tester.pumpAndSettle();
+
+    final record = find.byKey(const Key('chat-record-button'));
+    final mood = find.byKey(const Key('chat-mood-button'));
+    final add = find.byKey(const Key('chat-add-button'));
+    final field = find.byKey(const Key('chat-message-field'));
+    final surface = find.byKey(const Key('chat-input-surface'));
+    for (final control in [record, mood, add]) {
+      expect(tester.getSize(control), const Size(40, 40));
+    }
+    final oneLineHeight = tester.getSize(surface).height;
+    expect(oneLineHeight, lessThanOrEqualTo(42));
+    expect(tester.getTopLeft(record).dy, tester.getTopLeft(mood).dy);
+    expect(tester.getTopLeft(add).dy, tester.getTopLeft(mood).dy);
+    final fieldWidth = tester.getSize(field).width;
+    expect(fieldWidth, greaterThan(110));
+    expect(tester.getTopLeft(record).dx, 8);
+    expect(tester.getTopLeft(surface).dx - tester.getTopRight(record).dx, 8);
+    expect(tester.getTopRight(add).dx, 312);
+    expect(tester.getTopLeft(add).dx - tester.getTopRight(mood).dx, 2);
+    final microphone = find.byIcon(Icons.mic_none_rounded);
+    expect(
+      tester.getTopLeft(surface).dx - tester.getTopRight(microphone).dx,
+      tester.getTopLeft(microphone).dx,
+    );
+
+    await tester.enterText(field, '测试输入');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 80));
+    expect(tester.getSize(field).width, lessThan(fieldWidth));
+    expect(tester.getSize(field).width, greaterThan(fieldWidth - 12));
+    await tester.pumpAndSettle();
+    expect(tester.getSize(surface).height, oneLineHeight);
+    final editable = tester.state<EditableTextState>(find.byType(EditableText));
+    final renderEditable = editable.renderEditable;
+    final caret = renderEditable.getLocalRectForCaret(
+      const TextPosition(offset: 4),
+    );
+    final caretCenter = renderEditable.localToGlobal(caret.center).dy;
+    expect(caretCenter - tester.getCenter(surface).dy, closeTo(0, 2));
+    final send = find.byKey(const Key('chat-send-button'));
+    expect(tester.getSize(send), const Size(52, 40));
+    expect(tester.getTopLeft(send).dy, tester.getTopLeft(mood).dy);
+    expect(tester.getTopRight(send).dx, 312);
+    expect(tester.getSize(field).width, fieldWidth - 12);
+    expect(find.text('发送'), findsOneWidget);
+    expect(
+      tester.widget<TextField>(field).selectionControls!.getHandleSize(20),
+      const Size(14, 14),
+    );
+
+    await tester.enterText(field, '第一行\n第二行\n第三行');
+    await tester.pumpAndSettle();
+    expect(tester.getSize(surface).height, greaterThan(oneLineHeight));
+
+    await tester.enterText(field, '');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 80));
+    expect(tester.getSize(field).width, greaterThan(fieldWidth - 12));
+    expect(tester.getSize(field).width, lessThan(fieldWidth));
+    await tester.pumpAndSettle();
+    expect(tester.getSize(field).width, fieldWidth);
+  });
+
+  testWidgets('send label stays white in dark mode', (tester) async {
+    await tester.pumpWidget(_ChatHarness(theme: ThemeData.dark()));
+    await tester.enterText(find.byKey(const Key('chat-message-field')), '测试');
+    await tester.pumpAndSettle();
+
+    final button = tester.widget<FilledButton>(
+      find.byKey(const Key('chat-send-button')),
+    );
+    expect(button.style?.foregroundColor?.resolve({}), Colors.white);
+  });
+
   testWidgets('sends a text message through the shared diary callback', (
     tester,
   ) async {
@@ -476,6 +587,57 @@ void main() {
     expect(find.text('这条消息有顺滑的入场效果。'), findsOneWidget);
   });
 
+  testWidgets('keeps the reading position when older messages are in view', (
+    tester,
+  ) async {
+    final entries = [
+      for (var index = 0; index < 40; index++)
+        DiaryEntry(
+          id: 'message-$index',
+          createdAt: DateTime(2026, 9, 19, 8, index),
+          updatedAt: DateTime(2026, 9, 19, 8, index),
+          title: '消息 $index',
+          content: '消息 $index',
+          contentText: '消息 $index',
+          category: '生活',
+        ),
+    ];
+    await tester.pumpWidget(_ChatHarness(entries: entries));
+    await tester.pumpAndSettle();
+
+    final list = find.byKey(const Key('chat-message-list'));
+    final scrollable = find.descendant(
+      of: list,
+      matching: find.byType(Scrollable),
+    );
+    final position = tester.state<ScrollableState>(scrollable).position;
+    expect(position.pixels, greaterThan(0));
+    await tester.drag(list, const Offset(0, 450));
+    await tester.pumpAndSettle();
+    final readingOffset = position.pixels;
+    expect(position.extentAfter, greaterThan(120));
+
+    await tester.pumpWidget(
+      _ChatHarness(
+        entries: [
+          ...entries,
+          DiaryEntry(
+            id: 'new-message',
+            createdAt: DateTime(2026, 9, 19, 9),
+            updatedAt: DateTime(2026, 9, 19, 9),
+            title: '新消息',
+            content: '新消息',
+            contentText: '新消息',
+            category: '生活',
+          ),
+        ],
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(position.pixels, closeTo(readingOffset, 1));
+  });
+
   testWidgets('chat-style audio is an inline voice bar without a label', (
     tester,
   ) async {
@@ -504,6 +666,7 @@ void main() {
 
 class _ChatHarness extends StatelessWidget {
   const _ChatHarness({
+    this.theme,
     this.entries = const [],
     this.onSend,
     this.onEdit,
@@ -522,6 +685,7 @@ class _ChatHarness extends StatelessWidget {
   });
 
   final List<DiaryEntry> entries;
+  final ThemeData? theme;
   final ChatMessageSender? onSend;
   final Future<void> Function(DiaryEntry entry)? onEdit;
   final Future<List<String>> Function(int maxAssets)? pickGalleryPhotos;
@@ -540,6 +704,7 @@ class _ChatHarness extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      theme: theme,
       home: Scaffold(
         body: ChatPage(
           entries: entries,
