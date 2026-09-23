@@ -9,6 +9,7 @@ import 'package:diary/app/desktop_diary_shell.dart';
 import 'package:diary/app/mobile_diary_shell.dart';
 import 'package:diary/application/diary_controller.dart';
 import 'package:diary/application/diary_lock_coordinator.dart';
+import 'package:diary/application/incoming_share_bridge.dart';
 import 'package:diary/application/settings_controller.dart';
 import 'package:diary/data/diary_repository.dart';
 import 'package:diary/data/profile_avatar_store.dart';
@@ -143,6 +144,10 @@ class DiaryShell extends StatefulWidget {
 
 class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
   late final DiaryController _controller;
+  final IncomingShareBridge _incomingShareBridge = IncomingShareBridge();
+  final ValueNotifier<String?> _shortcutRequest = ValueNotifier(null);
+  bool _handlingIncomingShare = false;
+  bool _handlingShortcut = false;
   SyncEngine? _syncEngine;
   _SyncConnection? _syncConnection;
   SyncState _syncState = const SyncState();
@@ -161,6 +166,15 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
       ..addListener(_onControllerChanged);
     widget.settingsController.addListener(_onSettingsChanged);
     _controller.initialize();
+    _incomingShareBridge.listen(
+      onShareAvailable: () => unawaited(_consumeIncomingShares()),
+      onShortcutAvailable: () => unawaited(_consumeShortcuts()),
+    );
+    _shortcutRequest.addListener(_onShortcutRequestChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_consumeIncomingShares());
+      unawaited(_consumeShortcuts());
+    });
     _refreshConflicts();
     WidgetsBinding.instance.addPostFrameCallback((_) => _configureSync());
   }
@@ -173,7 +187,84 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
     widget.settingsController.removeListener(_onSettingsChanged);
     WidgetsBinding.instance.removeObserver(this);
     _resetSyncEngine();
+    _incomingShareBridge.dispose();
+    _shortcutRequest.removeListener(_onShortcutRequestChanged);
+    _shortcutRequest.dispose();
     super.dispose();
+  }
+
+  void _onShortcutRequestChanged() {
+    if (_shortcutRequest.value == null) unawaited(_consumeShortcuts());
+  }
+
+  Future<void> _consumeShortcuts() async {
+    if (_handlingShortcut || _shortcutRequest.value != null || !mounted) return;
+    _handlingShortcut = true;
+    String? shortcut;
+    try {
+      shortcut = await _incomingShareBridge.takePendingShortcut();
+      if (mounted && shortcut != null) _shortcutRequest.value = shortcut;
+    } catch (_) {
+      // The bridge is unavailable on platforms without Android shortcuts.
+    } finally {
+      _handlingShortcut = false;
+      if (mounted && shortcut != null && _shortcutRequest.value == null) {
+        unawaited(_consumeShortcuts());
+      }
+    }
+  }
+
+  Future<void> _consumeIncomingShares() async {
+    if (_handlingIncomingShare || !mounted) return;
+    _handlingIncomingShare = true;
+    try {
+      while (mounted) {
+        final share = await _incomingShareBridge.takePendingShare();
+        if (share == null || !mounted) break;
+        await _openIncomingShare(share);
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('无法读取分享内容，请重试')));
+      }
+    } finally {
+      _handlingIncomingShare = false;
+    }
+  }
+
+  Future<void> _openIncomingShare(IncomingShare share) async {
+    const draftId = 'incoming-share';
+    final existing = await widget.repository.loadDraft(draftId);
+    final previousContent = existing?.payload['content'];
+    final previousImages = existing?.payload['attachments'];
+    final alreadySaved = existing?.payload['shareId'] == share.id;
+    final imagePaths = alreadySaved
+        ? const <String>[]
+        : await importQuickPhotos(share.imagePaths);
+    final content = [
+      if (previousContent is String && previousContent.trim().isNotEmpty)
+        previousContent.trim(),
+      if (!alreadySaved && share.text.trim().isNotEmpty) share.text.trim(),
+    ].join('\n\n');
+    final images = <String>{
+      if (previousImages is List) ...previousImages.whereType<String>(),
+      if (!alreadySaved) ...imagePaths,
+    }.toList(growable: false);
+    await widget.repository.saveDraft(
+      DraftPayload(
+        id: draftId,
+        payload: {
+          'content': content,
+          'attachments': images,
+          'shareId': share.id,
+        },
+        updatedAt: DateTime.now(),
+      ),
+    );
+    await _incomingShareBridge.completePendingShare(share.id);
+    if (mounted) await _openEditor(null, content, images, draftId);
   }
 
   void _onControllerChanged() {
@@ -293,6 +384,7 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
           onClearAvatar: _clearProfileAvatar,
           showChatAvatar: widget.settingsController.settings.showChatAvatar,
           actions: actions,
+          shortcutRequest: _shortcutRequest,
           conflictCount: _conflicts.length,
         );
       },
@@ -439,8 +531,14 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
     DiaryEntry? entry,
     String initialContent = '',
     List<String> initialImagePaths = const [],
+    String? sourceDraftId,
   ]) async {
     final desktop = diaryUsesDesktopShell(context);
+    final draftId =
+        sourceDraftId ??
+        (initialContent.isNotEmpty || initialImagePaths.isNotEmpty
+            ? 'mobile-quick-capture'
+            : 'compose-${entry?.id ?? 'new'}');
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         settings: const RouteSettings(name: AppRoutes.entryEditor),
@@ -462,12 +560,10 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
           onSave: (saved) async {
             await _saveEntryAndSync(saved);
             if (initialContent.isNotEmpty || initialImagePaths.isNotEmpty) {
-              await widget.repository.clearDraft('mobile-quick-capture');
+              await widget.repository.clearDraft(draftId);
             }
           },
-          draftId: initialContent.isNotEmpty || initialImagePaths.isNotEmpty
-              ? 'mobile-quick-capture'
-              : 'compose-${entry?.id ?? 'new'}',
+          draftId: draftId,
           onLoadDraft: widget.repository.loadDraft,
           onSaveDraft: widget.repository.saveDraft,
           onClearDraft: widget.repository.clearDraft,

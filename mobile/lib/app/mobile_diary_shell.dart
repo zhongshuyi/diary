@@ -29,6 +29,7 @@ class MobileDiaryShell extends StatefulWidget {
     required this.entries,
     required this.trash,
     required this.actions,
+    this.shortcutRequest,
     this.quickCaptureSide = QuickCaptureSide.right,
     this.defaultHomeMode = DiaryHomeMode.timeline,
     this.chatTitle = diaryDefaultChatTitle,
@@ -47,6 +48,7 @@ class MobileDiaryShell extends StatefulWidget {
   final List<DiaryEntry> entries;
   final List<DiaryEntry> trash;
   final DiaryShellActions actions;
+  final ValueNotifier<String?>? shortcutRequest;
   final QuickCaptureSide quickCaptureSide;
   final DiaryHomeMode defaultHomeMode;
   final String chatTitle;
@@ -83,6 +85,8 @@ class _MobileDiaryShellState extends State<MobileDiaryShell> {
     _favoritesEntries = ValueNotifier(List.unmodifiable(widget.entries));
     _selectedIndex = _indexForHomeMode(widget.defaultHomeMode);
     _loadQuickCapturePosition();
+    widget.shortcutRequest?.addListener(_handleShortcut);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _handleShortcut());
   }
 
   @override
@@ -112,8 +116,27 @@ class _MobileDiaryShellState extends State<MobileDiaryShell> {
 
   @override
   void dispose() {
+    widget.shortcutRequest?.removeListener(_handleShortcut);
     _favoritesEntries.dispose();
     super.dispose();
+  }
+
+  void _handleShortcut() {
+    if (!mounted) return;
+    final shortcut = widget.shortcutRequest?.value;
+    if (shortcut == null) return;
+    widget.shortcutRequest!.value = null;
+    switch (shortcut) {
+      case 'quick-capture':
+        unawaited(_openQuickCapture());
+        return;
+      case 'open-chat':
+        _selectPage(_chatIndex);
+        return;
+      case 'new-entry':
+        unawaited(widget.actions.openEditor());
+        return;
+    }
   }
 
   Future<void> _loadQuickCapturePosition() async {
@@ -179,6 +202,9 @@ class _MobileDiaryShellState extends State<MobileDiaryShell> {
         showChatAvatar: widget.showChatAvatar,
         profileAvatarPath: widget.profileAvatarPath,
         onSend: widget.actions.saveChatMessage,
+        onLoadDraft: widget.actions.loadDraft,
+        onSaveDraft: widget.actions.saveDraft,
+        onClearDraft: widget.actions.clearDraft,
         onOpenEntry: (entry) => unawaited(widget.actions.openEntry(entry)),
         onEdit: (entry) => widget.actions.openEditor(entry),
         onDelete: widget.actions.moveToTrash,

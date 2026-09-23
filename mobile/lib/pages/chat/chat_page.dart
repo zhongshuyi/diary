@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'package:diary/app/app_theme.dart';
+import 'package:diary/data/diary_repository.dart';
 import 'package:diary/domain/diary_entry.dart';
 import 'package:diary/domain/diary_settings.dart';
 import 'package:diary/widgets/diary_audio_player.dart';
@@ -55,6 +56,9 @@ class ChatPage extends StatefulWidget {
     this.pickCameraPhoto,
     this.onExternalActivityStart,
     this.onExternalActivityEnd,
+    this.onLoadDraft,
+    this.onSaveDraft,
+    this.onClearDraft,
     super.key,
   });
 
@@ -74,6 +78,9 @@ class ChatPage extends StatefulWidget {
   final Future<String?> Function()? pickCameraPhoto;
   final VoidCallback? onExternalActivityStart;
   final VoidCallback? onExternalActivityEnd;
+  final Future<DraftPayload?> Function(String id)? onLoadDraft;
+  final Future<void> Function(DraftPayload draft)? onSaveDraft;
+  final Future<void> Function(String id)? onClearDraft;
 
   @override
   State<ChatPage> createState() => _ChatPageState();
@@ -237,6 +244,9 @@ class _ChatPageState extends State<ChatPage> {
             pickCameraPhoto: widget.pickCameraPhoto,
             onExternalActivityStart: widget.onExternalActivityStart,
             onExternalActivityEnd: widget.onExternalActivityEnd,
+            onLoadDraft: widget.onLoadDraft,
+            onSaveDraft: widget.onSaveDraft,
+            onClearDraft: widget.onClearDraft,
           ),
         ],
       ),
@@ -915,6 +925,9 @@ class _ChatComposer extends StatefulWidget {
     this.pickCameraPhoto,
     this.onExternalActivityStart,
     this.onExternalActivityEnd,
+    this.onLoadDraft,
+    this.onSaveDraft,
+    this.onClearDraft,
   });
 
   final ChatMessageSender onSend;
@@ -925,12 +938,17 @@ class _ChatComposer extends StatefulWidget {
   final Future<String?> Function()? pickCameraPhoto;
   final VoidCallback? onExternalActivityStart;
   final VoidCallback? onExternalActivityEnd;
+  final Future<DraftPayload?> Function(String id)? onLoadDraft;
+  final Future<void> Function(DraftPayload draft)? onSaveDraft;
+  final Future<void> Function(String id)? onClearDraft;
 
   @override
   State<_ChatComposer> createState() => _ChatComposerState();
 }
 
-class _ChatComposerState extends State<_ChatComposer> {
+class _ChatComposerState extends State<_ChatComposer>
+    with WidgetsBindingObserver {
+  static const _draftId = 'chat-composer';
   final _controller = TextEditingController();
   final _focusNode = FocusNode();
   final _imagePaths = <String>[];
@@ -939,6 +957,86 @@ class _ChatComposerState extends State<_ChatComposer> {
   _ChatMood? _selectedMood;
   bool _isSending = false;
   bool _isImporting = false;
+  Timer? _draftTimer;
+  Future<void> _draftWrites = Future<void>.value();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _restoreDraft());
+  }
+
+  Future<void> _restoreDraft() async {
+    final load = widget.onLoadDraft;
+    if (!mounted || load == null) return;
+    final draft = await load(_draftId);
+    if (!mounted || draft == null || _hasDraft) return;
+    final payload = draft.payload;
+    _controller.text = payload['content'] is String
+        ? payload['content'] as String
+        : '';
+    _imagePaths.addAll(_draftPaths(payload['imagePaths']));
+    _audioPaths.addAll(_draftPaths(payload['audioPaths']));
+    _videoPaths.addAll(_draftPaths(payload['videoPaths']));
+    final moodLabel = payload['moodLabel'];
+    _selectedMood = moodLabel is String ? _ChatMood.forLabel(moodLabel) : null;
+    if (_hasDraft) setState(() {});
+  }
+
+  List<String> _draftPaths(Object? value) => value is List
+      ? value.whereType<String>().toList(growable: false)
+      : const [];
+
+  void _scheduleDraftSave() {
+    if (widget.onSaveDraft == null) return;
+    _draftTimer?.cancel();
+    _draftTimer = Timer(const Duration(milliseconds: 500), _persistDraft);
+  }
+
+  void _persistDraft() {
+    if (widget.onSaveDraft == null) return;
+    final content = _controller.text;
+    final images = List<String>.of(_imagePaths);
+    final audio = List<String>.of(_audioPaths);
+    final videos = List<String>.of(_videoPaths);
+    final moodLabel = _selectedMood?.label;
+    _draftWrites = _draftWrites
+        .then((_) async {
+          if (content.trim().isEmpty &&
+              images.isEmpty &&
+              audio.isEmpty &&
+              videos.isEmpty &&
+              moodLabel == null) {
+            await widget.onClearDraft?.call(_draftId);
+          } else {
+            await widget.onSaveDraft!(
+              DraftPayload(
+                id: _draftId,
+                payload: {
+                  'content': content,
+                  'imagePaths': images,
+                  'audioPaths': audio,
+                  'videoPaths': videos,
+                  'moodLabel': moodLabel,
+                },
+                updatedAt: DateTime.now(),
+              ),
+            );
+          }
+        })
+        .catchError((Object _) {});
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _draftTimer?.cancel();
+      _persistDraft();
+    }
+  }
 
   bool get _hasDraft =>
       _controller.text.trim().isNotEmpty ||
@@ -953,6 +1051,9 @@ class _ChatComposerState extends State<_ChatComposer> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    if (_draftTimer?.isActive == true) _persistDraft();
+    _draftTimer?.cancel();
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
@@ -1112,6 +1213,7 @@ class _ChatComposerState extends State<_ChatComposer> {
           if (!target.contains(path)) target.add(path);
         }
       });
+      _scheduleDraftSave();
     } catch (_) {
       if (mounted) _showMessage('附件没有添加成功，请重试');
     } finally {
@@ -1130,6 +1232,7 @@ class _ChatComposerState extends State<_ChatComposer> {
           setState(() {
             if (!_audioPaths.contains(path)) _audioPaths.add(path);
           });
+          _scheduleDraftSave();
           if (sheetContext.mounted) Navigator.pop(sheetContext);
         },
         onError: _showMessage,
@@ -1192,6 +1295,7 @@ class _ChatComposerState extends State<_ChatComposer> {
     );
     if (!mounted || result == null) return;
     setState(() => _selectedMood = result.mood);
+    _scheduleDraftSave();
   }
 
   Future<void> _send() async {
@@ -1207,6 +1311,13 @@ class _ChatComposerState extends State<_ChatComposer> {
         selectedMood?.value ?? .5,
         selectedMood?.label,
       );
+      _draftTimer?.cancel();
+      await _draftWrites;
+      try {
+        await widget.onClearDraft?.call(_draftId);
+      } catch (_) {
+        if (mounted) _showMessage('消息已发送，草稿清理失败');
+      }
       if (!mounted) return;
       setState(() {
         _controller.clear();
@@ -1250,12 +1361,18 @@ class _ChatComposerState extends State<_ChatComposer> {
                 imagePaths: _imagePaths,
                 audioPaths: _audioPaths,
                 videoPaths: _videoPaths,
-                onRemoveImage: (path) =>
-                    setState(() => _imagePaths.remove(path)),
-                onRemoveAudio: (path) =>
-                    setState(() => _audioPaths.remove(path)),
-                onRemoveVideo: (path) =>
-                    setState(() => _videoPaths.remove(path)),
+                onRemoveImage: (path) {
+                  setState(() => _imagePaths.remove(path));
+                  _scheduleDraftSave();
+                },
+                onRemoveAudio: (path) {
+                  setState(() => _audioPaths.remove(path));
+                  _scheduleDraftSave();
+                },
+                onRemoveVideo: (path) {
+                  setState(() => _videoPaths.remove(path));
+                  _scheduleDraftSave();
+                },
               ),
             Row(
               crossAxisAlignment: CrossAxisAlignment.end,
@@ -1286,7 +1403,11 @@ class _ChatComposerState extends State<_ChatComposer> {
                       maxLines: 4,
                       textInputAction: TextInputAction.send,
                       onSubmitted: (_) => unawaited(_send()),
-                      onChanged: (_) => setState(() {}),
+                      readOnly: _isSending,
+                      onChanged: (_) {
+                        setState(() {});
+                        _scheduleDraftSave();
+                      },
                       decoration: const InputDecoration(
                         hintText: '写点什么…',
                         isDense: true,

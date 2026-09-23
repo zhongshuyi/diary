@@ -9,6 +9,7 @@ DiaryEntry entry(
   required String category,
   required String contentText,
   double mood = .5,
+  String? moodLabel,
   bool isInTrash = false,
   bool isDeleted = false,
   bool isConflict = false,
@@ -23,6 +24,7 @@ DiaryEntry entry(
     contentText: contentText,
     category: category,
     mood: mood,
+    moodLabel: moodLabel,
     isInTrash: isInTrash,
     isDeleted: isDeleted,
     isConflict: isConflict,
@@ -40,6 +42,7 @@ void main() {
           category: '工作',
           contentText: 'xy',
           mood: .2,
+          moodLabel: '阴天',
         ),
         entry(
           'middle',
@@ -47,6 +50,7 @@ void main() {
           category: '工作',
           contentText: 'abc',
           mood: .7,
+          moodLabel: '平静',
         ),
         entry(
           'late',
@@ -54,6 +58,7 @@ void main() {
           category: '生活',
           contentText: '三个字',
           mood: .9,
+          moodLabel: '明亮',
         ),
         entry(
           'current-week',
@@ -113,5 +118,51 @@ void main() {
     );
 
     expect(summary, isNull);
+  });
+
+  test('does not invent a weekly mood when entries have no selected mood', () {
+    final summary = calculateWeeklySummary(
+      now: DateTime(2026, 9, 20),
+      entries: [
+        entry(
+          'first',
+          occurredAt: DateTime(2026, 9, 8),
+          category: '生活',
+          contentText: '一',
+        ),
+        entry(
+          'second',
+          occurredAt: DateTime(2026, 9, 9),
+          category: '生活',
+          contentText: '二',
+        ),
+      ],
+    );
+
+    expect(summary, isNotNull);
+    expect(summary!.averageMood, isNull);
+  });
+
+  test('retains a non-neutral mood from older entries without labels', () {
+    final summary = calculateWeeklySummary(
+      now: DateTime(2026, 9, 20),
+      entries: [
+        entry(
+          'unmarked',
+          occurredAt: DateTime(2026, 9, 8),
+          category: '生活',
+          contentText: '一',
+        ),
+        entry(
+          'legacy',
+          occurredAt: DateTime(2026, 9, 9),
+          category: '生活',
+          contentText: '二',
+          mood: .9,
+        ),
+      ],
+    );
+
+    expect(summary?.averageMood, closeTo(.9, .0001));
   });
 }

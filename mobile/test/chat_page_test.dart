@@ -2,12 +2,50 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:diary/domain/diary_entry.dart';
+import 'package:diary/data/diary_repository.dart';
 import 'package:diary/domain/diary_settings.dart';
 import 'package:diary/pages/chat/chat_page.dart';
 import 'package:diary/widgets/diary_audio_player.dart';
 import 'package:diary/widgets/diary_video_player.dart';
 
 void main() {
+  testWidgets('restores an unsent chat draft and clears it after sending', (
+    tester,
+  ) async {
+    DraftPayload? savedDraft;
+    final harness = _ChatHarness(
+      onLoadDraft: (_) async => savedDraft,
+      onSaveDraft: (draft) async {
+        savedDraft = draft;
+      },
+      onClearDraft: (_) async {
+        savedDraft = null;
+      },
+    );
+    await tester.pumpWidget(harness);
+    await tester.enterText(
+      find.byKey(const Key('chat-message-field')),
+      '还没发出的想法',
+    );
+    await tester.pump(const Duration(milliseconds: 501));
+    expect(savedDraft?.payload['content'], '还没发出的想法');
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpWidget(harness);
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('chat-message-field')))
+          .controller
+          ?.text,
+      '还没发出的想法',
+    );
+
+    await tester.tap(find.byKey(const Key('chat-send-button')));
+    await tester.pumpAndSettle();
+    expect(savedDraft, isNull);
+  });
+
   testWidgets('keeps the message field clear of the keyboard', (tester) async {
     tester.view.physicalSize = const Size(360, 800);
     tester.view.devicePixelRatio = 1;
@@ -478,6 +516,9 @@ class _ChatHarness extends StatelessWidget {
     this.profileAvatarPath,
     this.onExternalActivityStart,
     this.onExternalActivityEnd,
+    this.onLoadDraft,
+    this.onSaveDraft,
+    this.onClearDraft,
   });
 
   final List<DiaryEntry> entries;
@@ -492,6 +533,9 @@ class _ChatHarness extends StatelessWidget {
   final String? profileAvatarPath;
   final VoidCallback? onExternalActivityStart;
   final VoidCallback? onExternalActivityEnd;
+  final Future<DraftPayload?> Function(String id)? onLoadDraft;
+  final Future<void> Function(DraftPayload draft)? onSaveDraft;
+  final Future<void> Function(String id)? onClearDraft;
 
   @override
   Widget build(BuildContext context) {
@@ -515,6 +559,9 @@ class _ChatHarness extends StatelessWidget {
           pickCameraPhoto: pickCameraPhoto,
           onExternalActivityStart: onExternalActivityStart,
           onExternalActivityEnd: onExternalActivityEnd,
+          onLoadDraft: onLoadDraft,
+          onSaveDraft: onSaveDraft,
+          onClearDraft: onClearDraft,
           onNavigate: onNavigate ?? (_) {},
         ),
       ),

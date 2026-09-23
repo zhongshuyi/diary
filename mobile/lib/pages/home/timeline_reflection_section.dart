@@ -224,7 +224,10 @@ class _WeeklySummaryHeader extends StatelessWidget {
           children: [
             _WeeklyMetric(label: '${summary.recordedDayCount} 天记录'),
             _WeeklyMetric(label: '${summary.wordCount} 字'),
-            _WeeklyMetric(label: '心情 ${(summary.averageMood * 100).round()}%'),
+            if (summary.averageMood != null)
+              _WeeklyMetric(
+                label: '心情 ${(summary.averageMood! * 100).round()}%',
+              ),
             _WeeklyMetric(label: '常写 · ${summary.topCategory}'),
           ],
         ),
