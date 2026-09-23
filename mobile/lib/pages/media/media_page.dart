@@ -330,6 +330,19 @@ class _MediaCard extends StatelessWidget {
       builder: (context, constraints) {
         final colors = DiaryThemeColors.of(context);
         final fileName = item.path.split(RegExp(r'[\\/]')).last;
+        final isImage = item.kind == DiaryMediaKind.image;
+        final entryTitle = item.entry.title.trim();
+        final entryContent = item.entry.contentText.trim();
+        final imageTitle =
+            entryTitle.isNotEmpty && entryTitle != '无题' && entryTitle != '此刻的照片'
+            ? entryTitle
+            : entryContent.isNotEmpty
+            ? entryContent
+            : '这一天的照片';
+        final occurredAt = item.entry.effectiveOccurredAt.toLocal();
+        final imageContext =
+            '${occurredAt.year}年${occurredAt.month}月${occurredAt.day}日 · '
+            '${item.entry.category.isEmpty ? '未分类' : item.entry.category}';
         final cacheWidth = constraints.hasBoundedWidth
             ? (constraints.maxWidth * MediaQuery.devicePixelRatioOf(context))
                   .round()
@@ -382,7 +395,9 @@ class _MediaCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        item.kind == DiaryMediaKind.audio
+                        isImage
+                            ? imageTitle
+                            : item.kind == DiaryMediaKind.audio
                             ? '语音'
                             : item.kind == DiaryMediaKind.video
                             ? '视频片段'
@@ -395,7 +410,7 @@ class _MediaCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        item.entry.title,
+                        isImage ? imageContext : item.entry.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodyMedium,

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'package:diary/app/app_theme.dart';
+import 'package:diary/app/diary_motion.dart';
 import 'package:diary/data/diary_repository.dart';
 import 'package:diary/domain/diary_entry.dart';
 import 'package:diary/domain/diary_settings.dart';
@@ -34,6 +35,79 @@ const _chatReducedMotionDuration = Duration(milliseconds: 140);
 const _chatActionTransitionDuration = Duration(milliseconds: 160);
 const _chatActionFeedbackDuration = Duration(milliseconds: 120);
 const _chatMessageEntranceOffset = 12.0;
+final _chatSelectionControls = _CompactChatSelectionControls();
+
+class _CompactChatSelectionControls extends MaterialTextSelectionControls {
+  static const _handleSize = 14.0;
+
+  @override
+  Size getHandleSize(double textLineHeight) =>
+      const Size(_handleSize, _handleSize);
+
+  @override
+  Offset getHandleAnchor(TextSelectionHandleType type, double textLineHeight) {
+    return switch (type) {
+      TextSelectionHandleType.collapsed => const Offset(_handleSize / 2, -3),
+      TextSelectionHandleType.left => const Offset(_handleSize, 0),
+      TextSelectionHandleType.right => Offset.zero,
+    };
+  }
+
+  @override
+  Widget buildHandle(
+    BuildContext context,
+    TextSelectionHandleType type,
+    double textHeight, [
+    VoidCallback? onTap,
+  ]) {
+    final color =
+        TextSelectionTheme.of(context).selectionHandleColor ??
+        Theme.of(context).colorScheme.primary;
+    final handle = SizedBox.square(
+      dimension: _handleSize,
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: onTap,
+        child: CustomPaint(painter: _CompactChatHandlePainter(color)),
+      ),
+    );
+    return switch (type) {
+      TextSelectionHandleType.left => Transform.rotate(
+        angle: math.pi / 2,
+        child: handle,
+      ),
+      TextSelectionHandleType.right => handle,
+      TextSelectionHandleType.collapsed => Transform.rotate(
+        angle: math.pi / 4,
+        child: handle,
+      ),
+    };
+  }
+}
+
+class _CompactChatHandlePainter extends CustomPainter {
+  const _CompactChatHandlePainter(this.color);
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = color;
+    canvas.drawCircle(
+      Offset(size.width / 2, size.height / 2),
+      size.width / 2,
+      paint,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, size.width / 2, size.height / 2),
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_CompactChatHandlePainter oldDelegate) =>
+      color != oldDelegate.color;
+}
 
 /// A second, conversational way to browse and create the same diary entries.
 /// Nothing here owns a separate message store: a sent message remains visible
@@ -89,6 +163,8 @@ class ChatPage extends StatefulWidget {
 class _ChatPageState extends State<ChatPage> {
   final _scrollController = ScrollController();
   final _enteringMessageIds = <String>{};
+  List<DiaryEntry>? _sortedSource;
+  List<DiaryEntry> _sortedCache = const [];
 
   @override
   void initState() {
@@ -99,6 +175,7 @@ class _ChatPageState extends State<ChatPage> {
   @override
   void didUpdateWidget(covariant ChatPage oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (identical(oldWidget.entries, widget.entries)) return;
     final previousIds = oldWidget.entries.map((entry) => entry.id).toSet();
     final currentIds = widget.entries.map((entry) => entry.id).toSet();
     final addedIds = currentIds.difference(previousIds);
@@ -110,7 +187,9 @@ class _ChatPageState extends State<ChatPage> {
           ..addAll(addedIds);
       });
     }
-    if (widget.entries.length > oldWidget.entries.length) {
+    if (widget.entries.length > oldWidget.entries.length &&
+        (!_scrollController.hasClients ||
+            _scrollController.position.extentAfter < 120)) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToLatest());
     }
   }
@@ -123,6 +202,10 @@ class _ChatPageState extends State<ChatPage> {
 
   void _scrollToLatest() {
     if (!_scrollController.hasClients) return;
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+      return;
+    }
     unawaited(
       _scrollController.animateTo(
         _scrollController.position.maxScrollExtent,
@@ -138,12 +221,15 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   List<DiaryEntry> _sortedEntries() {
-    final sorted = List<DiaryEntry>.of(widget.entries)
-      ..sort(
-        (left, right) =>
-            left.effectiveOccurredAt.compareTo(right.effectiveOccurredAt),
-      );
-    return sorted;
+    if (!identical(_sortedSource, widget.entries)) {
+      _sortedSource = widget.entries;
+      _sortedCache = List<DiaryEntry>.of(widget.entries)
+        ..sort(
+          (left, right) =>
+              left.effectiveOccurredAt.compareTo(right.effectiveOccurredAt),
+        );
+    }
+    return _sortedCache;
   }
 
   Future<void> _showEntryActions(DiaryEntry entry) async {
@@ -1344,11 +1430,14 @@ class _ChatComposerState extends State<_ChatComposer>
   @override
   Widget build(BuildContext context) {
     final colors = DiaryThemeColors.of(context);
-    final keyboardVisible = View.of(context).viewInsets.bottom > 0;
+    final sendButtonColor = Theme.of(context).brightness == Brightness.dark
+        ? Color.alphaBlend(const Color(0x59000000), colors.terracotta)
+        : colors.terracotta;
     return SafeArea(
       top: false,
       child: Container(
-        padding: EdgeInsets.fromLTRB(12, 9, 12, keyboardVisible ? 16 : 10),
+        key: const Key('chat-composer'),
+        padding: const EdgeInsets.fromLTRB(8, 6, 8, 12),
         decoration: BoxDecoration(
           color: colors.surface,
           border: Border(top: BorderSide(color: colors.line)),
@@ -1378,22 +1467,28 @@ class _ChatComposerState extends State<_ChatComposer>
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 IconButton(
+                  key: const Key('chat-record-button'),
                   tooltip: '录音',
                   onPressed: _isSending ? null : _recordVoice,
-                  iconSize: 22,
+                  iconSize: 24,
                   padding: EdgeInsets.zero,
                   visualDensity: VisualDensity.compact,
                   constraints: const BoxConstraints.tightFor(
-                    width: 40,
+                    width: 44,
                     height: 44,
                   ),
                   icon: const Icon(Icons.mic_none_rounded),
                 ),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Container(
+                    key: const Key('chat-input-surface'),
+                    constraints: const BoxConstraints(minHeight: 40),
+                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
                     decoration: BoxDecoration(
                       color: colors.paper,
-                      borderRadius: BorderRadius.circular(22),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: colors.line),
                     ),
                     child: TextField(
                       key: const Key('chat-message-field'),
@@ -1401,6 +1496,13 @@ class _ChatComposerState extends State<_ChatComposer>
                       focusNode: _focusNode,
                       minLines: 1,
                       maxLines: 4,
+                      textAlignVertical: TextAlignVertical.center,
+                      selectionControls: _chatSelectionControls,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: colors.ink,
+                        fontSize: 16,
+                        height: 1.15,
+                      ),
                       textInputAction: TextInputAction.send,
                       onSubmitted: (_) => unawaited(_send()),
                       readOnly: _isSending,
@@ -1410,26 +1512,27 @@ class _ChatComposerState extends State<_ChatComposer>
                       },
                       decoration: const InputDecoration(
                         hintText: '写点什么…',
-                        isDense: true,
+                        isCollapsed: true,
+                        filled: false,
                         border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 10,
-                        ),
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        contentPadding: EdgeInsets.zero,
                       ),
                     ),
                   ),
                 ),
+                const SizedBox(width: 2),
                 IconButton(
                   key: const Key('chat-mood-button'),
                   tooltip: _selectedMood == null
                       ? '记录心情'
                       : '心情：${_selectedMood!.label}',
-                  iconSize: 22,
+                  iconSize: 24,
                   padding: EdgeInsets.zero,
                   visualDensity: VisualDensity.compact,
                   constraints: const BoxConstraints.tightFor(
-                    width: 40,
+                    width: 44,
                     height: 44,
                   ),
                   onPressed: _isSending || _isImporting
@@ -1440,62 +1543,94 @@ class _ChatComposerState extends State<_ChatComposer>
                       : Icon(_selectedMood!.icon, color: colors.terracotta),
                 ),
                 const SizedBox(width: 2),
-                AnimatedSwitcher(
-                  duration: _chatActionTransitionDuration,
-                  switchInCurve: Curves.easeOut,
-                  switchOutCurve: Curves.easeIn,
-                  transitionBuilder: (child, animation) => FadeTransition(
-                    opacity: animation,
-                    child: ScaleTransition(
-                      scale: Tween(begin: .92, end: 1.0).animate(animation),
-                      child: child,
+                AnimatedSize(
+                  duration: DiaryMotion.duration(
+                    context,
+                    _chatActionTransitionDuration,
+                  ),
+                  curve: Curves.easeInOutCubic,
+                  alignment: Alignment.centerRight,
+                  child: AnimatedSwitcher(
+                    duration: DiaryMotion.duration(
+                      context,
+                      _chatActionTransitionDuration,
                     ),
-                  ),
-                  layoutBuilder: (currentChild, previousChildren) => Stack(
-                    alignment: Alignment.centerRight,
-                    children: [...previousChildren, ?currentChild],
-                  ),
-                  child: _hasTypedText || _hasAttachments || _hasMood
-                      ? FilledButton(
-                          key: const Key('chat-send-button'),
-                          onPressed: _isSending || _isImporting ? null : _send,
-                          style: FilledButton.styleFrom(
-                            minimumSize: const Size(58, 40),
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            visualDensity: VisualDensity.compact,
-                          ),
-                          child: AnimatedSwitcher(
-                            duration: _chatActionFeedbackDuration,
-                            switchInCurve: Curves.easeOut,
-                            switchOutCurve: Curves.easeIn,
-                            child: _isSending
-                                ? const SizedBox(
-                                    key: ValueKey('chat-sending-indicator'),
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
+                    switchInCurve: Curves.easeOut,
+                    switchOutCurve: Curves.easeIn,
+                    transitionBuilder: (child, animation) => FadeTransition(
+                      opacity: animation,
+                      child: ScaleTransition(
+                        scale: Tween(begin: .92, end: 1.0).animate(animation),
+                        child: child,
+                      ),
+                    ),
+                    layoutBuilder: (currentChild, previousChildren) => Stack(
+                      alignment: Alignment.centerRight,
+                      clipBehavior: Clip.none,
+                      children: [
+                        for (final child in previousChildren)
+                          Positioned(right: 0, top: 0, child: child),
+                        ?currentChild,
+                      ],
+                    ),
+                    child: _hasTypedText || _hasAttachments || _hasMood
+                        ? FilledButton(
+                            key: const Key('chat-send-button'),
+                            onPressed: _isSending || _isImporting
+                                ? null
+                                : _send,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: sendButtonColor,
+                              foregroundColor: Colors.white,
+                              disabledBackgroundColor: sendButtonColor,
+                              disabledForegroundColor: Colors.white,
+                              padding: EdgeInsets.zero,
+                              minimumSize: const Size(52, 40),
+                              maximumSize: const Size(52, 40),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: AnimatedSwitcher(
+                              duration: DiaryMotion.duration(
+                                context,
+                                _chatActionFeedbackDuration,
+                              ),
+                              switchInCurve: Curves.easeOut,
+                              switchOutCurve: Curves.easeIn,
+                              child: _isSending
+                                  ? SizedBox(
+                                      key: const ValueKey(
+                                        'chat-sending-indicator',
+                                      ),
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Text(
+                                      '发送',
+                                      key: ValueKey('chat-send-label'),
                                     ),
-                                  )
-                                : const Text(
-                                    '发送',
-                                    key: ValueKey('chat-send-label'),
-                                  ),
+                            ),
+                          )
+                        : IconButton(
+                            key: const Key('chat-add-button'),
+                            tooltip: '添加照片、视频或录音',
+                            onPressed: _isImporting ? null : _showAddMenu,
+                            iconSize: 24,
+                            padding: EdgeInsets.zero,
+                            visualDensity: VisualDensity.compact,
+                            constraints: const BoxConstraints.tightFor(
+                              width: 44,
+                              height: 44,
+                            ),
+                            icon: const Icon(Icons.add_circle_outline),
                           ),
-                        )
-                      : IconButton(
-                          key: const Key('chat-add-button'),
-                          tooltip: '添加照片、视频或录音',
-                          onPressed: _isImporting ? null : _showAddMenu,
-                          iconSize: 24,
-                          padding: EdgeInsets.zero,
-                          visualDensity: VisualDensity.compact,
-                          constraints: const BoxConstraints.tightFor(
-                            width: 40,
-                            height: 44,
-                          ),
-                          icon: const Icon(Icons.add_circle_outline),
-                        ),
+                  ),
                 ),
               ],
             ),

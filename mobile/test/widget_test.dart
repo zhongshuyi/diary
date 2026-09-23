@@ -129,7 +129,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.longPress(find.byKey(const Key('mobile-entry-row-batch-first')));
+    await tester.longPress(
+      find.byKey(const Key('mobile-entry-row-batch-first')),
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('mobile-entry-row-batch-second')));
     await tester.pumpAndSettle();
@@ -1060,10 +1062,12 @@ void main() {
     expect(tester.getSize(find.text('19:00')).height, lessThan(24));
 
     await tester.ensureVisible(find.text('展开剩余 1 条'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('展开剩余 1 条'));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('mobile-entry-row-早上')), findsOneWidget);
     await tester.ensureVisible(find.byKey(const Key('mobile-entry-row-早上')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('mobile-entry-row-早上')));
     expect(opened?.id, '早上');
   });
