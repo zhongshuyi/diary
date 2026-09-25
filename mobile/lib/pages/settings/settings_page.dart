@@ -136,32 +136,6 @@ class SettingsPage extends StatelessWidget {
                       settings.chatBackground,
                     ),
                   ),
-                  _SettingsTile(
-                    key: const Key('settings-amap-key'),
-                    leading: Icon(
-                      Icons.location_on_outlined,
-                      color: colors.terracotta,
-                    ),
-                    title: const Text('高德 Android Key'),
-                    subtitle: Text(
-                      settings.amapAndroidKey.isEmpty
-                          ? '填写后可在对话中发送位置'
-                          : '已配置 · 仅保存在此设备',
-                    ),
-                    trailing: Icon(Icons.chevron_right, color: colors.mutedInk),
-                    onTap: () =>
-                        _showAmapKeyEditor(context, settings.amapAndroidKey),
-                  ),
-                  _SettingsTile(
-                    leading: Icon(
-                      Icons.privacy_tip_outlined,
-                      color: colors.terracotta,
-                    ),
-                    title: const Text('高德地图隐私授权'),
-                    subtitle: const Text('同意后不再重复询问，可在此撤回'),
-                    trailing: Icon(Icons.chevron_right, color: colors.mutedInk),
-                    onTap: () => _revokeAmapConsent(context),
-                  ),
                   _SwitchTile(
                     key: const Key('settings-show-chat-avatar'),
                     title: '对话显示头像',
@@ -197,21 +171,33 @@ class SettingsPage extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               _Section(
-                title: '操作习惯',
+                title: '地图与位置',
                 children: [
                   _SettingsTile(
-                    key: const Key('settings-quick-capture-side'),
-                    title: const Text('速记按钮位置'),
+                    key: const Key('settings-amap-key'),
+                    leading: Icon(
+                      Icons.location_on_outlined,
+                      color: colors.terracotta,
+                    ),
+                    title: const Text('高德 Android Key'),
                     subtitle: Text(
-                      settings.quickCaptureSide == QuickCaptureSide.right
-                          ? '右侧 · 适合右手操作'
-                          : '左侧',
+                      settings.amapAndroidKey.isEmpty
+                          ? '用于选择地点和发送位置'
+                          : '已配置 · 仅保存在此设备',
                     ),
                     trailing: Icon(Icons.chevron_right, color: colors.mutedInk),
-                    onTap: () => _showQuickCaptureSideChoice(
-                      context,
-                      settings.quickCaptureSide,
+                    onTap: () =>
+                        _showAmapKeyEditor(context, settings.amapAndroidKey),
+                  ),
+                  _SettingsTile(
+                    leading: Icon(
+                      Icons.privacy_tip_outlined,
+                      color: colors.terracotta,
                     ),
+                    title: const Text('高德地图隐私授权'),
+                    subtitle: const Text('同意后不再重复询问，可在此撤回'),
+                    trailing: Icon(Icons.chevron_right, color: colors.mutedInk),
+                    onTap: () => _revokeAmapConsent(context),
                   ),
                 ],
               ),
@@ -506,24 +492,6 @@ class SettingsPage extends StatelessWidget {
       ),
     );
     if (value != null) await controller.setDefaultHomeMode(value);
-  }
-
-  Future<void> _showQuickCaptureSideChoice(
-    BuildContext context,
-    QuickCaptureSide current,
-  ) async {
-    final value = await showModalBottomSheet<QuickCaptureSide>(
-      context: context,
-      builder: (context) => _ChoiceSheet<QuickCaptureSide>(
-        title: '速记按钮位置',
-        choices: QuickCaptureSide.values,
-        selected: current,
-        labelFor: (value) => value == QuickCaptureSide.right ? '右侧' : '左侧',
-        descriptionFor: (value) =>
-            value == QuickCaptureSide.right ? '更贴合大多数右手操作习惯' : '将按钮固定在左侧',
-      ),
-    );
-    if (value != null) await controller.setQuickCaptureSide(value);
   }
 
   Future<void> _openConnectionSettings(BuildContext context) {

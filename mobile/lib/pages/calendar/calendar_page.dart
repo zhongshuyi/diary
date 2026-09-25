@@ -2,6 +2,7 @@ import 'package:calendar_date_picker2/calendar_date_picker2.dart';
 import 'package:flutter/material.dart';
 
 import 'package:diary/app/app_theme.dart';
+import 'package:diary/application/calendar_entry_index.dart';
 import 'package:diary/domain/diary_entry.dart';
 import 'package:diary/widgets/diary_image_viewer.dart';
 import 'package:diary/widgets/page_intro.dart';
@@ -24,31 +25,28 @@ class CalendarPage extends StatefulWidget {
 
 class _CalendarPageState extends State<CalendarPage> {
   DateTime _selectedDate = DateTime.now();
+  late CalendarEntryIndex _entryIndex;
 
-  List<DiaryEntry> get _selectedEntries {
-    final entries = widget.entries
-        .where((entry) => _sameDay(entry.effectiveOccurredAt, _selectedDate))
-        .toList();
-    entries.sort(
-      (left, right) =>
-          right.effectiveOccurredAt.compareTo(left.effectiveOccurredAt),
-    );
-    return entries;
+  @override
+  void initState() {
+    super.initState();
+    _entryIndex = CalendarEntryIndex(widget.entries);
+  }
+
+  @override
+  void didUpdateWidget(covariant CalendarPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.entries, widget.entries)) {
+      _entryIndex = CalendarEntryIndex(widget.entries);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = DiaryThemeColors.of(context);
     final compactCalendarControls = MediaQuery.sizeOf(context).width < 480;
-    final selectedEntries = _selectedEntries;
-    final markedDays = widget.entries
-        .where(
-          (entry) =>
-              entry.effectiveOccurredAt.year == _selectedDate.year &&
-              entry.effectiveOccurredAt.month == _selectedDate.month,
-        )
-        .map((entry) => entry.effectiveOccurredAt.day)
-        .toSet();
+    final selectedEntries = _entryIndex.entriesOn(_selectedDate);
+    final markedDayCount = _entryIndex.daysWithEntriesInMonth(_selectedDate);
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 28, 20, 110),
       child: Center(
@@ -121,10 +119,7 @@ class _CalendarPageState extends State<CalendarPage> {
                                 isDisabled,
                                 isToday,
                               }) {
-                                final hasEntry = widget.entries.any(
-                                  (entry) =>
-                                      _sameDay(entry.effectiveOccurredAt, date),
-                                );
+                                final hasEntry = _entryIndex.hasEntriesOn(date);
                                 return Stack(
                                   alignment: Alignment.center,
                                   children: [
@@ -174,7 +169,7 @@ class _CalendarPageState extends State<CalendarPage> {
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            '${markedDays.length} 天有记录',
+                            '$markedDayCount 天有记录',
                             style: Theme.of(context).textTheme.labelSmall,
                           ),
                         ],
@@ -506,8 +501,3 @@ class _CalendarEmptyState extends StatelessWidget {
     );
   }
 }
-
-bool _sameDay(DateTime left, DateTime right) =>
-    left.year == right.year &&
-    left.month == right.month &&
-    left.day == right.day;

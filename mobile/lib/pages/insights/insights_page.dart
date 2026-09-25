@@ -1,37 +1,41 @@
+import 'dart:math' as math;
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import 'package:diary/app/app_theme.dart';
+import 'package:diary/application/insights_summary.dart';
 import 'package:diary/domain/diary_entry.dart';
 import 'package:diary/widgets/page_intro.dart';
 
-class InsightsPage extends StatelessWidget {
+class InsightsPage extends StatefulWidget {
   const InsightsPage({required this.entries, super.key});
 
   final List<DiaryEntry> entries;
 
   @override
+  State<InsightsPage> createState() => _InsightsPageState();
+}
+
+class _InsightsPageState extends State<InsightsPage> {
+  List<DiaryEntry>? _summarySource;
+  DateTime? _summaryDay;
+  InsightsSummary? _summary;
+
+  InsightsSummary _summaryFor(DateTime now) {
+    final day = DateTime(now.year, now.month, now.day);
+    if (!identical(_summarySource, widget.entries) || _summaryDay != day) {
+      _summarySource = widget.entries;
+      _summaryDay = day;
+      _summary = calculateInsights(entries: widget.entries, now: now);
+    }
+    return _summary!;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colors = DiaryThemeColors.of(context);
-    final moodEntries = entries
-        .where((entry) => entry.hasExplicitMood)
-        .toList();
-    final recent = moodEntries
-        .take(7)
-        .toList(growable: false)
-        .reversed
-        .toList(growable: false);
-    final averageMood = moodEntries.isEmpty
-        ? null
-        : moodEntries.map((entry) => entry.mood).reduce((a, b) => a + b) /
-              moodEntries.length;
-    final moodCounts = <String, int>{};
-    for (final entry in moodEntries) {
-      final label = entry.moodLabel?.trim().isNotEmpty == true
-          ? entry.moodLabel!.trim()
-          : diaryMoodLabel(entry.mood);
-      moodCounts[label] = (moodCounts[label] ?? 0) + 1;
-    }
+    final summary = _summaryFor(DateTime.now());
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 28, 20, 110),
       child: Center(
@@ -43,246 +47,66 @@ class InsightsPage extends StatelessWidget {
               const DiaryPageIntro(
                 eyebrow: 'A LITTLE LOOK BACK',
                 title: '洞察',
-                description: '不分析你，只陪你看见自己的轨迹。',
+                description: '从记录时间、心情和主题里，看见生活的轨迹。',
               ),
               const SizedBox(height: 24),
               LayoutBuilder(
-                builder: (context, constraints) {
-                  final columns = constraints.maxWidth > 580 ? 4 : 2;
-                  return GridView.count(
-                    crossAxisCount: columns,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    crossAxisSpacing: 10,
-                    mainAxisSpacing: 10,
-                    childAspectRatio: columns == 4 ? 1.35 : 1.75,
-                    children: [
-                      _Metric(
-                        number: '${entries.length}',
-                        label: '累计记录',
-                        tint: colors.sage,
-                      ),
-                      _Metric(
-                        number: averageMood == null
-                            ? '—'
-                            : '${(averageMood * 100).round()}%',
-                        label: '平均心情',
-                        tint: colors.butter,
-                      ),
-                      _Metric(
-                        number:
-                            '${entries.where((entry) => entry.isFavorite).length}',
-                        label: '收藏片段',
-                        tint: colors.terracottaSoft,
-                      ),
-                      _Metric(
-                        number:
-                            '${entries.fold<int>(0, (sum, entry) => sum + entry.wordCount)}',
-                        label: '写下字数',
-                        tint: colors.lavender,
-                      ),
-                    ],
-                  );
-                },
-              ),
-              const SizedBox(height: 12),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(18, 20, 18, 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            '最近的情绪天气',
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
-                          const Spacer(),
-                          Text(
-                            '按日记录',
-                            style: Theme.of(context).textTheme.labelSmall,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-                      SizedBox(
-                        height: 210,
-                        child: recent.isEmpty
-                            ? Center(
-                                child: Text(
-                                  '主动标记心情后，这里会出现你的情绪轨迹。',
-                                  style: Theme.of(context).textTheme.bodyMedium,
-                                ),
-                              )
-                            : BarChart(
-                                BarChartData(
-                                  maxY: 1,
-                                  minY: 0,
-                                  alignment: BarChartAlignment.spaceAround,
-                                  barTouchData: BarTouchData(
-                                    enabled: true,
-                                    touchTooltipData: BarTouchTooltipData(
-                                      fitInsideHorizontally: true,
-                                      fitInsideVertically: true,
-                                      getTooltipItem:
-                                          (
-                                            group,
-                                            groupIndex,
-                                            rod,
-                                            rodIndex,
-                                          ) => BarTooltipItem(
-                                            '心情 ${(rod.toY * 100).round()}%',
-                                            TextStyle(
-                                              color: colors.onHero,
-                                              fontWeight: FontWeight.w700,
-                                            ),
-                                          ),
-                                    ),
-                                  ),
-                                  gridData: const FlGridData(show: false),
-                                  borderData: FlBorderData(show: false),
-                                  titlesData: FlTitlesData(
-                                    leftTitles: const AxisTitles(
-                                      sideTitles: SideTitles(showTitles: false),
-                                    ),
-                                    topTitles: const AxisTitles(
-                                      sideTitles: SideTitles(showTitles: false),
-                                    ),
-                                    rightTitles: const AxisTitles(
-                                      sideTitles: SideTitles(showTitles: false),
-                                    ),
-                                    bottomTitles: AxisTitles(
-                                      sideTitles: SideTitles(
-                                        showTitles: true,
-                                        reservedSize: 28,
-                                        getTitlesWidget: (value, meta) =>
-                                            SideTitleWidget(
-                                              meta: meta,
-                                              child: Text(
-                                                '${recent[value.toInt()].effectiveOccurredAt.day}日',
-                                                style: TextStyle(
-                                                  fontSize: 10,
-                                                  color: colors.mutedInk,
-                                                ),
-                                              ),
-                                            ),
-                                      ),
-                                    ),
-                                  ),
-                                  barGroups: recent.asMap().entries.map((item) {
-                                    return BarChartGroupData(
-                                      x: item.key,
-                                      barRods: [
-                                        BarChartRodData(
-                                          toY: item.value.mood.clamp(.08, 1),
-                                          width: 22,
-                                          color: item.key == recent.length - 1
-                                              ? colors.terracotta
-                                              : colors.sage,
-                                          borderRadius: BorderRadius.circular(
-                                            6,
-                                          ),
-                                        ),
-                                      ],
-                                    );
-                                  }).toList(),
-                                ),
-                              ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '出现得最多的心情',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: 17),
-                      if (moodCounts.isEmpty)
-                        Text(
-                          '主动标记心情后，这里会慢慢长出你的情绪天气。',
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        )
-                      else
-                        ...moodCounts.entries.map(
-                          (item) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: Row(
-                              children: [
-                                SizedBox(
-                                  width: 42,
-                                  child: Text(
-                                    item.key,
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.bodyMedium,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(4),
-                                    child: LinearProgressIndicator(
-                                      value: item.value / moodEntries.length,
-                                      minHeight: 8,
-                                      backgroundColor: colors.paper,
-                                      color: colors.terracotta,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Text(
-                                  '${item.value}',
-                                  style: Theme.of(context).textTheme.labelLarge,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: colors.hero,
-                  borderRadius: BorderRadius.circular(22),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                builder: (context, constraints) => GridView.count(
+                  crossAxisCount: constraints.maxWidth > 580 ? 4 : 2,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 10,
+                  childAspectRatio: constraints.maxWidth > 580 ? 1.4 : 1.55,
                   children: [
-                    Text(
-                      'A NOTE TO YOUR FUTURE SELF',
-                      style: TextStyle(
-                        color: colors.butter,
-                        fontSize: 10,
-                        letterSpacing: 1.1,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    _Metric(
+                      icon: Icons.auto_stories_outlined,
+                      number: '${summary.entryCount}',
+                      label: '累计记录',
+                      tint: colors.sage,
                     ),
-                    SizedBox(height: 12),
-                    Text(
-                      '“普通的日子，也值得被好好记住。”',
-                      style: TextStyle(
-                        color: colors.onHero,
-                        fontFamily: 'Georgia',
-                        fontSize: 20,
-                        height: 1.35,
-                      ),
+                    _Metric(
+                      icon: Icons.event_available_outlined,
+                      number: '${summary.recordedDayCount}',
+                      label: '有记录的日子',
+                      tint: colors.butter,
+                    ),
+                    _Metric(
+                      icon: Icons.bookmark_outline_rounded,
+                      number: '${summary.favoriteCount}',
+                      label: '收藏片段',
+                      tint: colors.terracottaSoft,
+                    ),
+                    _Metric(
+                      icon: Icons.edit_note_rounded,
+                      number: '${summary.wordCount}',
+                      label: '写下字数',
+                      tint: colors.lavender,
                     ),
                   ],
                 ),
+              ),
+              const SizedBox(height: 14),
+              _ActivityCard(days: summary.recentDays),
+              const SizedBox(height: 14),
+              _MoodCard(summary: summary),
+              const SizedBox(height: 14),
+              _DistributionCard(
+                title: '常出现的心情',
+                description: '仅统计你主动标记的心情',
+                emptyMessage: '主动标记心情后，这里会慢慢长出你的情绪天气。',
+                counts: summary.moodLabels,
+                total: summary.moodCount,
+                barColor: colors.terracotta,
+              ),
+              const SizedBox(height: 14),
+              _DistributionCard(
+                title: '常写的主题',
+                description: '看看文字都留给了哪些生活片段',
+                emptyMessage: '写下日记后，这里会出现常写的分类。',
+                counts: summary.categories,
+                total: summary.entryCount,
+                barColor: colors.ink,
               ),
             ],
           ),
@@ -294,36 +118,347 @@ class InsightsPage extends StatelessWidget {
 
 class _Metric extends StatelessWidget {
   const _Metric({
+    required this.icon,
     required this.number,
     required this.label,
     required this.tint,
   });
 
+  final IconData icon;
   final String number;
   final String label;
   final Color tint;
 
   @override
   Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 15, 12, 14),
+      padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
         color: tint,
-        borderRadius: BorderRadius.circular(17),
+        borderRadius: BorderRadius.circular(18),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(number, style: Theme.of(context).textTheme.headlineSmall),
-          const SizedBox(height: 5),
-          Text(
-            label,
-            style: Theme.of(
-              context,
-            ).textTheme.labelSmall?.copyWith(letterSpacing: 0),
+          Icon(icon, size: 21, color: colors.ink),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  number,
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(label, style: Theme.of(context).textTheme.labelMedium),
+            ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ActivityCard extends StatelessWidget {
+  const _ActivityCard({required this.days});
+
+  final List<InsightDay> days;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
+    final maxCount = days.fold<int>(
+      0,
+      (value, day) => math.max(value, day.entryCount),
+    );
+    final total = days.fold<int>(0, (value, day) => value + day.entryCount);
+    final activeDays = days.where((day) => day.entryCount > 0).length;
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 19, 18, 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('最近 7 天', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 4),
+            Text(
+              '$total 篇记录 · $activeDays 天有记录',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: colors.mutedInk),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              height: 105,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  for (final day in days)
+                    Expanded(
+                      child: Tooltip(
+                        message:
+                            '${day.date.month}月${day.date.day}日 · ${day.entryCount} 篇',
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            Text(
+                              day.entryCount == 0 ? '' : '${day.entryCount}',
+                              style: Theme.of(context).textTheme.labelSmall,
+                            ),
+                            const SizedBox(height: 5),
+                            Container(
+                              width: 19,
+                              height: day.entryCount == 0
+                                  ? 5
+                                  : 12 + 48 * day.entryCount / maxCount,
+                              decoration: BoxDecoration(
+                                color: day.entryCount == 0
+                                    ? colors.line
+                                    : colors.terracotta,
+                                borderRadius: BorderRadius.circular(7),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              '周${'一二三四五六日'[day.date.weekday - 1]}',
+                              style: Theme.of(context).textTheme.labelSmall
+                                  ?.copyWith(color: colors.mutedInk),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MoodCard extends StatelessWidget {
+  const _MoodCard({required this.summary});
+
+  final InsightsSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
+    final days = summary.moodDays;
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 19, 18, 15),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '最近的情绪天气',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+                Text(
+                  summary.averageMood == null
+                      ? '—'
+                      : '${(summary.averageMood! * 100).round()}%',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleMedium?.copyWith(color: colors.terracotta),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '近 7 个有心情的日子 · 同日取平均',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: colors.mutedInk),
+            ),
+            const SizedBox(height: 18),
+            SizedBox(
+              height: 208,
+              child: days.isEmpty
+                  ? Center(
+                      child: Text(
+                        '主动标记心情后，这里会出现你的情绪轨迹。',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    )
+                  : BarChart(
+                      BarChartData(
+                        maxY: 1,
+                        minY: 0,
+                        alignment: BarChartAlignment.spaceAround,
+                        barTouchData: BarTouchData(
+                          touchTooltipData: BarTouchTooltipData(
+                            fitInsideHorizontally: true,
+                            fitInsideVertically: true,
+                            getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                              if (group.x < 0 || group.x >= days.length) {
+                                return null;
+                              }
+                              final day = days[group.x];
+                              return BarTooltipItem(
+                                '${day.date.month}月${day.date.day}日 · '
+                                '${day.moodCount} 条心情\n平均 ${(day.averageMood! * 100).round()}%',
+                                TextStyle(color: colors.onHero),
+                              );
+                            },
+                          ),
+                        ),
+                        gridData: const FlGridData(show: false),
+                        borderData: FlBorderData(show: false),
+                        titlesData: FlTitlesData(
+                          leftTitles: const AxisTitles(
+                            sideTitles: SideTitles(showTitles: false),
+                          ),
+                          topTitles: const AxisTitles(
+                            sideTitles: SideTitles(showTitles: false),
+                          ),
+                          rightTitles: const AxisTitles(
+                            sideTitles: SideTitles(showTitles: false),
+                          ),
+                          bottomTitles: AxisTitles(
+                            sideTitles: SideTitles(
+                              showTitles: true,
+                              reservedSize: 27,
+                              getTitlesWidget: (value, meta) {
+                                final index = value.toInt();
+                                if (value != index ||
+                                    index < 0 ||
+                                    index >= days.length) {
+                                  return const SizedBox.shrink();
+                                }
+                                final date = days[index].date;
+                                return SideTitleWidget(
+                                  meta: meta,
+                                  child: Text(
+                                    '${date.month}/${date.day}',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: colors.mutedInk,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                        barGroups: [
+                          for (var index = 0; index < days.length; index++)
+                            BarChartGroupData(
+                              x: index,
+                              barRods: [
+                                BarChartRodData(
+                                  toY: days[index].averageMood!.clamp(.08, 1),
+                                  width: 22,
+                                  color: index == days.length - 1
+                                      ? colors.terracotta
+                                      : colors.sage,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                              ],
+                            ),
+                        ],
+                      ),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DistributionCard extends StatelessWidget {
+  const _DistributionCard({
+    required this.title,
+    required this.description,
+    required this.emptyMessage,
+    required this.counts,
+    required this.total,
+    required this.barColor,
+  });
+
+  final String title;
+  final String description;
+  final String emptyMessage;
+  final List<InsightCount> counts;
+  final int total;
+  final Color barColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 4),
+            Text(
+              description,
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: colors.mutedInk),
+            ),
+            const SizedBox(height: 18),
+            if (counts.isEmpty)
+              Text(emptyMessage, style: Theme.of(context).textTheme.bodyMedium)
+            else
+              for (final item in counts.take(5)) ...[
+                Row(
+                  children: [
+                    SizedBox(
+                      width: 78,
+                      child: Text(
+                        item.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: item.count / total,
+                          minHeight: 8,
+                          backgroundColor: colors.paper,
+                          color: barColor,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    SizedBox(
+                      width: 28,
+                      child: Text(
+                        '${item.count}',
+                        textAlign: TextAlign.end,
+                        style: Theme.of(context).textTheme.labelLarge,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+              ],
+          ],
+        ),
       ),
     );
   }

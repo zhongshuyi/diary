@@ -28,6 +28,10 @@ class FavoritesPage extends StatefulWidget {
 class _FavoritesPageState extends State<FavoritesPage> {
   final _searchController = TextEditingController();
   FavoritesFilter _filter = FavoritesFilter();
+  List<DiaryEntry>? _cachedSource;
+  List<DiaryEntry> _cachedFavorites = const [];
+  List<String> _cachedCategories = const [];
+  List<String> _cachedTags = const [];
 
   @override
   void dispose() {
@@ -40,95 +44,114 @@ class _FavoritesPageState extends State<FavoritesPage> {
     return ValueListenableBuilder<List<DiaryEntry>>(
       valueListenable: widget.entriesListenable,
       builder: (context, entries, _) {
-        final saved = _allFavorites(entries);
-        final visible = _visibleEntries(entries);
-        final categories = _categories(saved);
-        final tags = _tags(saved);
-        return SingleChildScrollView(
+        _updateFavoritesCache(entries);
+        final saved = _cachedFavorites;
+        final visible = _visibleEntries(saved);
+        final categories = _cachedCategories;
+        final tags = _cachedTags;
+        return ListView.builder(
           padding: const EdgeInsets.fromLTRB(20, 28, 20, 110),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 720),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  DiaryPageIntro(
-                    eyebrow: 'THE MOMENTS YOU KEPT',
-                    title: '收藏夹',
-                    description: saved.isEmpty
-                        ? '把想反复读的日记留在这里。'
-                        : '这里有 ${saved.length} 篇你想留住的日记。',
-                  ),
-                  const SizedBox(height: 18),
-                  _FavoritesSummary(count: saved.length),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          key: const Key('favorites-search-field'),
-                          controller: _searchController,
-                          onChanged: (value) => setState(
-                            () => _filter = _filter.copyWith(query: value),
+          itemCount: visible.length + 1,
+          itemBuilder: (context, index) {
+            final entry = index == 0 ? null : visible[index - 1];
+            return Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 720),
+                child: index == 0
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          DiaryPageIntro(
+                            eyebrow: 'THE MOMENTS YOU KEPT',
+                            title: '收藏夹',
+                            description: saved.isEmpty
+                                ? '把想反复读的日记留在这里。'
+                                : '这里有 ${saved.length} 篇你想留住的日记。',
                           ),
-                          decoration: InputDecoration(
-                            hintText: '搜索收藏的日记',
-                            prefixIcon: const Icon(Icons.search),
-                            suffixIcon: _filter.query.trim().isEmpty
-                                ? null
-                                : IconButton(
-                                    tooltip: '清除收藏搜索',
-                                    onPressed: () {
-                                      _searchController.clear();
-                                      setState(
-                                        () => _filter = _filter.copyWith(
-                                          query: '',
-                                        ),
-                                      );
-                                    },
-                                    icon: const Icon(Icons.close),
+                          const SizedBox(height: 18),
+                          _FavoritesSummary(count: saved.length),
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  key: const Key('favorites-search-field'),
+                                  controller: _searchController,
+                                  onChanged: (value) => setState(
+                                    () => _filter = _filter.copyWith(
+                                      query: value,
+                                    ),
                                   ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      IconButton.filledTonal(
-                        key: const Key('favorites-filter-button'),
-                        tooltip: '筛选收藏',
-                        onPressed: saved.isEmpty
-                            ? null
-                            : () => unawaited(
-                                _openFilter(categories: categories, tags: tags),
+                                  decoration: InputDecoration(
+                                    hintText: '搜索收藏的日记',
+                                    prefixIcon: const Icon(Icons.search),
+                                    suffixIcon: _filter.query.trim().isEmpty
+                                        ? null
+                                        : IconButton(
+                                            tooltip: '清除收藏搜索',
+                                            onPressed: () {
+                                              _searchController.clear();
+                                              setState(
+                                                () => _filter = _filter
+                                                    .copyWith(query: ''),
+                                              );
+                                            },
+                                            icon: const Icon(Icons.close),
+                                          ),
+                                  ),
+                                ),
                               ),
-                        icon: Badge(
-                          isLabelVisible: _filter.hasActiveConditions,
-                          child: const Icon(Icons.tune_outlined),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-                  if (saved.isEmpty)
-                    const _FavoritesEmptyState()
-                  else if (visible.isEmpty)
-                    _FilteredFavoritesEmptyState(onClear: _clearConditions)
-                  else
-                    for (final entry in visible)
-                      Padding(
+                              const SizedBox(width: 8),
+                              IconButton.filledTonal(
+                                key: const Key('favorites-filter-button'),
+                                tooltip: '筛选收藏',
+                                onPressed: saved.isEmpty
+                                    ? null
+                                    : () => unawaited(
+                                        _openFilter(
+                                          categories: categories,
+                                          tags: tags,
+                                        ),
+                                      ),
+                                icon: Badge(
+                                  isLabelVisible: _filter.hasActiveConditions,
+                                  child: const Icon(Icons.tune_outlined),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 18),
+                          if (saved.isEmpty)
+                            const _FavoritesEmptyState()
+                          else if (visible.isEmpty)
+                            _FilteredFavoritesEmptyState(
+                              onClear: _clearConditions,
+                            ),
+                        ],
+                      )
+                    : Padding(
                         padding: const EdgeInsets.only(bottom: 10),
                         child: DiaryEntryCard(
+                          key: ValueKey(entry!.id),
                           entry: entry,
                           onTap: () => unawaited(widget.onOpenEntry(entry)),
                           onFavorite: () => unawaited(_removeFavorite(entry)),
                         ),
                       ),
-                ],
               ),
-            ),
-          ),
+            );
+          },
         );
       },
     );
+  }
+
+  void _updateFavoritesCache(List<DiaryEntry> entries) {
+    if (identical(_cachedSource, entries)) return;
+    _cachedSource = entries;
+    _cachedFavorites = _allFavorites(entries);
+    _cachedCategories = _categories(_cachedFavorites);
+    _cachedTags = _tags(_cachedFavorites);
   }
 
   List<DiaryEntry> _allFavorites(List<DiaryEntry> entries) {
@@ -140,12 +163,8 @@ class _FavoritesPageState extends State<FavoritesPage> {
       );
   }
 
-  List<DiaryEntry> _visibleEntries(List<DiaryEntry> entries) {
-    return entries.where(_filter.matches).toList(growable: false)..sort(
-      (first, second) =>
-          second.effectiveOccurredAt.compareTo(first.effectiveOccurredAt),
-    );
-  }
+  List<DiaryEntry> _visibleEntries(List<DiaryEntry> favorites) =>
+      favorites.where(_filter.matches).toList(growable: false);
 
   List<String> _categories(List<DiaryEntry> entries) {
     final categories = entries.map((entry) => entry.category).toSet().toList()

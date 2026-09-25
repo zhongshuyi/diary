@@ -73,4 +73,20 @@ void main() {
     expect(find.text('90%'), findsOneWidget);
     expect(find.text('明亮'), findsOneWidget);
   });
+
+  testWidgets('insights refresh when entries change', (tester) async {
+    Widget app(List<DiaryEntry> entries) => MaterialApp(
+      home: Scaffold(body: InsightsPage(entries: entries)),
+    );
+
+    await tester.pumpWidget(app([_entry('first')]));
+    expect(find.text('1'), findsWidgets);
+
+    await tester.pumpWidget(
+      app([_entry('first'), _entry('second', mood: .8, moodLabel: '明亮')]),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('2'), findsWidgets);
+    expect(find.text('80%'), findsOneWidget);
+  });
 }

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:diary/app/app_theme.dart';
 import 'package:diary/domain/diary_settings.dart';
@@ -7,6 +9,11 @@ import 'package:diary/main.dart';
 import 'package:diary/widgets/draggable_quick_capture.dart';
 
 void main() {
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+    FlutterSecureStorage.setMockInitialValues({});
+  });
+
   testWidgets('shows a global quick capture action in the mobile shell', (
     tester,
   ) async {

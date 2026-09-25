@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'package:diary/domain/diary_settings.dart';
 
+export 'package:diary/domain/diary_mood.dart' show diaryMoodLabel;
+
 extension DiaryThemeModeMaterial on DiaryThemeMode {
   ThemeMode get materialMode {
     switch (this) {
@@ -724,12 +726,4 @@ String diaryTimeLabel(DateTime date) {
   final hour = date.hour.toString().padLeft(2, '0');
   final minute = date.minute.toString().padLeft(2, '0');
   return '$hour:$minute';
-}
-
-String diaryMoodLabel(double value) {
-  if (value >= .8) return '明亮';
-  if (value >= .6) return '平静';
-  if (value >= .4) return '平常';
-  if (value >= .2) return '低落';
-  return '阴天';
 }

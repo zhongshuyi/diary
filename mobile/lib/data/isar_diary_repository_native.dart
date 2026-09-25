@@ -98,6 +98,22 @@ class IsarDiaryRepository extends DiaryRepository {
 
   @override
   Future<void> save(DiaryEntry entry, {bool enqueueMutation = true}) async {
+    await _saveStored(entry, enqueueMutation: enqueueMutation);
+  }
+
+  @override
+  Future<DiaryEntry> saveAndGet(
+    DiaryEntry entry, {
+    bool enqueueMutation = true,
+  }) async {
+    final record = await _saveStored(entry, enqueueMutation: enqueueMutation);
+    return record.toEntity();
+  }
+
+  Future<DiaryRecord> _saveStored(
+    DiaryEntry entry, {
+    required bool enqueueMutation,
+  }) async {
     final existing = await _isar.diaryRecords
         .filter()
         .uuidEqualTo(entry.id)
@@ -137,6 +153,7 @@ class IsarDiaryRepository extends DiaryRepository {
         );
       }
     });
+    return record;
   }
 
   @override
@@ -255,11 +272,12 @@ class IsarDiaryRepository extends DiaryRepository {
 
   @override
   Future<List<OutboxMutation>> listPendingMutations({int limit = 100}) async {
-    final rows = await _isar.outboxRecords.where().sortByCreatedAt().findAll();
-    return rows
-        .take(limit)
-        .map((row) => row.toEntity())
-        .toList(growable: false);
+    final rows = await _isar.outboxRecords
+        .where()
+        .sortByCreatedAt()
+        .limit(limit)
+        .findAll();
+    return rows.map((row) => row.toEntity()).toList(growable: false);
   }
 
   @override
