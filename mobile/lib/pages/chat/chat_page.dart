@@ -127,6 +127,7 @@ class ChatPage extends StatefulWidget {
     this.pickLocation,
     this.onOpenLocation,
     this.amapAndroidKey = '',
+    this.entriesLoading = false,
     this.title = diaryDefaultChatTitle,
     this.chatBackground = const DiaryChatBackground(),
     this.showChatAvatar = false,
@@ -153,6 +154,7 @@ class ChatPage extends StatefulWidget {
   final Future<DiaryPlace?> Function()? pickLocation;
   final ValueChanged<DiaryEntry>? onOpenLocation;
   final String amapAndroidKey;
+  final bool entriesLoading;
   final String title;
   final DiaryChatBackground chatBackground;
   final bool showChatAvatar;
@@ -170,10 +172,13 @@ class ChatPage extends StatefulWidget {
 }
 
 class _ChatPageState extends State<ChatPage> {
+  static const _messagePageSize = 40;
   final _scrollController = ScrollController();
   final _composerFocusNode = FocusNode();
   final _enteringMessageIds = <String>{};
   bool _scrollToLatestScheduled = false;
+  bool _loadOlderScheduled = false;
+  int _visibleMessageCount = _messagePageSize;
   double? _lastChatViewportDimension;
   List<DiaryEntry>? _sortedSource;
   List<DiaryEntry> _sortedCache = const [];
@@ -181,7 +186,7 @@ class _ChatPageState extends State<ChatPage> {
   @override
   void initState() {
     super.initState();
-    _scheduleScrollToLatest();
+    _scrollController.addListener(_onScroll);
   }
 
   @override
@@ -192,15 +197,31 @@ class _ChatPageState extends State<ChatPage> {
     final currentIds = widget.entries.map((entry) => entry.id).toSet();
     final addedIds = currentIds.difference(previousIds);
     final staleIds = _enteringMessageIds.difference(currentIds);
-    _enteringMessageIds
-      ..removeAll(staleIds)
-      ..addAll(addedIds);
+    _enteringMessageIds.removeAll(staleIds);
+    if (!oldWidget.entriesLoading && addedIds.length == 1) {
+      _enteringMessageIds.addAll(addedIds);
+    }
     if (widget.entries.length > oldWidget.entries.length &&
         (!_scrollController.hasClients ||
             _composerFocusNode.hasFocus ||
-            _scrollController.position.extentAfter < 120)) {
+            _scrollController.position.pixels < 120)) {
       _scheduleScrollToLatest();
     }
+  }
+
+  void _onScroll() {
+    if (_loadOlderScheduled || !_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    if (_visibleMessageCount >= widget.entries.length ||
+        position.pixels < position.maxScrollExtent - 200) {
+      return;
+    }
+    _loadOlderScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadOlderScheduled = false;
+      if (!mounted) return;
+      setState(() => _visibleMessageCount += _messagePageSize);
+    });
   }
 
   @override
@@ -212,7 +233,7 @@ class _ChatPageState extends State<ChatPage> {
 
   void _scrollToLatest() {
     if (!_scrollController.hasClients) return;
-    _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+    _scrollController.jumpTo(_scrollController.position.minScrollExtent);
   }
 
   void _scheduleScrollToLatest() {
@@ -339,10 +360,13 @@ class _ChatPageState extends State<ChatPage> {
                       child: ListView.builder(
                         key: const Key('chat-message-list'),
                         controller: _scrollController,
+                        reverse: true,
                         padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
-                        itemCount: entries.length,
+                        itemCount: entries.length < _visibleMessageCount
+                            ? entries.length
+                            : _visibleMessageCount,
                         itemBuilder: (context, index) {
-                          final entry = entries[index];
+                          final entry = entries[entries.length - index - 1];
                           return _ChatEntryItem(
                             entry: entry,
                             enteringMessageIds: _enteringMessageIds,

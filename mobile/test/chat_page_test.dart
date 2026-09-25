@@ -228,17 +228,17 @@ void main() {
       matching: find.byType(Scrollable),
     );
     final position = tester.state<ScrollableState>(scrollable).position;
-    expect(position.extentAfter, closeTo(0, 1));
+    expect(position.pixels, closeTo(0, 1));
 
     await tester.drag(list, const Offset(0, 400));
     await tester.pumpAndSettle();
-    expect(position.extentAfter, greaterThan(120));
+    expect(position.pixels, greaterThan(120));
 
     await tester.tap(find.byKey(const Key('chat-message-field')));
     tester.view.viewInsets = const FakeViewPadding(bottom: 300);
     await tester.pumpAndSettle();
 
-    expect(position.extentAfter, closeTo(0, 1));
+    expect(position.pixels, closeTo(0, 1));
   });
 
   testWidgets('composer controls keep equal size and stable spacing', (
@@ -822,10 +822,113 @@ void main() {
       find.byKey(const ValueKey('chat-entry-animated-entry')),
       findsOneWidget,
     );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('chat-entry-animated-entry')),
+        matching: find.byType(TweenAnimationBuilder<double>),
+      ),
+      findsOneWidget,
+    );
     expect(find.text('这条消息有顺滑的入场效果。'), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 320));
     expect(find.text('这条消息有顺滑的入场效果。'), findsOneWidget);
   });
+
+  testWidgets('loaded history does not play a message entrance animation', (
+    tester,
+  ) async {
+    var entries = <DiaryEntry>[];
+    var loading = true;
+    late StateSetter updateEntries;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: StatefulBuilder(
+            builder: (context, setState) {
+              updateEntries = setState;
+              return ChatPage(
+                entries: entries,
+                entriesLoading: loading,
+                onSend:
+                    (content, images, audio, videos, mood, moodLabel) async {},
+                onOpenEntry: (_) {},
+                onEdit: (_) async {},
+                onDelete: (_) async {},
+                onOpenEditor: () {},
+                onImportAttachments: (paths) async => paths,
+                onNavigate: (_) {},
+              );
+            },
+          ),
+        ),
+      ),
+    );
+    updateEntries(() {
+      entries = [
+        DiaryEntry(
+          id: 'loaded-entry',
+          createdAt: DateTime(2026, 9, 19, 20),
+          updatedAt: DateTime(2026, 9, 19, 20),
+          title: '历史消息',
+          content: '历史消息',
+          contentText: '历史消息',
+          category: '生活',
+        ),
+      ];
+      loading = false;
+    });
+    await tester.pump();
+
+    expect(find.text('历史消息'), findsWidgets);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('chat-entry-loaded-entry')),
+        matching: find.byType(TweenAnimationBuilder<double>),
+      ),
+      findsNothing,
+    );
+  });
+
+  testWidgets(
+    'opens at the latest message and reveals older messages in pages',
+    (tester) async {
+      final entries = [
+        for (var index = 0; index < 100; index++)
+          DiaryEntry(
+            id: 'paged-message-$index',
+            createdAt: DateTime(2026, 9, 19, 8).add(Duration(minutes: index)),
+            updatedAt: DateTime(2026, 9, 19, 8).add(Duration(minutes: index)),
+            title: '消息 $index',
+            content: '消息 $index',
+            contentText: '消息 $index',
+            category: '生活',
+          ),
+      ];
+      await tester.pumpWidget(_ChatHarness(entries: entries));
+      await tester.pumpAndSettle();
+
+      final list = find.byKey(const Key('chat-message-list'));
+      final scrollable = find.descendant(
+        of: list,
+        matching: find.byType(Scrollable),
+      );
+      final position = tester.state<ScrollableState>(scrollable).position;
+      int visibleCount() =>
+          tester.widget<ListView>(list).childrenDelegate.estimatedChildCount!;
+
+      expect(position.pixels, closeTo(0, 1));
+      expect(find.text('消息 99'), findsOneWidget);
+      expect(visibleCount(), 40);
+
+      position.jumpTo(position.maxScrollExtent);
+      await tester.pumpAndSettle();
+      expect(visibleCount(), 80);
+
+      position.jumpTo(position.maxScrollExtent);
+      await tester.pumpAndSettle();
+      expect(visibleCount(), 100);
+    },
+  );
 
   testWidgets('keeps the reading position when older messages are in view', (
     tester,
@@ -851,11 +954,11 @@ void main() {
       matching: find.byType(Scrollable),
     );
     final position = tester.state<ScrollableState>(scrollable).position;
-    expect(position.pixels, greaterThan(0));
+    expect(position.pixels, closeTo(0, 1));
     await tester.drag(list, const Offset(0, 450));
     await tester.pumpAndSettle();
     final readingOffset = position.pixels;
-    expect(position.extentAfter, greaterThan(120));
+    expect(position.pixels, greaterThan(120));
 
     await tester.pumpWidget(
       _ChatHarness(

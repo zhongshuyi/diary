@@ -34,6 +34,7 @@ class MobileDiaryShell extends StatefulWidget {
     this.defaultHomeMode = DiaryHomeMode.timeline,
     this.chatTitle = diaryDefaultChatTitle,
     this.amapAndroidKey = '',
+    this.entriesLoading = false,
     this.chatBackground = const DiaryChatBackground(),
     this.conflictCount = 0,
     this.syncState = const SyncState(),
@@ -54,6 +55,7 @@ class MobileDiaryShell extends StatefulWidget {
   final DiaryHomeMode defaultHomeMode;
   final String chatTitle;
   final String amapAndroidKey;
+  final bool entriesLoading;
   final DiaryChatBackground chatBackground;
   final int conflictCount;
   final SyncState syncState;
@@ -199,6 +201,7 @@ class _MobileDiaryShellState extends State<MobileDiaryShell> {
       ),
       ChatPage(
         entries: widget.entries,
+        entriesLoading: widget.entriesLoading,
         title: widget.chatTitle,
         chatBackground: widget.chatBackground,
         showChatAvatar: widget.showChatAvatar,
