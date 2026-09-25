@@ -64,4 +64,23 @@ void main() {
 
     expect(DiaryEntry.fromJson(legacyPayload).moodLabel, isNull);
   });
+
+  test('uses a saved address to label legacy map-center messages', () {
+    final entry = DiaryEntry(
+      id: 'legacy-location',
+      createdAt: DateTime(2026, 9, 25),
+      updatedAt: DateTime(2026, 9, 25),
+      title: '地图中心位置',
+      content: '',
+      contentText: '',
+      category: '生活',
+      positions: const ['地图中心位置', '广东省深圳市龙岗区布吉一村'],
+      latitude: 22.5,
+      longitude: 114.1,
+    );
+
+    expect(entry.isStandaloneLocation, isTrue);
+    expect(entry.locationDisplayName, '广东省深圳市龙岗区布吉一村');
+    expect(entry.locationDisplayAddress, isEmpty);
+  });
 }

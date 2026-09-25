@@ -74,7 +74,11 @@ class DiaryEntryCard extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                entry.title.isEmpty ? '无题' : entry.title,
+                entry.isStandaloneLocation
+                    ? entry.locationDisplayName
+                    : entry.title.isEmpty
+                    ? '无题'
+                    : entry.title,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.titleLarge,
@@ -101,7 +105,11 @@ class DiaryEntryCard extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         Text(
-          entry.contentText.isEmpty && entry.imagePaths.isNotEmpty
+          entry.isStandaloneLocation
+              ? entry.locationDisplayAddress.isNotEmpty
+                    ? entry.locationDisplayAddress
+                    : '已保存的位置'
+              : entry.contentText.isEmpty && entry.imagePaths.isNotEmpty
               ? '${entry.imagePaths.length} 张照片'
               : entry.contentText.isEmpty
               ? '这一天还没有留下文字。'
@@ -110,7 +118,7 @@ class DiaryEntryCard extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.65),
         ),
-        if (entry.imagePaths.isNotEmpty) ...[
+        if (entry.imagePaths.isNotEmpty && !entry.isStandaloneLocation) ...[
           const SizedBox(height: 12),
           SizedBox(
             height: 72,
@@ -145,7 +153,7 @@ class DiaryEntryCard extends StatelessWidget {
             const SizedBox(width: 10),
             Text(entry.category, style: Theme.of(context).textTheme.labelSmall),
             const Spacer(),
-            if (entry.hasMedia)
+            if (entry.hasMedia && !entry.isStandaloneLocation)
               Padding(
                 padding: EdgeInsets.only(right: 10),
                 child: Icon(

@@ -162,20 +162,27 @@ class _MomentRow extends StatelessWidget {
         entry.title == '此刻的照片' ||
         entry.title.endsWith(' 的一个念头') ||
         entry.title.endsWith(' 的照片');
-    final primary = !autoTitle
+    final primary = entry.isStandaloneLocation
+        ? entry.locationDisplayName
+        : !autoTitle
         ? entry.title
         : content.isNotEmpty
         ? content
         : entry.imagePaths.isNotEmpty
         ? '${entry.imagePaths.length} 张照片'
         : entry.title;
-    final secondary = !autoTitle && content.isNotEmpty && content != primary
+    final secondary =
+        !entry.isStandaloneLocation &&
+            !autoTitle &&
+            content.isNotEmpty &&
+            content != primary
         ? content
         : null;
     final metadata = [
       entry.category,
       if (entry.tags.isNotEmpty) '#${entry.tags.first}',
-      if (entry.imagePaths.length > 1 &&
+      if (!entry.isStandaloneLocation &&
+          entry.imagePaths.length > 1 &&
           primary != '${entry.imagePaths.length} 张照片')
         '${entry.imagePaths.length} 张照片',
     ].join(' · ');
@@ -263,7 +270,8 @@ class _MomentRow extends StatelessWidget {
                   ),
                 ),
               ),
-              if (entry.imagePaths.isNotEmpty) ...[
+              if (entry.imagePaths.isNotEmpty &&
+                  !entry.isStandaloneLocation) ...[
                 const SizedBox(width: 7),
                 DiaryImageThumbnail(
                   entryId: entry.id,
@@ -296,7 +304,7 @@ class _MomentRow extends StatelessWidget {
                   width: 40,
                   height: 40,
                   child: PopupMenuButton<String>(
-                    tooltip: '更多操作：${entry.title}',
+                    tooltip: '更多操作：$primary',
                     padding: EdgeInsets.zero,
                     icon: Icon(
                       Icons.more_horiz,

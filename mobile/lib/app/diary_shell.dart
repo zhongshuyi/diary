@@ -12,6 +12,7 @@ import 'package:diary/application/diary_lock_coordinator.dart';
 import 'package:diary/application/incoming_share_bridge.dart';
 import 'package:diary/application/settings_controller.dart';
 import 'package:diary/data/diary_repository.dart';
+import 'package:diary/data/amap_location_bridge.dart';
 import 'package:diary/data/profile_avatar_store.dart';
 import 'package:diary/data/quick_photo_importer.dart';
 import 'package:diary/domain/diary_entry.dart';
@@ -31,6 +32,7 @@ import 'package:diary/pages/settings/category_page.dart';
 import 'package:diary/pages/settings/settings_page.dart';
 import 'package:diary/pages/share/share_page.dart';
 import 'package:diary/widgets/avatar_cropper.dart';
+import 'package:diary/widgets/trash_feedback_toast.dart';
 import 'package:diary/widgets/in_app_photo_picker.dart';
 
 bool diaryUsesDesktopShell(BuildContext context) {
@@ -153,6 +155,8 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
   bool _handlingShortcut = false;
   SyncEngine? _syncEngine;
   Timer? _chatSyncTimer;
+  Timer? _trashFeedbackTimer;
+  OverlayEntry? _trashFeedbackEntry;
   _SyncConnection? _syncConnection;
   SyncState _syncState = const SyncState();
   final ProfileAvatarStore _profileAvatarStore = ProfileAvatarStore();
@@ -191,6 +195,7 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
     widget.settingsController.removeListener(_onSettingsChanged);
     WidgetsBinding.instance.removeObserver(this);
     _chatSyncTimer?.cancel();
+    _removeTrashFeedback();
     _resetSyncEngine();
     _incomingShareBridge.dispose();
     _shortcutRequest.removeListener(_onShortcutRequestChanged);
@@ -554,6 +559,9 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
         positions: [place.name.trim(), place.address.trim()],
         latitude: place.latitude,
         longitude: place.longitude,
+        imagePaths: place.thumbnailPath?.isNotEmpty == true
+            ? [place.thumbnailPath!]
+            : const [],
       ),
     );
     _scheduleChatSync();
@@ -592,6 +600,13 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
           onExternalActivityStart: widget.lockCoordinator.beginExternalActivity,
           onExternalActivityEnd: widget.lockCoordinator.endExternalActivity,
           onImportPhotos: importQuickPhotos,
+          onPickLocation: defaultTargetPlatform == TargetPlatform.android
+              ? (editorContext) => AmapLocationBridge.pick(
+                  editorContext,
+                  widget.settingsController.settings.amapAndroidKey,
+                  includeThumbnail: false,
+                )
+              : null,
           onSave: (saved) async {
             await _saveEntryAndSync(saved);
             if (initialContent.isNotEmpty || initialImagePaths.isNotEmpty) {
@@ -670,18 +685,24 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
   }
 
   void _showTrashFeedback(int count) {
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.clearSnackBars();
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(count == 1 ? '已移入回收站，可随时恢复' : '已移入回收站，共 $count 篇'),
-        duration: const Duration(seconds: 2),
-        action: SnackBarAction(
-          label: '查看',
-          onPressed: () => unawaited(_openRecycle()),
-        ),
-      ),
+    _removeTrashFeedback();
+    final entry = OverlayEntry(
+      builder: (context) => TrashFeedbackToast(count: count),
     );
+    Overlay.of(context, rootOverlay: true).insert(entry);
+    _trashFeedbackEntry = entry;
+    _trashFeedbackTimer = Timer(
+      const Duration(milliseconds: 1300),
+      _removeTrashFeedback,
+    );
+  }
+
+  void _removeTrashFeedback() {
+    _trashFeedbackTimer?.cancel();
+    _trashFeedbackTimer = null;
+    _trashFeedbackEntry?.remove();
+    _trashFeedbackEntry?.dispose();
+    _trashFeedbackEntry = null;
   }
 
   Future<void> _restoreFromRecycle(DiaryEntry entry) async {

@@ -14,6 +14,7 @@ import 'package:diary/application/diary_draft_store.dart';
 import 'package:diary/data/diary_repository.dart';
 import 'package:diary/data/quick_audio_recorder.dart';
 import 'package:diary/domain/diary_entry.dart';
+import 'package:diary/domain/diary_place.dart';
 import 'package:diary/widgets/desktop_window_bar.dart';
 import 'package:diary/widgets/diary_audio_player.dart';
 import 'package:diary/widgets/diary_video_player.dart';
@@ -33,6 +34,7 @@ class EntryEditorPage extends StatefulWidget {
     this.onImportPhotos,
     this.audioRecorder,
     this.pickGalleryPhotos,
+    this.onPickLocation,
     this.entry,
     this.initialContent = '',
     this.initialImagePaths = const [],
@@ -62,6 +64,7 @@ class EntryEditorPage extends StatefulWidget {
   final Future<List<String>> Function(List<String> paths)? onImportPhotos;
   final QuickAudioRecorder? audioRecorder;
   final Future<List<String>> Function()? pickGalleryPhotos;
+  final Future<DiaryPlace?> Function(BuildContext context)? onPickLocation;
   final bool desktopLayout;
   final bool showDesktopWindowBar;
   final VoidCallback? onToggleTheme;
@@ -85,6 +88,7 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
   late DiaryEditorType _editorType;
   late String _category;
   String? _selectedMood;
+  DiaryPlace? _selectedPlace;
   List<String> _attachments = const [];
   bool _saving = false;
   bool _pickingAttachment = false;
@@ -112,6 +116,17 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
         : entry != null && entry.mood != .5
         ? diaryMoodLabel(entry.mood)
         : null;
+    if (entry != null &&
+        entry.latitude != null &&
+        entry.longitude != null &&
+        entry.positions.isNotEmpty) {
+      _selectedPlace = DiaryPlace(
+        name: entry.locationDisplayName,
+        address: entry.locationDisplayAddress,
+        latitude: entry.latitude!,
+        longitude: entry.longitude!,
+      );
+    }
     _attachments = [
       ...(entry?.imagePaths ?? widget.initialImagePaths),
       ...?entry?.audioPaths,
@@ -206,6 +221,7 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
     if (attachments is List) {
       _attachments = attachments.whereType<String>().toList(growable: false);
     }
+    _restorePlace(payload);
     _restoringDraft = false;
     if (mounted) setState(() {});
   }
@@ -265,6 +281,7 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
           ? (draft['attachments'] as List).whereType<String>().toList()
           : const [];
       final content = _stringValue(draft['content']);
+      _restorePlace(draft);
       if (_editorType == DiaryEditorType.richText && content.isNotEmpty) {
         try {
           _quillController.document = quill.Document.fromJson(
@@ -286,6 +303,27 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
       _restoringDraft = false;
     }
     if (mounted) setState(() {});
+  }
+
+  void _restorePlace(Map<String, dynamic> payload) {
+    final name = payload['placeName'];
+    final address = payload['placeAddress'];
+    final latitude = payload['latitude'];
+    final longitude = payload['longitude'];
+    if (name is String &&
+        name.trim().isNotEmpty &&
+        latitude is num &&
+        longitude is num) {
+      final place = DiaryPlace(
+        name: name,
+        address: address is String ? address : '',
+        latitude: latitude.toDouble(),
+        longitude: longitude.toDouble(),
+      );
+      _selectedPlace = place.isValid ? place : null;
+    } else {
+      _selectedPlace = null;
+    }
   }
 
   void _scheduleDraftSave() {
@@ -317,6 +355,10 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
               ? _editorType.wireValue
               : _editorType.name,
           'attachments': _attachments,
+          'placeName': _selectedPlace?.name,
+          'placeAddress': _selectedPlace?.address,
+          'latitude': _selectedPlace?.latitude,
+          'longitude': _selectedPlace?.longitude,
         };
         if (legacyDraftEnabled) {
           unawaited(widget.draftStore!.save(widget.draftKey!, payload));
@@ -552,6 +594,12 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
           decoration: const InputDecoration(hintText: '例如：读书, 灵感'),
         ),
         const SizedBox(height: 22),
+        if (widget.onPickLocation != null || _selectedPlace != null) ...[
+          Text('地点', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 9),
+          _locationControl(context),
+          const SizedBox(height: 22),
+        ],
         Text('附件', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 9),
         _attachmentControls(context),
@@ -561,6 +609,85 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
         Wrap(spacing: 8, children: _moods.map(_moodChoice).toList()),
       ],
     );
+  }
+
+  Widget _locationControl(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
+    final place = _selectedPlace;
+    if (place == null) {
+      return OutlinedButton.icon(
+        key: const Key('entry-location-select'),
+        onPressed: widget.onPickLocation == null ? null : _pickLocation,
+        icon: const Icon(Icons.add_location_alt_outlined),
+        label: const Text('选择地点'),
+      );
+    }
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: colors.line),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        child: Row(
+          children: [
+            Icon(Icons.location_on_outlined, color: colors.terracotta),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                place.name,
+                key: const Key('entry-location-name'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (widget.onPickLocation != null)
+              TextButton(
+                key: const Key('entry-location-reselect'),
+                onPressed: _pickLocation,
+                child: const Text('重选'),
+              ),
+            IconButton(
+              key: const Key('entry-location-remove'),
+              tooltip: '移除地点',
+              onPressed: () {
+                setState(() => _selectedPlace = null);
+                _scheduleDraftSave();
+              },
+              icon: const Icon(Icons.close_rounded, size: 20),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickLocation() async {
+    final pick = widget.onPickLocation;
+    if (pick == null) return;
+    widget.onExternalActivityStart?.call();
+    DiaryPlace? place;
+    try {
+      place = await pick(context);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('暂时无法选择地点，请重试')));
+      }
+    } finally {
+      widget.onExternalActivityEnd?.call();
+    }
+    if (!mounted || place == null) return;
+    if (!place.isValid) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('选择的地点无效，请重试')));
+      return;
+    }
+    setState(() => _selectedPlace = place);
+    _scheduleDraftSave();
   }
 
   Widget _attachmentControls(BuildContext context) {
@@ -1090,7 +1217,10 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
     final plainText = _editorType == DiaryEditorType.richText
         ? _quillController.document.toPlainText().trim()
         : _contentController.text.trim();
-    if (title.isEmpty && plainText.isEmpty && _attachments.isEmpty) {
+    if (title.isEmpty &&
+        plainText.isEmpty &&
+        _attachments.isEmpty &&
+        _selectedPlace == null) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('先写下一点什么吧')));
@@ -1105,7 +1235,7 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
       updatedAt: now,
       title: title.isEmpty
           ? (_attachments.isEmpty
-                ? '无题'
+                ? (_selectedPlace == null ? '无题' : '在${_selectedPlace!.name}')
                 : _attachments.any(
                     (path) =>
                         diaryMediaKindForPath(path) == DiaryMediaKind.audio,
@@ -1140,6 +1270,11 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
       videoPaths: _attachments
           .where((path) => diaryMediaKindForPath(path) == DiaryMediaKind.video)
           .toList(growable: false),
+      positions: _selectedPlace == null
+          ? const []
+          : [_selectedPlace!.name, _selectedPlace!.address],
+      latitude: _selectedPlace?.latitude,
+      longitude: _selectedPlace?.longitude,
       isFavorite: widget.entry?.isFavorite ?? false,
     );
     try {

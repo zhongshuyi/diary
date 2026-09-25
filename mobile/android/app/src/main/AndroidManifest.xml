@@ -19,7 +19,8 @@
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <service android:name="com.amap.api.location.APSService" />
-        <activity android:name=".AmapPlaceActivity" android:exported="false" />
+        <activity android:name=".AmapPlaceActivity" android:exported="false"
+            android:theme="@style/AmapPlaceTheme" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

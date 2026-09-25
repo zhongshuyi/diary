@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:diary/app/app_theme.dart';
 import 'package:diary/application/daily_reminder_scheduler.dart';
 import 'package:diary/application/settings_controller.dart';
+import 'package:diary/data/amap_location_bridge.dart';
 import 'package:diary/domain/connection_settings_transfer.dart';
 import 'package:diary/domain/diary_entry.dart';
 import 'package:diary/domain/diary_settings.dart';
@@ -156,6 +157,16 @@ class SettingsPage extends StatelessWidget {
                     trailing: Icon(Icons.chevron_right, color: colors.mutedInk),
                     onTap: () =>
                         _showAmapKeyEditor(context, settings.amapAndroidKey),
+                  ),
+                  _SettingsTile(
+                    leading: Icon(
+                      Icons.privacy_tip_outlined,
+                      color: colors.terracotta,
+                    ),
+                    title: const Text('高德地图隐私授权'),
+                    subtitle: const Text('同意后不再重复询问，可在此撤回'),
+                    trailing: Icon(Icons.chevron_right, color: colors.mutedInk),
+                    onTap: () => _revokeAmapConsent(context),
                   ),
                   _SwitchTile(
                     key: const Key('settings-show-chat-avatar'),
@@ -611,6 +622,33 @@ class SettingsPage extends StatelessWidget {
       ),
     );
     if (value != null) await controller.setAmapAndroidKey(value);
+  }
+
+  Future<void> _revokeAmapConsent(BuildContext context) async {
+    final revoke = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('撤回高德地图授权？'),
+        content: const Text('撤回后，下次查看或发送位置时会再次询问。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('撤回授权'),
+          ),
+        ],
+      ),
+    );
+    if (revoke != true) return;
+    await AmapLocationBridge.revokeConsent();
+    if (context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('已撤回高德地图授权')));
+    }
   }
 
   Future<void> _showEditorChoice(

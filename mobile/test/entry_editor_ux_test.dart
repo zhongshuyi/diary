@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:diary/app/app_theme.dart';
 import 'package:diary/application/diary_draft_store.dart';
 import 'package:diary/domain/diary_entry.dart';
+import 'package:diary/domain/diary_place.dart';
 import 'package:diary/domain/diary_settings.dart';
 import 'package:diary/pages/entry/entry_detail_page.dart';
 import 'package:diary/pages/entry/entry_editor_page.dart';
@@ -155,11 +156,65 @@ void main() {
     expect(find.text('更新后的标题'), findsOneWidget);
     expect(find.text('日记详情'), findsOneWidget);
   });
+
+  testWidgets(
+    'selects, replaces and removes a diary location without a thumbnail',
+    (tester) async {
+      final store = MemoryDiaryDraftStore();
+      final choices = [
+        const DiaryPlace(
+          name: '公园',
+          address: '深圳市',
+          latitude: 22.5,
+          longitude: 114.1,
+        ),
+        const DiaryPlace(
+          name: '书店',
+          address: '福田区',
+          latitude: 22.6,
+          longitude: 114.2,
+        ),
+      ];
+      var choice = 0;
+      DiaryEntry? saved;
+      await tester.pumpWidget(
+        _editor(
+          store,
+          onPickLocation: (_) async => choices[choice++ % choices.length],
+          onSave: (entry) async => saved = entry,
+        ),
+      );
+      final select = find.byKey(const Key('entry-location-select'));
+      await tester.ensureVisible(select);
+      await tester.tap(select);
+      await tester.pumpAndSettle();
+      expect(find.text('公园'), findsOneWidget);
+
+      final reselect = find.byKey(const Key('entry-location-reselect'));
+      await tester.tap(reselect);
+      await tester.pumpAndSettle();
+      expect(find.text('书店'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('entry-location-remove')));
+      await tester.pumpAndSettle();
+      expect(select, findsOneWidget);
+
+      await tester.tap(select);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('保存日记'));
+      await tester.pumpAndSettle();
+      expect(saved?.positions, ['公园', '深圳市']);
+      expect(saved?.latitude, 22.5);
+      expect(saved?.longitude, 114.1);
+      expect(saved?.imagePaths, isEmpty);
+    },
+  );
 }
 
 Widget _editor(
   MemoryDiaryDraftStore store, {
   Future<void> Function(DiaryEntry entry)? onSave,
+  Future<DiaryPlace?> Function(BuildContext context)? onPickLocation,
   ThemeData? theme,
 }) {
   return MaterialApp(
@@ -169,6 +224,7 @@ Widget _editor(
       draftStore: store,
       draftKey: 'new-entry',
       onSave: onSave ?? (_) async {},
+      onPickLocation: onPickLocation,
     ),
   );
 }
