@@ -88,6 +88,74 @@ void main() {
     expect(opened?.id, 'place-message');
   });
 
+  testWidgets('location card matches the widest message and shows its avatar', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    ChatPageDestination? destination;
+    final timestamp = DateTime(2026, 9, 24, 12);
+    final entries = [
+      DiaryEntry(
+        id: 'width-text',
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        title: '普通消息',
+        content: '这是一条足够长的普通消息，用来验证对话卡片能够达到当前页面允许的最大宽度。',
+        contentText: '这是一条足够长的普通消息，用来验证对话卡片能够达到当前页面允许的最大宽度。',
+        category: '生活',
+      ),
+      DiaryEntry(
+        id: 'width-place',
+        createdAt: timestamp.add(const Duration(minutes: 1)),
+        updatedAt: timestamp.add(const Duration(minutes: 1)),
+        title: '人民公园',
+        content: '',
+        contentText: '',
+        category: '生活',
+        positions: const ['人民公园', '上海市黄浦区南京西路'],
+        latitude: 31.23,
+        longitude: 121.47,
+      ),
+    ];
+
+    await tester.pumpWidget(
+      _ChatHarness(
+        entries: entries,
+        showChatAvatar: true,
+        onNavigate: (value) => destination = value,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final location = find.byKey(const Key('chat-location-width-place'));
+    final message = find.byKey(const Key('chat-bubble-width-text'));
+    final avatar = find.byKey(
+      const ValueKey('chat-profile-avatar-width-place'),
+    );
+    expect(avatar, findsOneWidget);
+    expect(tester.getSize(avatar), const Size.square(40));
+    expect(
+      (tester.getSize(location).width - tester.getSize(message).width).abs(),
+      lessThan(1),
+    );
+    expect(
+      (tester.getRect(location).right - tester.getRect(message).right).abs(),
+      lessThan(1),
+    );
+    await tester.tap(avatar);
+    expect(destination, ChatPageDestination.profile);
+
+    tester.view.physicalSize = const Size(800, 1200);
+    await tester.pumpAndSettle();
+    expect(
+      (tester.getSize(location).width - tester.getSize(message).width).abs(),
+      lessThan(1),
+    );
+  });
+
   testWidgets('legacy map-center location displays its saved address', (
     tester,
   ) async {
