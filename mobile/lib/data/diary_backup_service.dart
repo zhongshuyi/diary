@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
+import 'package:crypto/crypto.dart' as crypto;
 
 import '../domain/attachment.dart';
 import '../domain/diary_entry.dart';
@@ -96,11 +97,13 @@ class DiaryBackupService {
   ImportPackage importZip(List<int> bytes) {
     final archive = ZipDecoder().decodeBytes(bytes);
     final manifestFile = archive.findFile('manifest.json');
-    if (manifestFile == null)
+    if (manifestFile == null) {
       throw const FormatException('manifest.json missing');
+    }
     final decoded = jsonDecode(utf8.decode(manifestFile.content as List<int>));
-    if (decoded is! Map || decoded['format'] != 'diary-backup')
+    if (decoded is! Map || decoded['format'] != 'diary-backup') {
       throw const FormatException('unsupported diary backup');
+    }
     final entries = (decoded['entries'] as List? ?? const [])
         .whereType<Map>()
         .map((item) => DiaryEntry.fromJson(Map<String, dynamic>.from(item)))
@@ -124,9 +127,28 @@ class DiaryBackupService {
           );
         })
         .toList(growable: false);
+    final attachmentBytes = <String, Uint8List>{};
+    for (final attachment in attachments) {
+      final hash = attachment.sha256.toLowerCase();
+      if (!RegExp(r'^[a-f0-9]{64}$').hasMatch(hash)) {
+        throw const FormatException('invalid attachment hash');
+      }
+      final file = archive.findFile('attachments/$hash');
+      if (file == null) {
+        throw const FormatException('attachment missing');
+      }
+      final content = Uint8List.fromList(file.content as List<int>);
+      if (content.length > 128 * 1024 * 1024 ||
+          content.length != attachment.byteSize ||
+          crypto.sha256.convert(content).toString() != hash) {
+        throw const FormatException('attachment verification failed');
+      }
+      attachmentBytes[hash] = content;
+    }
     return ImportPackage(
       entries: entries,
       attachments: attachments,
+      attachmentBytes: attachmentBytes,
       settings: Map<String, dynamic>.from(
         decoded['settings'] as Map? ?? const {},
       ),

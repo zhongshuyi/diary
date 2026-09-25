@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -7,7 +8,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:diary/app/app_theme.dart';
 import 'package:diary/data/diary_backup_service.dart';
 import 'package:diary/data/diary_repository.dart';
-import 'package:diary/domain/attachment.dart';
+import 'package:diary/data/portable_backup_exporter.dart';
 import 'package:diary/domain/diary_entry.dart';
 
 class BackupPage extends StatefulWidget {
@@ -15,8 +16,6 @@ class BackupPage extends StatefulWidget {
     required this.entries,
     required this.onImport,
     this.onImportPackage,
-    this.attachments = const [],
-    this.readAttachment,
     this.onExternalActivityStart,
     this.onExternalActivityEnd,
     this.pickBackupBytes,
@@ -26,8 +25,6 @@ class BackupPage extends StatefulWidget {
   final List<DiaryEntry> entries;
   final Future<void> Function(List<DiaryEntry> entries) onImport;
   final Future<void> Function(ImportPackage package)? onImportPackage;
-  final List<Attachment> attachments;
-  final Future<List<int>> Function(Attachment attachment)? readAttachment;
   final VoidCallback? onExternalActivityStart;
   final VoidCallback? onExternalActivityEnd;
   final Future<List<int>?> Function()? pickBackupBytes;
@@ -63,28 +60,28 @@ class _BackupPageState extends State<BackupPage> {
           Text('备份与恢复', style: Theme.of(context).textTheme.displaySmall),
           const SizedBox(height: 8),
           Text(
-            '数据属于你。用开放的 JSON 格式，随时带走你的日记。',
+            '将日记和照片一起保存为 ZIP，随时可以恢复。',
             style: Theme.of(context).textTheme.bodyLarge,
           ),
           const SizedBox(height: 23),
           _BackupAction(
-            icon: Icons.upload_outlined,
-            title: '导出日记备份',
-            subtitle: '${widget.entries.length} 篇日记 · JSON 格式',
-            onTap: _export,
+            icon: Icons.archive_outlined,
+            title: '保存完整备份',
+            subtitle: '${widget.entries.length} 篇日记 · ZIP 含本地附件',
+            onTap: _exportZip,
           ),
           const SizedBox(height: 10),
           _BackupAction(
-            icon: Icons.archive_outlined,
-            title: '导出完整 ZIP',
-            subtitle: '${widget.entries.length} 篇日记 · 可选包含附件',
-            onTap: _exportZip,
+            icon: Icons.upload_outlined,
+            title: '分享 JSON 文本',
+            subtitle: '仅记录和媒体路径，不含附件文件',
+            onTap: _export,
           ),
           const SizedBox(height: 10),
           _BackupAction(
             icon: Icons.download_outlined,
             title: '导入日记备份',
-            subtitle: '从 JSON 文件恢复或迁移日记',
+            subtitle: '选择 ZIP 或 JSON 文件',
             onTap: _import,
           ),
           const SizedBox(height: 18),
@@ -97,7 +94,7 @@ class _BackupPageState extends State<BackupPage> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      '备份不会上传到服务器。导出内容包含正文、分类、标签、心情和附件路径。',
+                      '完整 ZIP 保存在你选的位置，包含正文、分类、标签、心情和本机附件。',
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   ),
@@ -133,20 +130,37 @@ class _BackupPageState extends State<BackupPage> {
 
   Future<void> _exportZip() async {
     setState(() => _busy = true);
-    widget.onExternalActivityStart?.call();
     try {
-      final bytes = await _backupService.exportZipAsync(
-        entries: widget.entries,
-        attachments: widget.attachments,
-        readAttachment: widget.readAttachment,
+      final bytes = await PortableBackupExporter().export(widget.entries);
+      final stamp = DateTime.now()
+          .toIso8601String()
+          .replaceAll(RegExp(r'[^0-9]'), '')
+          .substring(0, 14);
+      widget.onExternalActivityStart?.call();
+      final saved = await FilePicker.saveFile(
+        dialogTitle: '保存日记完整备份',
+        fileName: 'diary-backup-$stamp.zip',
+        type: FileType.custom,
+        allowedExtensions: const ['zip'],
+        bytes: bytes,
       );
-      await SharePlus.instance.share(
-        ShareParams(
-          files: [XFile.fromData(bytes, mimeType: 'application/zip')],
-          fileNameOverrides: const ['diary-backup.zip'],
-          subject: '我的日记完整备份.zip',
-        ),
-      );
+      if (saved != null && mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('完整备份已保存')));
+      }
+    } on FileSystemException {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('有附件无法读取，完整备份未保存')));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('保存备份失败，请重试')));
+      }
     } finally {
       widget.onExternalActivityEnd?.call();
       if (mounted) setState(() => _busy = false);
@@ -196,7 +210,11 @@ class _BackupPageState extends State<BackupPage> {
         context: context,
         builder: (context) => AlertDialog(
           title: const Text('确认导入备份？'),
-          content: Text('将导入 ${entries.length} 篇日记，并替换当前本地日记。'),
+          content: Text(
+            package == null
+                ? '将导入 ${entries.length} 篇日记，并替换当前本地日记。'
+                : '将合并 ${entries.length} 篇日记到本机；相同 ID 的现有日记会保留。',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -216,15 +234,25 @@ class _BackupPageState extends State<BackupPage> {
         await widget.onImport(entries);
       }
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('已导入 ${entries.length} 篇日记')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              package == null ? '已导入 ${entries.length} 篇日记' : '备份导入完成',
+            ),
+          ),
+        );
       }
     } on FormatException {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('文件格式不正确，请选择日记 JSON 备份')));
+        ).showSnackBar(const SnackBar(content: Text('备份格式不正确或附件校验失败')));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('导入失败，请检查备份文件和可用空间')));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
