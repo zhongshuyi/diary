@@ -101,6 +101,17 @@ void main() {
       expect((await repository.load()).map((entry) => entry.id), ['two']);
     },
   );
+
+  test('fallback save returns the same entry a later load sees', () async {
+    SharedPreferences.setMockInitialValues({});
+    final repository = SharedPreferencesDiaryRepository();
+    final stored = await repository.saveAndGet(
+      _entry('trash', '留在回收站').copyWith(isInTrash: true),
+    );
+
+    expect(stored, (await repository.load(includeTrash: true)).single);
+    expect(stored.deletedAt, isNotNull);
+  });
 }
 
 DiaryEntry _entry(String id, String title, {int day = 15}) {

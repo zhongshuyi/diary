@@ -133,6 +133,12 @@ abstract class DiaryRepository {
 
   Future<void> save(DiaryEntry entry, {bool enqueueMutation = true});
 
+  /// Returns the stored entry, including fields assigned during persistence.
+  Future<DiaryEntry> saveAndGet(
+    DiaryEntry entry, {
+    bool enqueueMutation = true,
+  });
+
   Future<void> moveToTrash(String id);
 
   Future<void> restore(String id);
@@ -312,6 +318,16 @@ class MemoryDiaryRepository extends DiaryRepository {
 
   @override
   Future<void> save(DiaryEntry entry, {bool enqueueMutation = true}) async {
+    _saveStored(entry, enqueueMutation: enqueueMutation);
+  }
+
+  @override
+  Future<DiaryEntry> saveAndGet(
+    DiaryEntry entry, {
+    bool enqueueMutation = true,
+  }) async => _saveStored(entry, enqueueMutation: enqueueMutation);
+
+  DiaryEntry _saveStored(DiaryEntry entry, {required bool enqueueMutation}) {
     final index = _entries.indexWhere((item) => item.id == entry.id);
     final previous = index == -1 ? null : _entries[index];
     final next = entry.copyWith(
@@ -326,6 +342,7 @@ class MemoryDiaryRepository extends DiaryRepository {
       _entries[index] = next;
     }
     if (enqueueMutation) _enqueue(next);
+    return next;
   }
 
   @override
@@ -675,6 +692,22 @@ class SharedPreferencesDiaryRepository extends DiaryRepository {
 
   @override
   Future<void> save(DiaryEntry entry, {bool enqueueMutation = true}) async {
+    await _saveStored(entry, enqueueMutation: enqueueMutation);
+  }
+
+  @override
+  Future<DiaryEntry> saveAndGet(
+    DiaryEntry entry, {
+    bool enqueueMutation = true,
+  }) async {
+    final stored = await _saveStored(entry, enqueueMutation: enqueueMutation);
+    return DiaryEntry.fromJson(stored.toJson());
+  }
+
+  Future<DiaryEntry> _saveStored(
+    DiaryEntry entry, {
+    required bool enqueueMutation,
+  }) async {
     final entries = List<DiaryEntry>.of(await load(includeTrash: true));
     final index = entries.indexWhere((item) => item.id == entry.id);
     final previous = index == -1 ? null : entries[index];
@@ -710,6 +743,7 @@ class SharedPreferencesDiaryRepository extends DiaryRepository {
         jsonEncode(pending.map((item) => _outboxToJson(item)).toList()),
       );
     }
+    return next;
   }
 
   @override

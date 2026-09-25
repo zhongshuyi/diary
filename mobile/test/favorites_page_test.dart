@@ -37,6 +37,43 @@ List<String> _entryTitles(WidgetTester tester) {
 }
 
 void main() {
+  testWidgets('builds only visible favorite cards and can reach older ones', (
+    tester,
+  ) async {
+    final entries = ValueNotifier<List<DiaryEntry>>([
+      for (var index = 0; index < 80; index++)
+        _entry(
+          id: 'favorite-$index',
+          title: '收藏 $index',
+          date: DateTime(2026, 9, 20).add(Duration(minutes: index)),
+          favorite: true,
+        ),
+    ]);
+    await tester.pumpWidget(
+      _testApp(
+        FavoritesPage(
+          entriesListenable: entries,
+          onOpenEntry: (_) async {},
+          onToggleFavorite: (_) async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(_entryTitles(tester), contains('收藏 79'));
+    expect(
+      tester.widgetList<DiaryEntryCard>(find.byType(DiaryEntryCard)).length,
+      lessThan(80),
+    );
+    await tester.scrollUntilVisible(
+      find.text('收藏 0'),
+      400,
+      maxScrolls: 60,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('收藏 0'), findsOneWidget);
+  });
+
   testWidgets(
     'lists favorites newest first, opens one, and removes it after persistence',
     (tester) async {

@@ -253,8 +253,13 @@ void main() {
       MaterialApp(home: SettingsPage(controller: controller)),
     );
 
-    await tester.drag(find.byType(ListView).first, const Offset(0, -480));
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('settings-amap-key')),
+      220,
+    );
     await tester.pumpAndSettle();
+    expect(find.text('地图与位置'), findsOneWidget);
+    expect(find.byKey(const Key('settings-quick-capture-side')), findsNothing);
     await tester.tap(find.byKey(const Key('settings-amap-key')));
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const Key('amap-key-field')), 'my-key');

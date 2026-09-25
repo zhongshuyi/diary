@@ -17,8 +17,10 @@ class DiaryController extends ChangeNotifier {
 
   List<DiaryEntry> _entries = const [];
   List<DiaryEntry> _trash = const [];
+  List<String> _categories = const ['生活', '灵感', '心绪'];
   bool _isLoading = true;
   Object? _error;
+  // Rejects a load that began before a newer load or local save.
   int _entryVersion = 0;
 
   List<DiaryEntry> get entries => _entries;
@@ -26,20 +28,12 @@ class DiaryController extends ChangeNotifier {
   bool get isLoading => _isLoading;
   Object? get error => _error;
 
-  List<String> get categories {
-    final result = <String>{
-      '生活',
-      '灵感',
-      '心绪',
-      ..._entries.map((entry) => entry.category),
-    };
-    return result.toList(growable: false);
-  }
+  List<String> get categories => _categories;
 
   Future<void> initialize() => refresh();
 
   Future<void> refresh({bool notifyBeforeLoad = true}) async {
-    final entryVersion = _entryVersion;
+    final entryVersion = ++_entryVersion;
     _isLoading = true;
     _error = null;
     if (notifyBeforeLoad) notifyListeners();
@@ -48,6 +42,7 @@ class DiaryController extends ChangeNotifier {
       if (entryVersion != _entryVersion) return;
       _entries = List.unmodifiable(all.where((entry) => !entry.isInTrash));
       _trash = List.unmodifiable(all.where((entry) => entry.isInTrash));
+      _categories = _collectCategories(_entries);
     } catch (error) {
       if (entryVersion == _entryVersion) _error = error;
     } finally {
@@ -59,22 +54,45 @@ class DiaryController extends ChangeNotifier {
   }
 
   Future<void> save(DiaryEntry entry) async {
-    await _repository.save(entry);
-    await refresh(notifyBeforeLoad: false);
-  }
-
-  /// New chat entries already have all fields needed by the visible list.
-  /// Avoid reloading and decoding every diary entry on the send path.
-  Future<void> saveNewChatEntry(DiaryEntry entry) async {
-    await _repository.save(entry);
+    final stored = await _repository.saveAndGet(entry);
     _entryVersion++;
     _isLoading = false;
-    _entries = List.unmodifiable([
-      entry,
-      ..._entries.where((existing) => existing.id != entry.id),
-    ]);
+    _error = null;
+    _entries = _replaceEntry(_entries, stored, include: !stored.isInTrash);
+    _trash = _replaceEntry(_trash, stored, include: stored.isInTrash);
+    _categories = _collectCategories(_entries);
     notifyListeners();
   }
+
+  /// Chat sends share the same incremental path as regular saves.
+  Future<void> saveNewChatEntry(DiaryEntry entry) => save(entry);
+
+  List<DiaryEntry> _replaceEntry(
+    List<DiaryEntry> source,
+    DiaryEntry stored, {
+    required bool include,
+  }) {
+    if (!include && !source.any((entry) => entry.id == stored.id)) {
+      return source;
+    }
+    final next = List<DiaryEntry>.of(source)
+      ..removeWhere((entry) => entry.id == stored.id);
+    if (include) {
+      final index = next.indexWhere(
+        (entry) => entry.updatedAt.isBefore(stored.updatedAt),
+      );
+      next.insert(index < 0 ? next.length : index, stored);
+    }
+    return List.unmodifiable(next);
+  }
+
+  List<String> _collectCategories(List<DiaryEntry> entries) =>
+      List.unmodifiable({
+        '生活',
+        '灵感',
+        '心绪',
+        ...entries.map((entry) => entry.category),
+      });
 
   Future<void> toggleFavorite(DiaryEntry entry) async {
     await save(

@@ -7,7 +7,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:diary/domain/diary_entry.dart';
 import 'package:diary/app/app_theme.dart';
@@ -39,6 +41,11 @@ Future<void> _runAsWindows(Future<void> Function() body) async {
 }
 
 void main() {
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+    FlutterSecureStorage.setMockInitialValues({});
+  });
+
   testWidgets('shows the diary timeline and primary action', (tester) async {
     await tester.pumpWidget(const MyApp());
     await tester.pumpAndSettle();
@@ -240,7 +247,7 @@ void main() {
     expect(shellScaffold.backgroundColor, colors.surface);
   });
 
-  testWidgets('quick action follows the saved left or right setting', (
+  testWidgets('quick action keeps its dragged position after reopening', (
     tester,
   ) async {
     final store = _TestSettingsStore();
@@ -249,22 +256,16 @@ void main() {
     final button = find.byKey(const Key('mobile-quick-capture-fab'));
     expect(tester.getCenter(button).dx, greaterThan(400));
 
+    await tester.drag(button, const Offset(-600, 0));
+    await tester.pumpAndSettle();
+    expect(tester.getCenter(button).dx, lessThan(400));
+
     await tester.tap(find.text('我的'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('偏好设置'));
     await tester.tap(find.text('偏好设置'));
     await tester.pumpAndSettle();
-    final quickCaptureSetting = find.byKey(
-      const Key('settings-quick-capture-side'),
-    );
-    await tester.scrollUntilVisible(quickCaptureSetting, 250);
-    await tester.ensureVisible(quickCaptureSetting);
-    await tester.pumpAndSettle();
-    await tester.tap(quickCaptureSetting);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('左侧'));
-    await tester.pumpAndSettle();
-    expect(store.value.quickCaptureSide, QuickCaptureSide.left);
+    expect(find.byKey(const Key('settings-quick-capture-side')), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
     await tester.pumpWidget(MyApp(settingsStore: store));

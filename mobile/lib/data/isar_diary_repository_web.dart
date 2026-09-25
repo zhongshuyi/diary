@@ -37,6 +37,12 @@ class IsarDiaryRepository extends DiaryRepository {
       _delegate.save(entry, enqueueMutation: enqueueMutation);
 
   @override
+  Future<DiaryEntry> saveAndGet(
+    DiaryEntry entry, {
+    bool enqueueMutation = true,
+  }) => _delegate.saveAndGet(entry, enqueueMutation: enqueueMutation);
+
+  @override
   Future<void> moveToTrash(String id) => _delegate.moveToTrash(id);
 
   @override

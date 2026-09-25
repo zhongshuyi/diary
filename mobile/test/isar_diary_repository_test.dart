@@ -58,6 +58,11 @@ void main() {
       expect((await repository.load()).single.id, _entry.id);
       expect((await repository.load()).single.moodLabel, '平静');
       expect((await repository.search('数据库')).single.id, _entry.id);
+      final stored = await repository.saveAndGet(
+        _entry.copyWith(updatedAt: DateTime(2026, 9, 15, 9)),
+      );
+      expect(stored.revision, 2);
+      expect(stored.deviceId, 'mobile');
 
       await repository.moveToTrash(_entry.id);
       expect(await repository.load(), isEmpty);
@@ -76,6 +81,26 @@ void main() {
         Map<String, dynamic>.from(deletion.payload['entry'] as Map),
       );
       expect(tombstone.isDeleted, isTrue);
+    } finally {
+      await repository.close();
+      await tempDirectory.delete(recursive: true);
+    }
+  });
+
+  test('limits pending mutations in the database query', () async {
+    final tempDirectory = await Directory.systemTemp.createTemp('diary-isar-');
+    final repository = await IsarDiaryRepository.open(
+      directoryPath: tempDirectory.path,
+    );
+
+    try {
+      for (var index = 0; index < 3; index++) {
+        await repository.save(_entry.copyWith(id: 'pending-$index'));
+      }
+      expect(await repository.listPendingMutations(limit: 0), isEmpty);
+      expect(await repository.listPendingMutations(limit: 1), hasLength(1));
+      expect(await repository.listPendingMutations(limit: 2), hasLength(2));
+      expect(await repository.listPendingMutations(), hasLength(3));
     } finally {
       await repository.close();
       await tempDirectory.delete(recursive: true);

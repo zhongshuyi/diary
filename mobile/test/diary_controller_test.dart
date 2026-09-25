@@ -44,7 +44,7 @@ void main() {
     controller.dispose();
   });
 
-  test('saving an entry publishes one completed refresh', () async {
+  test('saving an entry publishes one completed update', () async {
     final controller = DiaryController(repository: MemoryDiaryRepository());
     await controller.initialize();
     var notifications = 0;
@@ -57,6 +57,51 @@ void main() {
     expect(controller.isLoading, isFalse);
     controller.dispose();
   });
+
+  test(
+    'ordinary saves avoid a full reload and retain stored revisions',
+    () async {
+      final repository = _CountingRepository([
+        entry(id: 'older').copyWith(updatedAt: DateTime(2026, 9, 15, 10)),
+        entry(id: 'newer').copyWith(updatedAt: DateTime(2026, 9, 15, 11)),
+      ]);
+      final controller = DiaryController(repository: repository);
+      await controller.initialize();
+      expect(repository.loadCount, 1);
+
+      await controller.save(
+        controller.entries.last.copyWith(updatedAt: DateTime(2026, 9, 15, 12)),
+      );
+
+      expect(repository.loadCount, 1);
+      expect(controller.entries.map((item) => item.id), ['older', 'newer']);
+      expect(controller.entries.first.revision, 2);
+      controller.dispose();
+    },
+  );
+
+  test(
+    'incremental saves move entries between active and trash lists',
+    () async {
+      final controller = DiaryController(repository: MemoryDiaryRepository());
+      await controller.initialize();
+
+      await controller.save(entry().copyWith(category: '工作'));
+      expect(controller.categories, contains('工作'));
+      await controller.save(
+        controller.entries.single.copyWith(isInTrash: true),
+      );
+      expect(controller.entries, isEmpty);
+      expect(controller.trash.single.id, 'entry-1');
+      expect(controller.categories, isNot(contains('工作')));
+
+      await controller.save(controller.trash.single.copyWith(isInTrash: false));
+      expect(controller.entries.single.id, 'entry-1');
+      expect(controller.trash, isEmpty);
+      expect(controller.categories, contains('工作'));
+      controller.dispose();
+    },
+  );
 
   test('new chat entry appears without reloading the whole diary', () async {
     final repository = _CountingRepository();
@@ -87,10 +132,28 @@ void main() {
     expect(controller.entries.single.id, 'entry-1');
     controller.dispose();
   });
+
+  test('an older refresh cannot hide an ordinary save', () async {
+    final repository = _CountingRepository();
+    final controller = DiaryController(repository: repository);
+    await controller.initialize();
+    repository.loadStarted = Completer<void>();
+    repository.releaseLoad = Completer<void>();
+
+    final refresh = controller.refresh(notifyBeforeLoad: false);
+    await repository.loadStarted!.future;
+    await controller.save(entry());
+    repository.releaseLoad!.complete();
+    await refresh;
+
+    expect(controller.entries.single.id, 'entry-1');
+    expect(controller.isLoading, isFalse);
+    controller.dispose();
+  });
 }
 
 class _CountingRepository extends MemoryDiaryRepository {
-  _CountingRepository() : super();
+  _CountingRepository([super.initialEntries]);
 
   int loadCount = 0;
   Completer<void>? loadStarted;
