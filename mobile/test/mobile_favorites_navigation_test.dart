@@ -137,7 +137,7 @@ void main() {
     await tester.tap(find.text('我的'));
     await tester.pumpAndSettle();
     expect(find.text('收藏夹'), findsOneWidget);
-    expect(find.text('1 篇已收藏'), findsOneWidget);
+    expect(find.text('1 篇'), findsOneWidget);
 
     await tester.tap(find.text('收藏夹'));
     await tester.pumpAndSettle();

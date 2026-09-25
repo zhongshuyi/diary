@@ -272,7 +272,7 @@ void main() {
     expect(tester.getCenter(button).dx, lessThan(400));
   });
 
-  testWidgets('saving a chat title does not replace the app theme mid-dialog', (
+  testWidgets('editing profile updates the chat name and signature', (
     tester,
   ) async {
     final store = _TestSettingsStore();
@@ -281,20 +281,34 @@ void main() {
 
     await tester.tap(find.text('我的'));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('偏好设置'));
-    await tester.tap(find.text('偏好设置'));
+    expect(find.text('我的日记'), findsOneWidget);
+    expect(find.text('添加个性签名'), findsOneWidget);
+    expect(find.text('我的空间'), findsNothing);
+    await tester.tap(find.byKey(const Key('profile-edit-button')));
     await tester.pumpAndSettle();
 
-    final chatTitleSetting = find.text('对话顶部名称');
-    await tester.drag(find.byType(Scrollable).first, const Offset(0, -160));
-    await tester.pumpAndSettle();
-    await tester.tap(chatTitleSetting);
-    await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField), '晚安日记');
-    await tester.tap(find.widgetWithText(FilledButton, '保存'));
+    await tester.enterText(find.byKey(const Key('profile-name-field')), '晚安日记');
+    await tester.enterText(
+      find.byKey(const Key('profile-signature-field')),
+      '记录每一个值得记住的晚上',
+    );
+    await tester.tap(find.byKey(const Key('profile-save-button')));
     await tester.pumpAndSettle();
 
     expect(store.value.chatTitle, '晚安日记');
+    expect(store.value.profileSignature, '记录每一个值得记住的晚上');
+    expect(find.text('记录每一个值得记住的晚上'), findsOneWidget);
+    await tester.tap(find.text('对话'));
+    await tester.pumpAndSettle();
+    expect(find.text('晚安日记'), findsOneWidget);
+    expect(find.text('记录每一个值得记住的晚上'), findsNothing);
+    await tester.tap(find.byKey(const Key('chat-title-profile-button')));
+    await tester.pumpAndSettle();
+    expect(find.text('记录每一个值得记住的晚上'), findsOneWidget);
+    await tester.ensureVisible(find.text('偏好设置'));
+    await tester.tap(find.text('偏好设置'));
+    await tester.pumpAndSettle();
+    expect(find.text('对话顶部名称'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

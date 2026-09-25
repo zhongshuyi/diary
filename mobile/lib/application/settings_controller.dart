@@ -79,6 +79,18 @@ class SettingsController extends ChangeNotifier {
   Future<void> setChatTitle(String value) =>
       _update(_settings.copyWith(chatTitle: _normalizeChatTitle(value)));
 
+  Future<void> setProfileDetails(
+    String name,
+    String signature,
+    bool showSignature,
+  ) => _update(
+    _settings.copyWith(
+      chatTitle: _normalizeChatTitle(name),
+      profileSignature: signature.trim(),
+      showProfileSignature: showSignature,
+    ),
+  );
+
   Future<void> setProfileAvatarPath(String value) {
     final path = value.trim();
     if (path.isEmpty) return clearProfileAvatarPath();

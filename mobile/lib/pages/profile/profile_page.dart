@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:diary/app/app_theme.dart';
+import 'package:diary/domain/diary_settings.dart';
 import 'package:diary/domain/sync_state.dart';
 import 'package:diary/widgets/diary_avatar.dart';
 import 'package:diary/widgets/page_intro.dart';
@@ -14,6 +15,10 @@ class ProfilePage extends StatelessWidget {
     required this.onOpenCategories,
     required this.onOpenBackup,
     required this.onOpenAbout,
+    this.profileName = diaryDefaultChatTitle,
+    this.profileSignature = '',
+    this.showProfileSignature = true,
+    this.onSaveProfile,
     this.onOpenMedia,
     this.onOpenInsights,
     this.favoriteCount = 0,
@@ -36,6 +41,15 @@ class ProfilePage extends StatelessWidget {
   final VoidCallback onOpenCategories;
   final VoidCallback onOpenBackup;
   final VoidCallback onOpenAbout;
+  final String profileName;
+  final String profileSignature;
+  final bool showProfileSignature;
+  final Future<void> Function(
+    String name,
+    String signature,
+    bool showSignature,
+  )?
+  onSaveProfile;
   final VoidCallback? onOpenMedia;
   final VoidCallback? onOpenInsights;
   final int favoriteCount;
@@ -49,11 +63,39 @@ class ProfilePage extends StatelessWidget {
   final Future<void> Function()? onClearAvatar;
   final bool desktopLayout;
 
+  Future<void> _editProfile(BuildContext context) async {
+    if (onSaveProfile == null) return;
+    final result =
+        await showModalBottomSheet<
+          ({String name, String signature, bool showSignature})
+        >(
+          context: context,
+          isScrollControlled: true,
+          showDragHandle: true,
+          builder: (_) => _ProfileEditor(
+            name: profileName,
+            signature: profileSignature,
+            showSignature: showProfileSignature,
+            hasAvatar: profileAvatarPath?.trim().isNotEmpty ?? false,
+            onClearAvatar: onClearAvatar,
+          ),
+        );
+    if (result != null) {
+      await onSaveProfile!(result.name, result.signature, result.showSignature);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = DiaryThemeColors.of(context);
     if (!desktopLayout) {
       return _MobileProfileWorkspace(
+        profileName: profileName,
+        profileSignature: profileSignature,
+        showProfileSignature: showProfileSignature,
+        onEditProfile: onSaveProfile == null
+            ? null
+            : () => _editProfile(context),
         entryCount: entryCount,
         trashCount: trashCount,
         favoriteCount: favoriteCount,
@@ -71,7 +113,6 @@ class ProfilePage extends StatelessWidget {
         onOpenAbout: onOpenAbout,
         profileAvatarPath: profileAvatarPath,
         onPickAvatar: onPickAvatar,
-        onClearAvatar: onClearAvatar,
       );
     }
     return SingleChildScrollView(
@@ -84,8 +125,7 @@ class ProfilePage extends StatelessWidget {
             children: [
               const DiaryPageIntro(
                 eyebrow: 'A QUIET PLACE FOR YOU',
-                title: '我的空间',
-                description: '管理你的记录、偏好与私人边界。',
+                title: '我的',
               ),
               const SizedBox(height: 24),
               Container(
@@ -111,32 +151,40 @@ class ProfilePage extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '写给自己的日记',
+                            profileName,
                             style: Theme.of(context).textTheme.titleLarge
-                                ?.copyWith(color: colors.onHero),
-                          ),
-                          const SizedBox(height: 5),
-                          Text(
-                            '先保存在本机 · 可按设置同步',
-                            style: Theme.of(context).textTheme.bodyMedium
                                 ?.copyWith(
-                                  color: colors.onHero.withValues(alpha: .68),
+                                  color: colors.onHero,
+                                  fontSize: showProfileSignature ? null : 26,
                                 ),
                           ),
+                          if (showProfileSignature) ...[
+                            const SizedBox(height: 5),
+                            Text(
+                              profileSignature.isEmpty
+                                  ? '添加个性签名'
+                                  : profileSignature,
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
+                                    color: colors.onHero.withValues(alpha: .78),
+                                    fontFamily: 'Georgia',
+                                    fontStyle: profileSignature.isEmpty
+                                        ? FontStyle.normal
+                                        : FontStyle.italic,
+                                    height: 1.35,
+                                  ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
-                    if ((profileAvatarPath?.trim().isNotEmpty ?? false) &&
-                        onClearAvatar != null)
+                    if (onSaveProfile != null)
                       IconButton(
-                        key: const Key('profile-desktop-avatar-reset-button'),
-                        tooltip: '恢复默认头像',
-                        visualDensity: VisualDensity.compact,
-                        onPressed: () async => await onClearAvatar!.call(),
-                        icon: Icon(Icons.restart_alt, color: colors.onHero),
-                      )
-                    else
-                      Icon(Icons.verified_user_outlined, color: colors.sage),
+                        key: const Key('profile-desktop-edit-button'),
+                        tooltip: '编辑资料',
+                        onPressed: () => _editProfile(context),
+                        icon: Icon(Icons.edit_outlined, color: colors.onHero),
+                      ),
                   ],
                 ),
               ),
@@ -188,6 +236,10 @@ class ProfilePage extends StatelessWidget {
 
 class _MobileProfileWorkspace extends StatelessWidget {
   const _MobileProfileWorkspace({
+    required this.profileName,
+    required this.profileSignature,
+    required this.showProfileSignature,
+    required this.onEditProfile,
     required this.entryCount,
     required this.trashCount,
     required this.favoriteCount,
@@ -205,9 +257,12 @@ class _MobileProfileWorkspace extends StatelessWidget {
     required this.onOpenAbout,
     required this.profileAvatarPath,
     required this.onPickAvatar,
-    required this.onClearAvatar,
   });
 
+  final String profileName;
+  final String profileSignature;
+  final bool showProfileSignature;
+  final VoidCallback? onEditProfile;
   final int entryCount;
   final int trashCount;
   final int favoriteCount;
@@ -225,7 +280,6 @@ class _MobileProfileWorkspace extends StatelessWidget {
   final VoidCallback onOpenAbout;
   final String? profileAvatarPath;
   final Future<void> Function()? onPickAvatar;
-  final Future<void> Function()? onClearAvatar;
 
   @override
   Widget build(BuildContext context) {
@@ -238,9 +292,12 @@ class _MobileProfileWorkspace extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _MobileProfileHeader(
+                name: profileName,
+                signature: profileSignature,
+                showSignature: showProfileSignature,
+                onEdit: onEditProfile,
                 avatarPath: profileAvatarPath,
                 onPickAvatar: onPickAvatar,
-                onClearAvatar: onClearAvatar,
               ),
               const SizedBox(height: 26),
               _ProfileSection(
@@ -250,23 +307,19 @@ class _MobileProfileWorkspace extends StatelessWidget {
                     _ProfileTile(
                       icon: Icons.bookmark_outline,
                       title: '收藏夹',
-                      subtitle: favoriteCount == 0
-                          ? '还没有收藏的日记'
-                          : '$favoriteCount 篇已收藏',
+                      subtitle: favoriteCount == 0 ? null : '$favoriteCount 篇',
                       onTap: onOpenFavorites!,
                     ),
                   if (onOpenMedia != null)
                     _ProfileTile(
                       icon: Icons.collections_outlined,
                       title: '媒体库',
-                      subtitle: '照片、视频和语音都在这里',
                       onTap: onOpenMedia!,
                     ),
                   if (onOpenInsights != null)
                     _ProfileTile(
                       icon: Icons.auto_graph_outlined,
                       title: '洞察',
-                      subtitle: '看看你的记录习惯与情绪变化',
                       onTap: onOpenInsights!,
                     ),
                 ],
@@ -278,15 +331,12 @@ class _MobileProfileWorkspace extends StatelessWidget {
                   _ProfileTile(
                     icon: Icons.sell_outlined,
                     title: '分类与标签',
-                    subtitle: '整理你常写下的主题',
                     onTap: onOpenCategories,
                   ),
                   _ProfileTile(
                     icon: Icons.delete_outline,
                     title: '回收站',
-                    subtitle: trashCount == 0
-                        ? '这里还没有被丢弃的日记'
-                        : '$trashCount 篇待处理',
+                    subtitle: trashCount == 0 ? null : '$trashCount 篇',
                     onTap: onOpenRecycle,
                   ),
                 ],
@@ -304,7 +354,6 @@ class _MobileProfileWorkspace extends StatelessWidget {
                   _ProfileTile(
                     icon: Icons.import_export_outlined,
                     title: '备份与恢复',
-                    subtitle: '用 JSON 保存或迁移你的日记',
                     onTap: onOpenBackup,
                   ),
                   if (conflictCount > 0 && onOpenConflicts != null)
@@ -323,7 +372,6 @@ class _MobileProfileWorkspace extends StatelessWidget {
                   _ProfileTile(
                     icon: Icons.tune_outlined,
                     title: '偏好设置',
-                    subtitle: '主题、启动页与阅读体验',
                     onTap: onOpenSettings,
                   ),
                 ],
@@ -335,7 +383,6 @@ class _MobileProfileWorkspace extends StatelessWidget {
                   _ProfileTile(
                     icon: Icons.auto_awesome_outlined,
                     title: '关于此刻',
-                    subtitle: '版本、设计理念与隐私说明',
                     onTap: onOpenAbout,
                   ),
                 ],
@@ -350,32 +397,33 @@ class _MobileProfileWorkspace extends StatelessWidget {
 
 class _MobileProfileHeader extends StatelessWidget {
   const _MobileProfileHeader({
+    required this.name,
+    required this.signature,
+    required this.showSignature,
+    required this.onEdit,
     required this.avatarPath,
     required this.onPickAvatar,
-    required this.onClearAvatar,
   });
 
+  final String name;
+  final String signature;
+  final bool showSignature;
+  final VoidCallback? onEdit;
   final String? avatarPath;
   final Future<void> Function()? onPickAvatar;
-  final Future<void> Function()? onClearAvatar;
 
   @override
   Widget build(BuildContext context) {
     final colors = DiaryThemeColors.of(context);
-    final hasAvatar = avatarPath?.trim().isNotEmpty ?? false;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const DiaryPageIntro(
-          eyebrow: 'A QUIET PLACE FOR YOU',
-          title: '我的空间',
-          description: '管理你的记录、偏好与私人边界。',
-        ),
-        const SizedBox(height: 24),
+        const DiaryPageIntro(eyebrow: 'A QUIET PLACE FOR YOU', title: '我的'),
+        const SizedBox(height: 18),
         Container(
           key: const Key('profile-identity-panel'),
           width: double.infinity,
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
             color: colors.surface,
             borderRadius: BorderRadius.circular(16),
@@ -387,42 +435,210 @@ class _MobileProfileHeader extends StatelessWidget {
               DiaryAvatar(
                 key: const Key('profile-avatar-button'),
                 imagePath: avatarPath,
-                size: 72,
+                size: 64,
                 onTap: onPickAvatar,
                 editIndicatorKey: const Key('profile-avatar-edit-indicator'),
               ),
-              const SizedBox(width: 15),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '写给自己的日记',
-                      style: Theme.of(
-                        context,
-                      ).textTheme.titleLarge?.copyWith(color: colors.ink),
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: colors.ink,
+                        fontSize: showSignature ? null : 26,
+                      ),
                     ),
-                    const SizedBox(height: 5),
-                    Text(
-                      '先保存在本机 · 轻触头像即可更换',
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodyMedium?.copyWith(color: colors.mutedInk),
-                    ),
+                    if (showSignature) ...[
+                      const SizedBox(height: 5),
+                      Semantics(
+                        button: onEdit != null,
+                        label: signature.isEmpty ? '添加个性签名' : '编辑个性签名',
+                        child: GestureDetector(
+                          key: const Key('profile-signature-button'),
+                          onTap: onEdit,
+                          behavior: HitTestBehavior.opaque,
+                          child: signature.isEmpty
+                              ? Text(
+                                  '添加个性签名',
+                                  style: Theme.of(context).textTheme.bodyMedium
+                                      ?.copyWith(color: colors.terracotta),
+                                )
+                              : Row(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    Container(
+                                      key: const Key(
+                                        'profile-signature-accent',
+                                      ),
+                                      width: 2,
+                                      height: 20,
+                                      color: colors.terracotta.withValues(
+                                        alpha: .65,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        signature,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyMedium
+                                            ?.copyWith(
+                                              color: colors.mutedInk,
+                                              fontFamily: 'Georgia',
+                                              fontStyle: FontStyle.italic,
+                                              fontSize: 14,
+                                              height: 1.35,
+                                              letterSpacing: .2,
+                                            ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
-              if (hasAvatar && onClearAvatar != null)
+              if (onEdit != null)
                 IconButton(
-                  key: const Key('profile-avatar-reset-button'),
-                  tooltip: '恢复默认头像',
-                  onPressed: () async => await onClearAvatar!.call(),
-                  icon: Icon(Icons.restart_alt, color: colors.mutedInk),
+                  key: const Key('profile-edit-button'),
+                  tooltip: '编辑资料',
+                  onPressed: onEdit,
+                  icon: Icon(Icons.edit_outlined, color: colors.terracotta),
                 ),
             ],
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ProfileEditor extends StatefulWidget {
+  const _ProfileEditor({
+    required this.name,
+    required this.signature,
+    required this.showSignature,
+    required this.hasAvatar,
+    required this.onClearAvatar,
+  });
+
+  final String name;
+  final String signature;
+  final bool showSignature;
+  final bool hasAvatar;
+  final Future<void> Function()? onClearAvatar;
+
+  @override
+  State<_ProfileEditor> createState() => _ProfileEditorState();
+}
+
+class _ProfileEditorState extends State<_ProfileEditor> {
+  late final TextEditingController _nameController;
+  late final TextEditingController _signatureController;
+  late bool _showSignature;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.name);
+    _signatureController = TextEditingController(text: widget.signature);
+    _showSignature = widget.showSignature;
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _signatureController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(
+          20,
+          8,
+          20,
+          MediaQuery.viewInsetsOf(context).bottom + 24,
+        ),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('编辑资料', style: Theme.of(context).textTheme.titleLarge),
+                const SizedBox(height: 20),
+                TextField(
+                  key: const Key('profile-name-field'),
+                  controller: _nameController,
+                  maxLength: 16,
+                  textInputAction: TextInputAction.next,
+                  decoration: const InputDecoration(
+                    labelText: '名字',
+                    hintText: '我的日记',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  key: const Key('profile-signature-field'),
+                  controller: _signatureController,
+                  maxLength: 50,
+                  maxLines: 2,
+                  minLines: 1,
+                  decoration: const InputDecoration(
+                    labelText: '个性签名',
+                    hintText: '写一句介绍自己',
+                  ),
+                ),
+                SwitchListTile.adaptive(
+                  key: const Key('profile-signature-visibility-switch'),
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('显示个性签名'),
+                  value: _showSignature,
+                  onChanged: (value) => setState(() => _showSignature = value),
+                ),
+                if (widget.hasAvatar && widget.onClearAvatar != null)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      key: const Key('profile-avatar-reset-button'),
+                      onPressed: () async {
+                        await widget.onClearAvatar!();
+                        if (context.mounted) Navigator.pop(context);
+                      },
+                      icon: const Icon(Icons.restart_alt, size: 18),
+                      label: const Text('恢复默认头像'),
+                    ),
+                  ),
+                const SizedBox(height: 12),
+                FilledButton(
+                  key: const Key('profile-save-button'),
+                  onPressed: () => Navigator.pop(context, (
+                    name: _nameController.text,
+                    signature: _signatureController.text,
+                    showSignature: _showSignature,
+                  )),
+                  child: const Text('保存'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -502,13 +718,13 @@ class _ProfileTile extends StatelessWidget {
   const _ProfileTile({
     required this.icon,
     required this.title,
-    required this.subtitle,
+    this.subtitle,
     required this.onTap,
   });
 
   final IconData icon;
   final String title;
-  final String subtitle;
+  final String? subtitle;
   final VoidCallback onTap;
 
   @override
@@ -535,7 +751,7 @@ class _ProfileTile extends StatelessWidget {
           child: Icon(icon, color: colors.terracotta, size: 20),
         ),
         title: Text(title),
-        subtitle: Text(subtitle),
+        subtitle: subtitle == null ? null : Text(subtitle!),
         trailing: Icon(Icons.chevron_right, color: colors.mutedInk),
       ),
     );

@@ -31,6 +31,7 @@ void main() {
       await controller.setQuickCaptureSide(QuickCaptureSide.left);
       await controller.setDefaultHomeMode(DiaryHomeMode.chat);
       await controller.setChatTitle('睡前片刻');
+      await controller.setProfileDetails('晚安日记', '记录今天', false);
       await controller.setShowChatAvatar(false);
 
       expect(store.value.themeMode, DiaryThemeMode.dark);
@@ -43,7 +44,9 @@ void main() {
       expect(store.value.showWordCount, isFalse);
       expect(store.value.quickCaptureSide, QuickCaptureSide.left);
       expect(store.value.defaultHomeMode, DiaryHomeMode.chat);
-      expect(store.value.chatTitle, '睡前片刻');
+      expect(store.value.chatTitle, '晚安日记');
+      expect(store.value.profileSignature, '记录今天');
+      expect(store.value.showProfileSignature, isFalse);
       expect(store.value.showChatAvatar, isFalse);
     },
   );
@@ -142,12 +145,23 @@ void main() {
     },
   );
 
-  test('saved chat title round trips through device preferences', () async {
-    SharedPreferences.setMockInitialValues({});
-    final store = SharedPreferencesDiarySettingsStore();
-    await store.save(const DiarySettings(chatTitle: '晚安日记'));
-    expect((await store.load()).chatTitle, '晚安日记');
-  });
+  test(
+    'profile name and signature round trip through device preferences',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final store = SharedPreferencesDiarySettingsStore();
+      await store.save(
+        const DiarySettings(
+          chatTitle: '晚安日记',
+          profileSignature: '记录今天',
+          showProfileSignature: false,
+        ),
+      );
+      expect((await store.load()).chatTitle, '晚安日记');
+      expect((await store.load()).profileSignature, '记录今天');
+      expect((await store.load()).showProfileSignature, isFalse);
+    },
+  );
 
   test('profile avatar path is persisted and can be cleared', () async {
     final store = _MemorySettingsStore();

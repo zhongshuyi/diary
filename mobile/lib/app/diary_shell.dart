@@ -382,6 +382,10 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
         return MobileDiaryShell(
           entries: _entries,
           entriesLoading: _controller.isLoading,
+          profileSignature: widget.settingsController.settings.profileSignature,
+          showProfileSignature:
+              widget.settingsController.settings.showProfileSignature,
+          onSaveProfile: widget.settingsController.setProfileDetails,
           trash: _trash,
           quickCaptureSide: widget.settingsController.settings.quickCaptureSide,
           defaultHomeMode: widget.settingsController.settings.defaultHomeMode,

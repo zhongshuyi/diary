@@ -80,6 +80,46 @@ void main() {
     expect(find.text('day-99'), findsNothing);
   });
 
+  testWidgets('loads older days on scroll and searches the full timeline', (
+    tester,
+  ) async {
+    final today = DateTime.now();
+    final entries = [
+      for (var index = 0; index < 100; index++)
+        entry(
+          'day-$index',
+          occurredAt: DateTime(today.year, today.month, today.day - index, 10),
+        ),
+    ];
+    await tester.pumpWidget(homeWithEntries(entries));
+    await tester.pumpAndSettle();
+
+    int loadedDays() => tester
+        .widget<SliverList>(find.byType(SliverList))
+        .delegate
+        .estimatedChildCount!;
+    final scrollable = find.ancestor(
+      of: find.byType(SliverList),
+      matching: find.byType(Scrollable),
+    );
+    final position = tester.state<ScrollableState>(scrollable).position;
+    expect(loadedDays(), 30);
+
+    position.jumpTo(position.maxScrollExtent);
+    await tester.pumpAndSettle();
+    expect(loadedDays(), 60);
+
+    position.jumpTo(0);
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('diary-search-field')),
+      'day-99',
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('mobile-entry-row-day-99')), findsOneWidget);
+    expect(loadedDays(), 1);
+  });
+
   testWidgets('shows compact reflections and opens their original entry', (
     tester,
   ) async {

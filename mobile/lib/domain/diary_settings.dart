@@ -206,6 +206,8 @@ class DiarySettings {
     this.quickCaptureSide = QuickCaptureSide.right,
     this.defaultHomeMode = DiaryHomeMode.timeline,
     this.chatTitle = diaryDefaultChatTitle,
+    this.profileSignature = '',
+    this.showProfileSignature = true,
     this.profileAvatarPath,
     this.showChatAvatar = true,
   });
@@ -227,6 +229,8 @@ class DiarySettings {
   final QuickCaptureSide quickCaptureSide;
   final DiaryHomeMode defaultHomeMode;
   final String chatTitle;
+  final String profileSignature;
+  final bool showProfileSignature;
   final String? profileAvatarPath;
   final bool showChatAvatar;
 
@@ -249,6 +253,8 @@ class DiarySettings {
     QuickCaptureSide? quickCaptureSide,
     DiaryHomeMode? defaultHomeMode,
     String? chatTitle,
+    String? profileSignature,
+    bool? showProfileSignature,
     String? profileAvatarPath,
     bool clearProfileAvatarPath = false,
     bool? showChatAvatar,
@@ -273,6 +279,8 @@ class DiarySettings {
       quickCaptureSide: quickCaptureSide ?? this.quickCaptureSide,
       defaultHomeMode: defaultHomeMode ?? this.defaultHomeMode,
       chatTitle: chatTitle ?? this.chatTitle,
+      profileSignature: profileSignature ?? this.profileSignature,
+      showProfileSignature: showProfileSignature ?? this.showProfileSignature,
       profileAvatarPath: clearProfileAvatarPath
           ? null
           : profileAvatarPath ?? this.profileAvatarPath,
