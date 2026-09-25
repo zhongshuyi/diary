@@ -200,7 +200,10 @@ class _AboutPageState extends State<AboutPage> {
                   title: Text('存储'),
                   trailing: Text('Isar · 离线优先'),
                 ),
-                const ListTile(title: Text('隐私'), trailing: Text('数据留在设备上')),
+                const ListTile(
+                  title: Text('隐私'),
+                  subtitle: Text('位置仅在你主动选择时获取；地图与地点信息由高德提供'),
+                ),
               ],
             ),
           ),

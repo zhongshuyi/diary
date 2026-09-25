@@ -114,6 +114,23 @@ void main() {
   });
 
   test(
+    'Android map key stays on this device across settings reloads',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final store = SharedPreferencesDiarySettingsStore();
+      final controller = SettingsController(store: store);
+      await controller.initialize();
+      await controller.setAmapAndroidKey('  test-android-key  ');
+
+      expect((await store.load()).amapAndroidKey, 'test-android-key');
+      expect(
+        (await SharedPreferencesDiarySettingsStore().load()).amapAndroidKey,
+        'test-android-key',
+      );
+    },
+  );
+
+  test(
     'saved default home mode round trips through device preferences',
     () async {
       SharedPreferences.setMockInitialValues({});
@@ -213,6 +230,24 @@ void main() {
 
     expect(find.byKey(const Key('settings-show-chat-avatar')), findsOneWidget);
     expect(find.text('在每条对话消息旁显示你的头像'), findsOneWidget);
+  });
+
+  testWidgets('settings lets the user save an Android map key', (tester) async {
+    final controller = SettingsController(store: _MemorySettingsStore());
+    await controller.initialize();
+    await tester.pumpWidget(
+      MaterialApp(home: SettingsPage(controller: controller)),
+    );
+
+    await tester.drag(find.byType(ListView).first, const Offset(0, -480));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('settings-amap-key')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('amap-key-field')), 'my-key');
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+
+    expect(controller.settings.amapAndroidKey, 'my-key');
   });
 
   test(
@@ -675,12 +710,8 @@ void main() {
       ),
     );
     final avatarToggle = find.byKey(const Key('settings-show-chat-avatar'));
-    await tester.scrollUntilVisible(
-      avatarToggle,
-      160,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.ensureVisible(avatarToggle);
+    await tester.drag(find.byType(ListView).first, const Offset(0, -420));
+    await tester.pumpAndSettle();
     await tester.tap(avatarToggle);
     await tester.pump();
 

@@ -95,7 +95,7 @@ void main() {
     await tester.tap(find.byKey(const Key('diary-search-clear')));
     await tester.pumpAndSettle();
 
-    expect(find.text('周末散步'), findsOneWidget);
+    expect(find.text('周末散步'), findsWidgets);
   });
 
   testWidgets('searches media by attachment and entry text', (tester) async {

@@ -67,6 +67,7 @@ android {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    implementation("com.amap.api:3dmap-location-search:10.1.200_loc6.4.9_sea9.7.4")
 }
 
 flutter {

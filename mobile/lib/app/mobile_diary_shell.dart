@@ -33,6 +33,7 @@ class MobileDiaryShell extends StatefulWidget {
     this.quickCaptureSide = QuickCaptureSide.right,
     this.defaultHomeMode = DiaryHomeMode.timeline,
     this.chatTitle = diaryDefaultChatTitle,
+    this.amapAndroidKey = '',
     this.chatBackground = const DiaryChatBackground(),
     this.conflictCount = 0,
     this.syncState = const SyncState(),
@@ -52,6 +53,7 @@ class MobileDiaryShell extends StatefulWidget {
   final QuickCaptureSide quickCaptureSide;
   final DiaryHomeMode defaultHomeMode;
   final String chatTitle;
+  final String amapAndroidKey;
   final DiaryChatBackground chatBackground;
   final int conflictCount;
   final SyncState syncState;
@@ -202,6 +204,8 @@ class _MobileDiaryShellState extends State<MobileDiaryShell> {
         showChatAvatar: widget.showChatAvatar,
         profileAvatarPath: widget.profileAvatarPath,
         onSend: widget.actions.saveChatMessage,
+        onSendLocation: widget.actions.saveChatLocation,
+        amapAndroidKey: widget.amapAndroidKey,
         onLoadDraft: widget.actions.loadDraft,
         onSaveDraft: widget.actions.saveDraft,
         onClearDraft: widget.actions.clearDraft,
