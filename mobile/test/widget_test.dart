@@ -22,6 +22,7 @@ import 'package:diary/pages/entry/entry_detail_page.dart';
 import 'package:diary/pages/entry/entry_editor_page.dart';
 import 'package:diary/pages/entry/quick_capture_sheet.dart';
 import 'package:diary/pages/home/home_page.dart';
+import 'package:diary/pages/profile/profile_page.dart';
 import 'package:diary/widgets/diary_audio_player.dart';
 import 'package:diary/widgets/diary_image_viewer.dart';
 import 'package:diary/widgets/diary_navigation.dart';
@@ -151,6 +152,26 @@ void main() {
     expect(find.text('我的日记'), findsOneWidget);
     expect(find.byKey(const Key('mobile-quick-capture-fab')), findsNothing);
     expect(find.byType(DiaryBottomNavigation), findsNothing);
+  });
+
+  testWidgets('switching tabs keeps the unfinished chat message', (
+    tester,
+  ) async {
+    final store = _TestSettingsStore()
+      ..value = const DiarySettings(defaultHomeMode: DiaryHomeMode.chat);
+    await tester.pumpWidget(MyApp(settingsStore: store));
+    await tester.pumpAndSettle();
+
+    final field = find.byKey(const Key('chat-message-field'));
+    await tester.enterText(field, '未发送的内容');
+    await tester.tap(find.byKey(const Key('chat-more-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('我的').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('对话'));
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<TextField>(field).controller!.text, '未发送的内容');
   });
 
   testWidgets('uses the chat header color for the status bar', (tester) async {
@@ -1354,7 +1375,7 @@ void main() {
       MaterialApp(
         home: EntryDetailPage(
           entry: entry,
-          onEdit: (_) async {},
+          onEdit: (_) async => null,
           onShare: () {},
           onDelete: () {},
           onToggleFavorite: () {},
@@ -1461,7 +1482,7 @@ void main() {
       MaterialApp(
         home: EntryDetailPage(
           entry: entry,
-          onEdit: (_) async {},
+          onEdit: (_) async => null,
           onShare: () {},
           onDelete: () {},
           onToggleFavorite: () {},
@@ -1522,7 +1543,14 @@ void main() {
 
     await tester.tap(find.text('我的'));
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.text('媒体库'), 250);
+    await tester.scrollUntilVisible(
+      find.text('媒体库'),
+      250,
+      scrollable: find.descendant(
+        of: find.byType(ProfilePage),
+        matching: find.byType(Scrollable),
+      ),
+    );
     await tester.tap(find.text('媒体库'));
     await tester.pumpAndSettle();
 
@@ -1556,7 +1584,14 @@ void main() {
 
     await tester.tap(find.text('我的'));
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.text('回收站'), 250);
+    await tester.scrollUntilVisible(
+      find.text('回收站'),
+      250,
+      scrollable: find.descendant(
+        of: find.byType(ProfilePage),
+        matching: find.byType(Scrollable),
+      ),
+    );
     await tester.tap(find.text('回收站'));
     await tester.pumpAndSettle();
 
@@ -1589,7 +1624,7 @@ void main() {
       MaterialApp(
         home: EntryDetailPage(
           entry: entry,
-          onEdit: (_) async {},
+          onEdit: (_) async => null,
           onShare: () {},
           onDelete: () {},
           onToggleFavorite: () {},

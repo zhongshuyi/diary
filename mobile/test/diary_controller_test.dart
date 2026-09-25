@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:diary/application/diary_controller.dart';
@@ -41,4 +43,65 @@ void main() {
 
     controller.dispose();
   });
+
+  test('saving an entry publishes one completed refresh', () async {
+    final controller = DiaryController(repository: MemoryDiaryRepository());
+    await controller.initialize();
+    var notifications = 0;
+    controller.addListener(() => notifications++);
+
+    await controller.save(entry());
+
+    expect(notifications, 1);
+    expect(controller.entries.single.id, 'entry-1');
+    expect(controller.isLoading, isFalse);
+    controller.dispose();
+  });
+
+  test('new chat entry appears without reloading the whole diary', () async {
+    final repository = _CountingRepository();
+    final controller = DiaryController(repository: repository);
+    await controller.initialize();
+    expect(repository.loadCount, 1);
+
+    await controller.saveNewChatEntry(entry());
+
+    expect(repository.loadCount, 1);
+    expect(controller.entries.single.id, 'entry-1');
+    controller.dispose();
+  });
+
+  test('an older refresh cannot hide a newly saved chat entry', () async {
+    final repository = _CountingRepository();
+    final controller = DiaryController(repository: repository);
+    await controller.initialize();
+    repository.loadStarted = Completer<void>();
+    repository.releaseLoad = Completer<void>();
+
+    final refresh = controller.refresh(notifyBeforeLoad: false);
+    await repository.loadStarted!.future;
+    await controller.saveNewChatEntry(entry());
+    repository.releaseLoad!.complete();
+    await refresh;
+
+    expect(controller.entries.single.id, 'entry-1');
+    controller.dispose();
+  });
+}
+
+class _CountingRepository extends MemoryDiaryRepository {
+  _CountingRepository() : super();
+
+  int loadCount = 0;
+  Completer<void>? loadStarted;
+  Completer<void>? releaseLoad;
+
+  @override
+  Future<List<DiaryEntry>> load({bool includeTrash = false}) async {
+    loadCount++;
+    final entries = await super.load(includeTrash: includeTrash);
+    loadStarted?.complete();
+    await releaseLoad?.future;
+    return entries;
+  }
 }

@@ -152,6 +152,7 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
   bool _handlingIncomingShare = false;
   bool _handlingShortcut = false;
   SyncEngine? _syncEngine;
+  Timer? _chatSyncTimer;
   _SyncConnection? _syncConnection;
   SyncState _syncState = const SyncState();
   final ProfileAvatarStore _profileAvatarStore = ProfileAvatarStore();
@@ -189,6 +190,7 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
       ..dispose();
     widget.settingsController.removeListener(_onSettingsChanged);
     WidgetsBinding.instance.removeObserver(this);
+    _chatSyncTimer?.cancel();
     _resetSyncEngine();
     _incomingShareBridge.dispose();
     _shortcutRequest.removeListener(_onShortcutRequestChanged);
@@ -401,13 +403,21 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
     setState(() => _syncState = state);
     if (state.status == SyncStatus.synced ||
         state.status == SyncStatus.conflict) {
-      _controller.refresh();
+      _controller.refresh(notifyBeforeLoad: false);
       _refreshConflicts();
     }
   }
 
   Future<void> _syncNow() async {
     await _syncEngine?.syncNow();
+  }
+
+  void _scheduleChatSync() {
+    _chatSyncTimer?.cancel();
+    _chatSyncTimer = Timer(
+      const Duration(milliseconds: 400),
+      () => unawaited(_syncNow()),
+    );
   }
 
   Future<void> _saveEntryAndSync(DiaryEntry entry) async {
@@ -502,7 +512,7 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
     }
     final now = DateTime.now();
     final timeLabel = diaryTimeLabel(now);
-    await _controller.save(
+    await _controller.saveNewChatEntry(
       DiaryEntry(
         id: now.microsecondsSinceEpoch.toString(),
         createdAt: now,
@@ -526,13 +536,13 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
         videoPaths: videoPaths,
       ),
     );
-    unawaited(_syncNow());
+    _scheduleChatSync();
   }
 
   Future<void> _saveChatLocation(DiaryPlace place) async {
     if (!place.isValid) return;
     final now = DateTime.now();
-    await _controller.save(
+    await _controller.saveNewChatEntry(
       DiaryEntry(
         id: now.microsecondsSinceEpoch.toString(),
         createdAt: now,
@@ -546,7 +556,7 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
         longitude: place.longitude,
       ),
     );
-    unawaited(_syncNow());
+    _scheduleChatSync();
   }
 
   Future<void> _openEditorFromQuick(String content, List<String> imagePaths) =>

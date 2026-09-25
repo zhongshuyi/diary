@@ -31,12 +31,10 @@ typedef ChatMessageSender =
       String? moodLabel,
     );
 
-const _chatScrollDuration = Duration(milliseconds: 260);
-const _chatMessageEntranceDuration = Duration(milliseconds: 280);
-const _chatReducedMotionDuration = Duration(milliseconds: 140);
+const _chatMessageEntranceDuration = Duration(milliseconds: 300);
 const _chatActionTransitionDuration = Duration(milliseconds: 160);
 const _chatActionFeedbackDuration = Duration(milliseconds: 120);
-const _chatMessageEntranceOffset = 12.0;
+const _chatMessageEntranceOffset = 18.0;
 final _chatSelectionControls = _CompactChatSelectionControls();
 
 class _CompactChatSelectionControls extends MaterialTextSelectionControls {
@@ -174,13 +172,15 @@ class _ChatPageState extends State<ChatPage> {
   final _scrollController = ScrollController();
   final _composerFocusNode = FocusNode();
   final _enteringMessageIds = <String>{};
+  bool _scrollToLatestScheduled = false;
+  double? _lastChatViewportDimension;
   List<DiaryEntry>? _sortedSource;
   List<DiaryEntry> _sortedCache = const [];
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToLatest());
+    _scheduleScrollToLatest();
   }
 
   @override
@@ -191,17 +191,14 @@ class _ChatPageState extends State<ChatPage> {
     final currentIds = widget.entries.map((entry) => entry.id).toSet();
     final addedIds = currentIds.difference(previousIds);
     final staleIds = _enteringMessageIds.difference(currentIds);
-    if (addedIds.isNotEmpty || staleIds.isNotEmpty) {
-      setState(() {
-        _enteringMessageIds
-          ..removeAll(staleIds)
-          ..addAll(addedIds);
-      });
-    }
+    _enteringMessageIds
+      ..removeAll(staleIds)
+      ..addAll(addedIds);
     if (widget.entries.length > oldWidget.entries.length &&
         (!_scrollController.hasClients ||
+            _composerFocusNode.hasFocus ||
             _scrollController.position.extentAfter < 120)) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToLatest());
+      _scheduleScrollToLatest();
     }
   }
 
@@ -214,23 +211,23 @@ class _ChatPageState extends State<ChatPage> {
 
   void _scrollToLatest() {
     if (!_scrollController.hasClients) return;
-    if (MediaQuery.disableAnimationsOf(context)) {
-      _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
-      return;
-    }
-    unawaited(
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: _chatScrollDuration,
-        curve: Curves.easeOutCubic,
-      ),
-    );
+    _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+  }
+
+  void _scheduleScrollToLatest() {
+    if (_scrollToLatestScheduled) return;
+    _scrollToLatestScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToLatestScheduled = false;
+      if (mounted) _scrollToLatest();
+    });
   }
 
   void _finishMessageEntrance(String entryId) {
-    if (!_enteringMessageIds.contains(entryId)) return;
-    setState(() => _enteringMessageIds.remove(entryId));
+    _enteringMessageIds.remove(entryId);
   }
+
+  void _openProfile() => widget.onNavigate(ChatPageDestination.profile);
 
   List<DiaryEntry> _sortedEntries() {
     if (!identical(_sortedSource, widget.entries)) {
@@ -324,15 +321,17 @@ class _ChatPageState extends State<ChatPage> {
                   ? const _EmptyChat()
                   : NotificationListener<ScrollMetricsNotification>(
                       onNotification: (notification) {
-                        if (notification.depth == 0 &&
-                            _composerFocusNode.hasFocus) {
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                            if (mounted && _scrollController.hasClients) {
-                              _scrollController.jumpTo(
-                                _scrollController.position.maxScrollExtent,
-                              );
-                            }
-                          });
+                        if (notification.depth != 0) return false;
+                        final viewportDimension =
+                            notification.metrics.viewportDimension;
+                        final previousViewportDimension =
+                            _lastChatViewportDimension;
+                        final viewportChanged =
+                            previousViewportDimension != null &&
+                            previousViewportDimension != viewportDimension;
+                        _lastChatViewportDimension = viewportDimension;
+                        if (viewportChanged && _composerFocusNode.hasFocus) {
+                          _scheduleScrollToLatest();
                         }
                         return false;
                       },
@@ -352,6 +351,7 @@ class _ChatPageState extends State<ChatPage> {
                                 widget.onOpenLocation ??
                                 (entry) => unawaited(_openLocation(entry)),
                             onLongPress: _showEntryActions,
+                            onAvatarTap: _openProfile,
                             showChatAvatar: widget.showChatAvatar,
                             profileAvatarPath: widget.profileAvatarPath,
                           );
@@ -368,7 +368,7 @@ class _ChatPageState extends State<ChatPage> {
                 widget.pickLocation ??
                 () => AmapLocationBridge.pick(context, widget.amapAndroidKey),
             amapAndroidKey: widget.amapAndroidKey,
-            onSent: _scrollToLatest,
+            onSent: _scheduleScrollToLatest,
             onOpenEditor: widget.onOpenEditor,
             onImportAttachments: widget.onImportAttachments,
             pickGalleryPhotos: widget.pickGalleryPhotos,
@@ -522,6 +522,7 @@ class _ChatEntryItem extends StatelessWidget {
     required this.onOpenEntry,
     required this.onOpenLocation,
     required this.onLongPress,
+    required this.onAvatarTap,
     required this.showChatAvatar,
     required this.profileAvatarPath,
   });
@@ -532,6 +533,7 @@ class _ChatEntryItem extends StatelessWidget {
   final ValueChanged<DiaryEntry> onOpenEntry;
   final ValueChanged<DiaryEntry> onOpenLocation;
   final Future<void> Function(DiaryEntry entry) onLongPress;
+  final VoidCallback onAvatarTap;
   final bool showChatAvatar;
   final String? profileAvatarPath;
 
@@ -559,6 +561,7 @@ class _ChatEntryItem extends StatelessWidget {
               onOpen: () => onOpenEntry(entry),
               onOpenLocation: () => onOpenLocation(entry),
               onLongPress: () => unawaited(onLongPress(entry)),
+              onAvatarTap: onAvatarTap,
               showChatAvatar: showChatAvatar,
               profileAvatarPath: profileAvatarPath,
             ),
@@ -586,29 +589,17 @@ class _ChatMessageEntrance extends StatelessWidget {
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: 1),
-      duration: reduceMotion
-          ? _chatReducedMotionDuration
-          : _chatMessageEntranceDuration,
+      duration: reduceMotion ? Duration.zero : _chatMessageEntranceDuration,
       curve: Curves.easeOutCubic,
       onEnd: onEnd,
       child: RepaintBoundary(child: child),
-      builder: (context, value, child) {
-        final offset = reduceMotion
-            ? 0.0
-            : (1 - value) * _chatMessageEntranceOffset;
-        final scale = reduceMotion ? 1.0 : .98 + (.02 * value);
-        return Opacity(
-          opacity: .35 + (.65 * value),
-          child: Transform.translate(
-            offset: Offset(0, offset),
-            child: Transform.scale(
-              alignment: Alignment.centerRight,
-              scale: scale,
-              child: child,
-            ),
-          ),
-        );
-      },
+      builder: (context, value, child) => Opacity(
+        opacity: .4 + (.6 * value),
+        child: Transform.translate(
+          offset: Offset(0, (1 - value) * _chatMessageEntranceOffset),
+          child: child,
+        ),
+      ),
     );
   }
 }
@@ -619,6 +610,7 @@ class _ChatEntryBubble extends StatelessWidget {
     required this.onOpen,
     required this.onOpenLocation,
     required this.onLongPress,
+    required this.onAvatarTap,
     required this.showChatAvatar,
     required this.profileAvatarPath,
   });
@@ -627,6 +619,7 @@ class _ChatEntryBubble extends StatelessWidget {
   final VoidCallback onOpen;
   final VoidCallback onOpenLocation;
   final VoidCallback onLongPress;
+  final VoidCallback onAvatarTap;
   final bool showChatAvatar;
   final String? profileAvatarPath;
 
@@ -716,6 +709,7 @@ class _ChatEntryBubble extends StatelessWidget {
       return _ChatImageMessage(
         entry: entry,
         onLongPress: onLongPress,
+        onAvatarTap: onAvatarTap,
         showChatAvatar: showChatAvatar,
         profileAvatarPath: profileAvatarPath,
       );
@@ -832,10 +826,10 @@ class _ChatEntryBubble extends StatelessWidget {
           ),
           if (showChatAvatar) ...[
             const SizedBox(width: 8),
-            DiaryAvatar(
+            _ChatProfileAvatar(
               key: ValueKey('chat-profile-avatar-${entry.id}'),
               imagePath: profileAvatarPath,
-              size: 40,
+              onTap: onAvatarTap,
             ),
           ],
         ],
@@ -848,12 +842,14 @@ class _ChatImageMessage extends StatelessWidget {
   const _ChatImageMessage({
     required this.entry,
     required this.onLongPress,
+    required this.onAvatarTap,
     required this.showChatAvatar,
     required this.profileAvatarPath,
   });
 
   final DiaryEntry entry;
   final VoidCallback onLongPress;
+  final VoidCallback onAvatarTap;
   final bool showChatAvatar;
   final String? profileAvatarPath;
 
@@ -884,13 +880,42 @@ class _ChatImageMessage extends StatelessWidget {
           ),
           if (showChatAvatar) ...[
             const SizedBox(width: 8),
-            DiaryAvatar(
+            _ChatProfileAvatar(
               key: ValueKey('chat-profile-avatar-${entry.id}'),
               imagePath: profileAvatarPath,
-              size: 40,
+              onTap: onAvatarTap,
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+class _ChatProfileAvatar extends StatelessWidget {
+  const _ChatProfileAvatar({
+    super.key,
+    required this.imagePath,
+    required this.onTap,
+  });
+
+  final String? imagePath;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: '打开我的页面',
+      child: Material(
+        type: MaterialType.transparency,
+        shape: const CircleBorder(),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: DiaryAvatar(imagePath: imagePath, size: 40),
+        ),
       ),
     );
   }
@@ -1528,14 +1553,26 @@ class _ChatComposerState extends State<_ChatComposer>
 
   Future<void> _send() async {
     if (!_hasDraft || _isSending || _isImporting) return;
+    final content = _controller.text;
+    final imagePaths = List<String>.of(_imagePaths);
+    final audioPaths = List<String>.of(_audioPaths);
+    final videoPaths = List<String>.of(_videoPaths);
     final selectedMood = _selectedMood;
-    setState(() => _isSending = true);
+    _draftTimer?.cancel();
+    setState(() {
+      _isSending = true;
+      _controller.clear();
+      _imagePaths.clear();
+      _audioPaths.clear();
+      _videoPaths.clear();
+      _selectedMood = null;
+    });
     try {
       await widget.onSend(
-        _controller.text,
-        List.of(_imagePaths),
-        List.of(_audioPaths),
-        List.of(_videoPaths),
+        content,
+        imagePaths,
+        audioPaths,
+        videoPaths,
         selectedMood?.value ?? .5,
         selectedMood?.label,
       );
@@ -1547,16 +1584,25 @@ class _ChatComposerState extends State<_ChatComposer>
         if (mounted) _showMessage('消息已发送，草稿清理失败');
       }
       if (!mounted) return;
-      setState(() {
-        _controller.clear();
-        _imagePaths.clear();
-        _audioPaths.clear();
-        _videoPaths.clear();
-        _selectedMood = null;
-      });
-      widget.onSent();
+      if (_hasDraft) _persistDraft();
+      if (!widget.focusNode.hasFocus) widget.onSent();
     } catch (_) {
-      if (mounted) _showMessage('发送失败，请稍后重试');
+      if (mounted) {
+        setState(() {
+          final nextContent = _controller.text;
+          _controller.text = nextContent.isEmpty
+              ? content
+              : content.isEmpty
+              ? nextContent
+              : '$content\n$nextContent';
+          _imagePaths.insertAll(0, imagePaths);
+          _audioPaths.insertAll(0, audioPaths);
+          _videoPaths.insertAll(0, videoPaths);
+          _selectedMood ??= selectedMood;
+        });
+        _scheduleDraftSave();
+        _showMessage('发送失败，请稍后重试');
+      }
     } finally {
       if (mounted) setState(() => _isSending = false);
     }
@@ -1646,8 +1692,8 @@ class _ChatComposerState extends State<_ChatComposer>
                         height: 1.15,
                       ),
                       textInputAction: TextInputAction.send,
+                      onEditingComplete: () {},
                       onSubmitted: (_) => unawaited(_send()),
-                      readOnly: _isSending,
                       onChanged: (_) {
                         setState(() {});
                         _scheduleDraftSave();
@@ -1715,7 +1761,11 @@ class _ChatComposerState extends State<_ChatComposer>
                         ?currentChild,
                       ],
                     ),
-                    child: _hasTypedText || _hasAttachments || _hasMood
+                    child:
+                        _hasTypedText ||
+                            _hasAttachments ||
+                            _hasMood ||
+                            _isSending
                         ? FilledButton(
                             key: const Key('chat-send-button'),
                             onPressed: _isSending || _isImporting

@@ -385,6 +385,7 @@ class _AnimatedTabStack extends StatefulWidget {
 class _AnimatedTabStackState extends State<_AnimatedTabStack>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
+  late final PageController _pageController;
 
   @override
   void initState() {
@@ -393,6 +394,7 @@ class _AnimatedTabStackState extends State<_AnimatedTabStack>
       vsync: this,
       duration: DiaryMotion.standard,
     )..value = 1;
+    _pageController = PageController(initialPage: widget.index);
   }
 
   @override
@@ -404,12 +406,16 @@ class _AnimatedTabStackState extends State<_AnimatedTabStack>
   @override
   void didUpdateWidget(covariant _AnimatedTabStack oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.index != widget.index) _controller.forward(from: 0);
+    if (oldWidget.index != widget.index) {
+      _pageController.jumpToPage(widget.index);
+      _controller.forward(from: 0);
+    }
   }
 
   @override
   void dispose() {
     _controller.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 
@@ -422,7 +428,15 @@ class _AnimatedTabStackState extends State<_AnimatedTabStack>
     return AnimatedBuilder(
       animation: animation,
       child: RepaintBoundary(
-        child: IndexedStack(index: widget.index, children: widget.pages),
+        child: PageView.builder(
+          controller: _pageController,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: widget.pages.length,
+          itemBuilder: (context, index) => _KeepAliveTabPage(
+            key: ValueKey('mobile-tab-$index'),
+            child: widget.pages[index],
+          ),
+        ),
       ),
       builder: (context, child) {
         final value = animation.value;
@@ -432,5 +446,26 @@ class _AnimatedTabStackState extends State<_AnimatedTabStack>
         );
       },
     );
+  }
+}
+
+class _KeepAliveTabPage extends StatefulWidget {
+  const _KeepAliveTabPage({required this.child, super.key});
+
+  final Widget child;
+
+  @override
+  State<_KeepAliveTabPage> createState() => _KeepAliveTabPageState();
+}
+
+class _KeepAliveTabPageState extends State<_KeepAliveTabPage>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
   }
 }
