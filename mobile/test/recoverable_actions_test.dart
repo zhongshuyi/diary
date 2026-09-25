@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:diary/app/diary_lock_gate.dart';
+import 'package:diary/application/app_lock_service.dart';
 import 'package:diary/application/diary_lock_coordinator.dart';
 import 'package:diary/application/settings_controller.dart';
 import 'package:diary/data/settings_store.dart';
@@ -22,6 +23,17 @@ class _MemorySettingsStore implements DiarySettingsStore {
 
   @override
   Future<void> save(DiarySettings value) async => settings = value;
+}
+
+class _EmptyPinStore implements PinSecretStore {
+  @override
+  Future<String?> read() async => null;
+
+  @override
+  Future<void> write(String value) async {}
+
+  @override
+  Future<void> delete() async {}
 }
 
 DiaryEntry _entry({String id = 'entry-1'}) {
@@ -54,6 +66,7 @@ void main() {
         home: DiaryLockGate(
           controller: controller,
           coordinator: coordinator,
+          lockService: AppLockService(store: _EmptyPinStore()),
           authenticate: () async {
             attempts += 1;
             return attempts > 1;
@@ -65,7 +78,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('日记已锁定'), findsOneWidget);
-    expect(find.text('验证未完成，请重试'), findsOneWidget);
+    expect(find.text('验证未完成，请点击按钮重试'), findsOneWidget);
 
     await tester.tap(find.text('解锁日记'));
     await tester.pump();
