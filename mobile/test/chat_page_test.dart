@@ -488,6 +488,53 @@ void main() {
     expect(destination, ChatPageDestination.timeline);
   });
 
+  testWidgets('chat title opens the profile without a second text line', (
+    tester,
+  ) async {
+    ChatPageDestination? destination;
+    await tester.pumpWidget(
+      _ChatHarness(
+        chatTitle: '晚安日记',
+        onNavigate: (value) => destination = value,
+      ),
+    );
+    await tester.tap(find.byKey(const Key('chat-title-profile-button')));
+    expect(destination, ChatPageDestination.profile);
+    expect(find.text('晚安日记'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('chat-title-profile-button')),
+        matching: find.byIcon(Icons.chevron_right_rounded),
+      ),
+      findsNothing,
+    );
+  });
+
+  testWidgets('chat navigation menu fades in without a scale popup', (
+    tester,
+  ) async {
+    ChatPageDestination? destination;
+    await tester.pumpWidget(
+      _ChatHarness(onNavigate: (value) => destination = value),
+    );
+    final field = tester.widget<TextField>(
+      find.byKey(const Key('chat-message-field')),
+    );
+    await tester.tap(find.byKey(const Key('chat-message-field')));
+    await tester.pump();
+    expect(field.focusNode?.hasFocus, isTrue);
+    await tester.tap(find.byKey(const Key('chat-more-menu')));
+    await tester.pump();
+
+    expect(find.byType(PopupMenuButton<ChatPageDestination>), findsNothing);
+    expect(find.text('日历'), findsOneWidget);
+    expect(field.focusNode?.hasFocus, isTrue);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('日历'));
+    await tester.pumpAndSettle();
+    expect(destination, ChatPageDestination.calendar);
+  });
+
   testWidgets('shows the configured wallpaper behind the conversation', (
     tester,
   ) async {

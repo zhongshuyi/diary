@@ -136,13 +136,6 @@ class SettingsPage extends StatelessWidget {
                     ),
                   ),
                   _SettingsTile(
-                    title: const Text('对话顶部名称'),
-                    subtitle: Text(settings.chatTitle),
-                    trailing: Icon(Icons.chevron_right, color: colors.mutedInk),
-                    onTap: () =>
-                        _showChatTitleEditor(context, settings.chatTitle),
-                  ),
-                  _SettingsTile(
                     key: const Key('settings-amap-key'),
                     leading: Icon(
                       Icons.location_on_outlined,
@@ -573,17 +566,6 @@ class SettingsPage extends StatelessWidget {
     return image == null ? const [] : [image.path];
   }
 
-  Future<void> _showChatTitleEditor(
-    BuildContext context,
-    String current,
-  ) async {
-    final value = await showDialog<String>(
-      context: context,
-      builder: (_) => _ChatTitleDialog(initialValue: current),
-    );
-    if (value != null) await controller.setChatTitle(value);
-  }
-
   Future<void> _showAmapKeyEditor(BuildContext context, String current) async {
     var entered = current;
     final value = await showDialog<String>(
@@ -682,56 +664,6 @@ class SettingsPage extends StatelessWidget {
       },
     );
     if (value != null) unawaited(controller.setDefaultEditorType(value));
-  }
-}
-
-class _ChatTitleDialog extends StatefulWidget {
-  const _ChatTitleDialog({required this.initialValue});
-
-  final String initialValue;
-
-  @override
-  State<_ChatTitleDialog> createState() => _ChatTitleDialogState();
-}
-
-class _ChatTitleDialogState extends State<_ChatTitleDialog> {
-  late final TextEditingController _textController;
-
-  @override
-  void initState() {
-    super.initState();
-    _textController = TextEditingController(text: widget.initialValue);
-  }
-
-  @override
-  void dispose() {
-    _textController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('对话顶部名称'),
-      content: TextField(
-        controller: _textController,
-        autofocus: true,
-        maxLength: 16,
-        textInputAction: TextInputAction.done,
-        onSubmitted: (value) => Navigator.pop(context, value),
-        decoration: const InputDecoration(hintText: '例如：我的日记'),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('取消'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.pop(context, _textController.text),
-          child: const Text('保存'),
-        ),
-      ],
-    );
   }
 }
 

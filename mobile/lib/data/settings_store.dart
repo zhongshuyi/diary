@@ -34,6 +34,9 @@ class SharedPreferencesDiarySettingsStore implements DiarySettingsStore {
   static const _quickCaptureSideKey = 'diary.settings.quick_capture_side';
   static const _defaultHomeModeKey = 'diary.settings.default_home_mode';
   static const _chatTitleKey = 'diary.settings.chat_title';
+  static const _profileSignatureKey = 'diary.settings.profile_signature';
+  static const _showProfileSignatureKey =
+      'diary.settings.show_profile_signature';
   static const _profileAvatarPathKey = 'diary.settings.profile_avatar_path';
   static const _showChatAvatarKey = 'diary.settings.show_chat_avatar';
 
@@ -96,6 +99,9 @@ class SharedPreferencesDiarySettingsStore implements DiarySettingsStore {
         preferences.getString(_defaultHomeModeKey),
       ),
       chatTitle: preferences.getString(_chatTitleKey) ?? diaryDefaultChatTitle,
+      profileSignature: preferences.getString(_profileSignatureKey) ?? '',
+      showProfileSignature:
+          preferences.getBool(_showProfileSignatureKey) ?? true,
       profileAvatarPath: _optionalPath(
         preferences.getString(_profileAvatarPathKey),
       ),
@@ -173,6 +179,14 @@ class SharedPreferencesDiarySettingsStore implements DiarySettingsStore {
       settings.defaultHomeMode.wireValue,
     );
     await preferences.setString(_chatTitleKey, settings.chatTitle);
+    await preferences.setString(
+      _profileSignatureKey,
+      settings.profileSignature,
+    );
+    await preferences.setBool(
+      _showProfileSignatureKey,
+      settings.showProfileSignature,
+    );
     final profileAvatarPath = _optionalPath(settings.profileAvatarPath);
     if (profileAvatarPath == null) {
       await preferences.remove(_profileAvatarPathKey);

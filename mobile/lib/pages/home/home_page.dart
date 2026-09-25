@@ -49,11 +49,21 @@ class HomePage extends StatefulWidget {
 }
 
 class HomePageState extends State<HomePage> {
+  static const _dayPageSize = 30;
   final _searchController = TextEditingController();
   final _quickController = TextEditingController();
   final _searchFocusNode = FocusNode();
   final _quickFocusNode = FocusNode();
+  final _timelineScrollController = ScrollController();
   HomeTimelineFilter _filter = HomeTimelineFilter();
+  int _visibleDayCount = _dayPageSize;
+  bool _loadOlderDaysScheduled = false;
+  List<DiaryEntry>? _filteredSource;
+  HomeTimelineFilter? _filteredWith;
+  DateTime? _filteredOnDay;
+  List<DiaryEntry> _filteredCache = const [];
+  List<DiaryEntry>? _dayGroupSource;
+  List<({DateTime day, List<DiaryEntry> entries})> _dayGroups = const [];
   int _randomRotation = 0;
   bool _quickSaving = false;
   bool _selectionMode = false;
@@ -69,6 +79,39 @@ class HomePageState extends State<HomePage> {
   })?
   _overview;
 
+  @override
+  void initState() {
+    super.initState();
+    _timelineScrollController.addListener(_onTimelineScroll);
+  }
+
+  void _onTimelineScroll() {
+    if (_loadOlderDaysScheduled || !_timelineScrollController.hasClients) {
+      return;
+    }
+    final position = _timelineScrollController.position;
+    if (_visibleDayCount >= _dayGroups.length ||
+        position.pixels < position.maxScrollExtent - 600) {
+      return;
+    }
+    _loadOlderDaysScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadOlderDaysScheduled = false;
+      if (!mounted) return;
+      setState(() => _visibleDayCount += _dayPageSize);
+    });
+  }
+
+  void _applyFilter(HomeTimelineFilter filter) {
+    if (_timelineScrollController.hasClients) {
+      _timelineScrollController.jumpTo(0);
+    }
+    setState(() {
+      _filter = filter;
+      _visibleDayCount = _dayPageSize;
+    });
+  }
+
   void focusSearch() {
     _searchFocusNode.requestFocus();
     _searchController.selection = TextSelection(
@@ -83,6 +126,7 @@ class HomePageState extends State<HomePage> {
     _quickController.dispose();
     _searchFocusNode.dispose();
     _quickFocusNode.dispose();
+    _timelineScrollController.dispose();
     super.dispose();
   }
 
@@ -102,14 +146,23 @@ class HomePageState extends State<HomePage> {
       ),
     );
     if (!mounted || result == null) return;
-    setState(() => _filter = result);
+    _applyFilter(result);
   }
 
-  List<DiaryEntry> get _filteredEntries {
-    final now = DateTime.now();
-    return widget.entries
+  List<DiaryEntry> _filteredEntriesFor(DateTime now) {
+    final day = DateTime(now.year, now.month, now.day);
+    if (identical(_filteredSource, widget.entries) &&
+        identical(_filteredWith, _filter) &&
+        _filteredOnDay == day) {
+      return _filteredCache;
+    }
+    _filteredSource = widget.entries;
+    _filteredWith = _filter;
+    _filteredOnDay = day;
+    _filteredCache = widget.entries
         .where((entry) => _filter.matches(entry, now: now))
         .toList(growable: false);
+    return _filteredCache;
   }
 
   ({
@@ -142,8 +195,9 @@ class HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     final colors = DiaryThemeColors.of(context);
-    final entries = _filteredEntries;
-    final overview = _overviewFor(DateTime.now());
+    final now = DateTime.now();
+    final entries = _filteredEntriesFor(now);
+    final overview = _overviewFor(now);
     final categories = overview.categories;
     final tags = overview.tags;
     if (widget.desktopLayout) {
@@ -169,10 +223,9 @@ class HomePageState extends State<HomePage> {
     TimelineReflection reflection,
     WeeklySummary? weeklySummary,
   ) {
-    final dayGroups = entries.isEmpty
-        ? <Widget>[]
-        : _buildMobileDayGroups(entries);
+    final dayGroups = _mobileDayGroupsFor(entries);
     return CustomScrollView(
+      controller: _timelineScrollController,
       slivers: [
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(16, 22, 16, 0),
@@ -262,8 +315,8 @@ class HomePageState extends State<HomePage> {
                           ),
                         ),
                         IconButton(
-                          onPressed: () => setState(
-                            () => _filter = _filter.copyWith(
+                          onPressed: () => _applyFilter(
+                            _filter.copyWith(
                               favoriteOnly: !_filter.favoriteOnly,
                             ),
                           ),
@@ -284,9 +337,8 @@ class HomePageState extends State<HomePage> {
                       key: const Key('diary-search-field'),
                       controller: _searchController,
                       focusNode: _searchFocusNode,
-                      onChanged: (value) => setState(
-                        () => _filter = _filter.copyWith(query: value),
-                      ),
+                      onChanged: (value) =>
+                          _applyFilter(_filter.copyWith(query: value)),
                       decoration: InputDecoration(
                         hintText: '搜索标题、正文、分类或标签',
                         prefixIcon: const Icon(Icons.search),
@@ -299,9 +351,7 @@ class HomePageState extends State<HomePage> {
                                 tooltip: '清除搜索',
                                 onPressed: () {
                                   _searchController.clear();
-                                  setState(
-                                    () => _filter = _filter.copyWith(query: ''),
-                                  );
+                                  _applyFilter(_filter.copyWith(query: ''));
                                   _searchFocusNode.requestFocus();
                                 },
                                 icon: const Icon(Icons.close_rounded, size: 18),
@@ -343,10 +393,8 @@ class HomePageState extends State<HomePage> {
                             child: ChoiceChip(
                               label: Text(category),
                               selected: selected,
-                              onSelected: (_) => setState(
-                                () => _filter = _filter.copyWith(
-                                  category: category,
-                                ),
+                              onSelected: (_) => _applyFilter(
+                                _filter.copyWith(category: category),
                               ),
                               selectedColor: colors.hero,
                               labelStyle: TextStyle(
@@ -378,9 +426,7 @@ class HomePageState extends State<HomePage> {
                         query: _filter.query,
                         onOpenEditor: widget.onOpenEditor,
                         onClearFilters: _filter.hasActiveConditions
-                            ? () => setState(
-                                () => _filter = _filter.clearConditions(),
-                              )
+                            ? () => _applyFilter(_filter.clearConditions())
                             : null,
                       ),
                   ],
@@ -393,11 +439,13 @@ class HomePageState extends State<HomePage> {
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 110),
             sliver: SliverList.builder(
-              itemCount: dayGroups.length,
+              itemCount: dayGroups.length < _visibleDayCount
+                  ? dayGroups.length
+                  : _visibleDayCount,
               itemBuilder: (context, index) => Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 720),
-                  child: dayGroups[index],
+                  child: _buildMobileDayGroup(dayGroups[index]),
                 ),
               ),
             ),
@@ -422,7 +470,7 @@ class HomePageState extends State<HomePage> {
   void _toggleTag(String tag) {
     final tags = Set<String>.of(_filter.tags);
     if (!tags.add(tag)) tags.remove(tag);
-    setState(() => _filter = _filter.copyWith(tags: tags));
+    _applyFilter(_filter.copyWith(tags: tags));
   }
 
   void _toggleMobileSelection(DiaryEntry entry) {
@@ -501,8 +549,8 @@ class HomePageState extends State<HomePage> {
                               ),
                             ),
                             IconButton(
-                              onPressed: () => setState(
-                                () => _filter = _filter.copyWith(
+                              onPressed: () => _applyFilter(
+                                _filter.copyWith(
                                   favoriteOnly: !_filter.favoriteOnly,
                                 ),
                               ),
@@ -523,9 +571,8 @@ class HomePageState extends State<HomePage> {
                           key: const Key('diary-search-field'),
                           controller: _searchController,
                           focusNode: _searchFocusNode,
-                          onChanged: (value) => setState(
-                            () => _filter = _filter.copyWith(query: value),
-                          ),
+                          onChanged: (value) =>
+                              _applyFilter(_filter.copyWith(query: value)),
                           decoration: const InputDecoration(
                             hintText: '搜索标题、正文、分类或标签（Ctrl + K）',
                             prefixIcon: Icon(Icons.search),
@@ -535,9 +582,8 @@ class HomePageState extends State<HomePage> {
                         _CategoryFilters(
                           categories: categories,
                           selected: _filter.category,
-                          onSelected: (category) => setState(
-                            () =>
-                                _filter = _filter.copyWith(category: category),
+                          onSelected: (category) => _applyFilter(
+                            _filter.copyWith(category: category),
                           ),
                         ),
                         if (tags.isNotEmpty) ...[
@@ -604,7 +650,10 @@ class HomePageState extends State<HomePage> {
     }
   }
 
-  List<Widget> _buildMobileDayGroups(List<DiaryEntry> entries) {
+  List<({DateTime day, List<DiaryEntry> entries})> _mobileDayGroupsFor(
+    List<DiaryEntry> entries,
+  ) {
+    if (identical(_dayGroupSource, entries)) return _dayGroups;
     final sorted = List<DiaryEntry>.of(entries)
       ..sort((a, b) {
         final byTime = b.effectiveOccurredAt.compareTo(a.effectiveOccurredAt);
@@ -616,37 +665,46 @@ class HomePageState extends State<HomePage> {
       final day = DateTime(local.year, local.month, local.day);
       days.putIfAbsent(day, () => []).add(entry);
     }
+    _dayGroupSource = entries;
+    _dayGroups = [
+      for (final day in days.keys)
+        (day: day, entries: List<DiaryEntry>.unmodifiable(days[day]!)),
+    ];
+    return _dayGroups;
+  }
+
+  Widget _buildMobileDayGroup(
+    ({DateTime day, List<DiaryEntry> entries}) group,
+  ) {
+    final day = group.day;
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final filtering = _filter.hidesReflections;
-    return [
-      for (final day in days.keys)
-        Padding(
-          padding: const EdgeInsets.only(bottom: 14),
-          child: DayEntryCard(
-            date: day,
-            entries: days[day]!,
-            expanded:
-                filtering ||
-                (day == today
-                    ? !_toggledDays.contains(day)
-                    : _toggledDays.contains(day)),
-            showExpandControl: !filtering,
-            onToggleExpanded: () => setState(() {
-              if (!_toggledDays.add(day)) _toggledDays.remove(day);
-            }),
-            onOpenEntry: (entry) => _selectionMode
-                ? _toggleMobileSelection(entry)
-                : widget.onOpenEntry(entry),
-            onLongPressEntry: _toggleMobileSelection,
-            onFavorite: widget.onToggleFavorite,
-            onShare: widget.onShare,
-            onDelete: widget.onDelete,
-            selectedIds: _selectedIds,
-            selectionMode: _selectionMode,
-          ),
-        ),
-    ];
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: DayEntryCard(
+        date: day,
+        entries: group.entries,
+        expanded:
+            filtering ||
+            (day == today
+                ? !_toggledDays.contains(day)
+                : _toggledDays.contains(day)),
+        showExpandControl: !filtering,
+        onToggleExpanded: () => setState(() {
+          if (!_toggledDays.add(day)) _toggledDays.remove(day);
+        }),
+        onOpenEntry: (entry) => _selectionMode
+            ? _toggleMobileSelection(entry)
+            : widget.onOpenEntry(entry),
+        onLongPressEntry: _toggleMobileSelection,
+        onFavorite: widget.onToggleFavorite,
+        onShare: widget.onShare,
+        onDelete: widget.onDelete,
+        selectedIds: _selectedIds,
+        selectionMode: _selectionMode,
+      ),
+    );
   }
 
   List<Widget> _buildEntryGroups(

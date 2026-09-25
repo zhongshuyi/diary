@@ -6,13 +6,13 @@ class DiaryPageIntro extends StatelessWidget {
   const DiaryPageIntro({
     required this.eyebrow,
     required this.title,
-    required this.description,
+    this.description,
     super.key,
   });
 
   final String eyebrow;
   final String title;
-  final String description;
+  final String? description;
 
   @override
   Widget build(BuildContext context) {
@@ -28,8 +28,10 @@ class DiaryPageIntro extends StatelessWidget {
         ),
         const SizedBox(height: 9),
         Text(title, style: Theme.of(context).textTheme.displaySmall),
-        const SizedBox(height: 8),
-        Text(description, style: Theme.of(context).textTheme.bodyLarge),
+        if (description != null) ...[
+          const SizedBox(height: 8),
+          Text(description!, style: Theme.of(context).textTheme.bodyLarge),
+        ],
       ],
     );
   }

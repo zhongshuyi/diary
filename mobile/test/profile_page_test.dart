@@ -22,6 +22,7 @@ void main() {
           onClearAvatar: () async {
             removalRequested = true;
           },
+          onSaveProfile: (name, signature, showSignature) async {},
           onOpenRecycle: () {},
           onOpenSettings: () {},
           onOpenCategories: () {},
@@ -37,6 +38,13 @@ void main() {
     await tester.pump();
     expect(changeRequested, isTrue);
 
+    final card = find.byKey(const Key('profile-identity-panel'));
+    final compactHeight = tester.getSize(card).height;
+    expect(compactHeight, lessThan(110));
+    expect(find.byKey(const Key('profile-avatar-reset-button')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('profile-edit-button')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('profile-avatar-reset-button')));
     await tester.pump();
     expect(removalRequested, isTrue);

@@ -416,6 +416,110 @@ class _ChatHeader extends StatelessWidget {
   final String title;
   final ValueChanged<ChatPageDestination> onNavigate;
 
+  Future<void> _showNavigationMenu(BuildContext context) async {
+    final button = context.findRenderObject() as RenderBox;
+    final buttonOrigin = button.localToGlobal(Offset.zero);
+    final buttonRect = buttonOrigin & button.size;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final destination = await showGeneralDialog<ChatPageDestination>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+      barrierColor: Colors.transparent,
+      requestFocus: false,
+      transitionDuration: DiaryMotion.duration(
+        context,
+        const Duration(milliseconds: 140),
+      ),
+      pageBuilder: (menuContext, _, _) {
+        final colors = DiaryThemeColors.of(menuContext);
+        return Stack(
+          children: [
+            Positioned(
+              top: buttonRect.bottom + 4,
+              right: math.max(12, screenWidth - buttonRect.right + 4),
+              child: Material(
+                color: colors.surface,
+                elevation: 8,
+                shadowColor: Colors.black.withValues(alpha: .15),
+                borderRadius: BorderRadius.circular(16),
+                clipBehavior: Clip.antiAlias,
+                child: SizedBox(
+                  width: 180,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _ChatMenuItem(
+                          icon: Icons.view_agenda_outlined,
+                          label: '时间线',
+                          onTap: () => Navigator.pop(
+                            menuContext,
+                            ChatPageDestination.timeline,
+                          ),
+                        ),
+                        _ChatMenuItem(
+                          icon: Icons.calendar_month_outlined,
+                          label: '日历',
+                          onTap: () => Navigator.pop(
+                            menuContext,
+                            ChatPageDestination.calendar,
+                          ),
+                        ),
+                        _ChatMenuItem(
+                          icon: Icons.collections_outlined,
+                          label: '媒体库',
+                          onTap: () => Navigator.pop(
+                            menuContext,
+                            ChatPageDestination.media,
+                          ),
+                        ),
+                        _ChatMenuItem(
+                          icon: Icons.auto_graph_outlined,
+                          label: '洞察',
+                          onTap: () => Navigator.pop(
+                            menuContext,
+                            ChatPageDestination.insights,
+                          ),
+                        ),
+                        _ChatMenuItem(
+                          icon: Icons.person_outline,
+                          label: '我的',
+                          onTap: () => Navigator.pop(
+                            menuContext,
+                            ChatPageDestination.profile,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+      transitionBuilder: (_, animation, _, child) {
+        final motion = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOut,
+        );
+        return FadeTransition(
+          opacity: motion,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, -.008),
+              end: Offset.zero,
+            ).animate(motion),
+            child: child,
+          ),
+        );
+      },
+    );
+    if (destination != null) onNavigate(destination);
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = DiaryThemeColors.of(context);
@@ -443,58 +547,28 @@ class _ChatHeader extends StatelessWidget {
             header: true,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 56),
-              child: Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              child: TextButton(
+                key: const Key('chat-title-profile-button'),
+                onPressed: () => onNavigate(ChatPageDestination.profile),
+                style: TextButton.styleFrom(foregroundColor: colors.ink),
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
             ),
           ),
           Align(
             alignment: Alignment.centerRight,
-            child: PopupMenuButton<ChatPageDestination>(
+            child: IconButton(
               key: const Key('chat-more-menu'),
               tooltip: '打开日记功能',
-              padding: EdgeInsets.zero,
               icon: const Icon(Icons.menu_rounded, size: 23),
-              onSelected: onNavigate,
-              itemBuilder: (context) => const [
-                PopupMenuItem(
-                  value: ChatPageDestination.timeline,
-                  child: _ChatMenuItem(
-                    icon: Icons.view_agenda_outlined,
-                    label: '时间线',
-                  ),
-                ),
-                PopupMenuItem(
-                  value: ChatPageDestination.calendar,
-                  child: _ChatMenuItem(
-                    icon: Icons.calendar_month_outlined,
-                    label: '日历',
-                  ),
-                ),
-                PopupMenuItem(
-                  value: ChatPageDestination.media,
-                  child: _ChatMenuItem(
-                    icon: Icons.collections_outlined,
-                    label: '媒体库',
-                  ),
-                ),
-                PopupMenuItem(
-                  value: ChatPageDestination.insights,
-                  child: _ChatMenuItem(
-                    icon: Icons.auto_graph_outlined,
-                    label: '洞察',
-                  ),
-                ),
-                PopupMenuItem(
-                  value: ChatPageDestination.profile,
-                  child: _ChatMenuItem(icon: Icons.person_outline, label: '我的'),
-                ),
-              ],
+              onPressed: () => _showNavigationMenu(context),
             ),
           ),
         ],
@@ -504,15 +578,34 @@ class _ChatHeader extends StatelessWidget {
 }
 
 class _ChatMenuItem extends StatelessWidget {
-  const _ChatMenuItem({required this.icon, required this.label});
+  const _ChatMenuItem({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
   final IconData icon;
   final String label;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [Icon(icon, size: 19), const SizedBox(width: 10), Text(label)],
+    final colors = DiaryThemeColors.of(context);
+    return InkWell(
+      onTap: onTap,
+      child: SizedBox(
+        height: 45,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              Icon(icon, size: 19, color: colors.ink),
+              const SizedBox(width: 12),
+              Text(label, style: TextStyle(color: colors.ink)),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

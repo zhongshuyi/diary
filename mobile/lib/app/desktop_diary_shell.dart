@@ -197,6 +197,11 @@ class _DesktopDiaryShellState extends State<DesktopDiaryShell> {
       InsightsPage(entries: widget.entries),
       ProfilePage(
         desktopLayout: true,
+        profileName: widget.settingsController.settings.chatTitle,
+        profileSignature: widget.settingsController.settings.profileSignature,
+        showProfileSignature:
+            widget.settingsController.settings.showProfileSignature,
+        onSaveProfile: widget.settingsController.setProfileDetails,
         entryCount: widget.entries.length,
         trashCount: widget.trash.length,
         onOpenRecycle: () => unawaited(_openRecycle()),

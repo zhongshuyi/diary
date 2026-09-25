@@ -33,6 +33,8 @@ class MobileDiaryShell extends StatefulWidget {
     this.quickCaptureSide = QuickCaptureSide.right,
     this.defaultHomeMode = DiaryHomeMode.timeline,
     this.chatTitle = diaryDefaultChatTitle,
+    this.profileSignature = '',
+    this.showProfileSignature = true,
     this.amapAndroidKey = '',
     this.entriesLoading = false,
     this.chatBackground = const DiaryChatBackground(),
@@ -43,6 +45,7 @@ class MobileDiaryShell extends StatefulWidget {
     this.profileAvatarPath,
     this.onPickAvatar,
     this.onClearAvatar,
+    this.onSaveProfile,
     this.showChatAvatar = true,
     super.key,
   });
@@ -54,6 +57,8 @@ class MobileDiaryShell extends StatefulWidget {
   final QuickCaptureSide quickCaptureSide;
   final DiaryHomeMode defaultHomeMode;
   final String chatTitle;
+  final String profileSignature;
+  final bool showProfileSignature;
   final String amapAndroidKey;
   final bool entriesLoading;
   final DiaryChatBackground chatBackground;
@@ -64,6 +69,12 @@ class MobileDiaryShell extends StatefulWidget {
   final String? profileAvatarPath;
   final Future<void> Function()? onPickAvatar;
   final Future<void> Function()? onClearAvatar;
+  final Future<void> Function(
+    String name,
+    String signature,
+    bool showSignature,
+  )?
+  onSaveProfile;
   final bool showChatAvatar;
 
   @override
@@ -226,6 +237,10 @@ class _MobileDiaryShellState extends State<MobileDiaryShell> {
         onOpenEntry: (entry) => unawaited(widget.actions.openEntry(entry)),
       ),
       ProfilePage(
+        profileName: widget.chatTitle,
+        profileSignature: widget.profileSignature,
+        showProfileSignature: widget.showProfileSignature,
+        onSaveProfile: widget.onSaveProfile,
         entryCount: widget.entries.length,
         trashCount: widget.trash.length,
         onOpenRecycle: widget.actions.openRecycle,
