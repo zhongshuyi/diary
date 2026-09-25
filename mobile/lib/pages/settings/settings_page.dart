@@ -141,6 +141,22 @@ class SettingsPage extends StatelessWidget {
                     onTap: () =>
                         _showChatTitleEditor(context, settings.chatTitle),
                   ),
+                  _SettingsTile(
+                    key: const Key('settings-amap-key'),
+                    leading: Icon(
+                      Icons.location_on_outlined,
+                      color: colors.terracotta,
+                    ),
+                    title: const Text('高德 Android Key'),
+                    subtitle: Text(
+                      settings.amapAndroidKey.isEmpty
+                          ? '填写后可在对话中发送位置'
+                          : '已配置 · 仅保存在此设备',
+                    ),
+                    trailing: Icon(Icons.chevron_right, color: colors.mutedInk),
+                    onTap: () =>
+                        _showAmapKeyEditor(context, settings.amapAndroidKey),
+                  ),
                   _SwitchTile(
                     key: const Key('settings-show-chat-avatar'),
                     title: '对话显示头像',
@@ -555,6 +571,46 @@ class SettingsPage extends StatelessWidget {
       builder: (_) => _ChatTitleDialog(initialValue: current),
     );
     if (value != null) await controller.setChatTitle(value);
+  }
+
+  Future<void> _showAmapKeyEditor(BuildContext context, String current) async {
+    var entered = current;
+    final value = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('高德 Android Key'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Key 必须与当前安装包的包名和签名 SHA1 匹配。位置功能仅在 Android 上可用。'),
+            const SizedBox(height: 14),
+            TextFormField(
+              key: const Key('amap-key-field'),
+              initialValue: current,
+              onChanged: (value) => entered = value,
+              autocorrect: false,
+              enableSuggestions: false,
+              decoration: const InputDecoration(
+                labelText: 'Android Key',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, entered),
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+    );
+    if (value != null) await controller.setAmapAndroidKey(value);
   }
 
   Future<void> _showEditorChoice(

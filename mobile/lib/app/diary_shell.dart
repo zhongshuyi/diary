@@ -15,6 +15,7 @@ import 'package:diary/data/diary_repository.dart';
 import 'package:diary/data/profile_avatar_store.dart';
 import 'package:diary/data/quick_photo_importer.dart';
 import 'package:diary/domain/diary_entry.dart';
+import 'package:diary/domain/diary_place.dart';
 import 'package:diary/domain/conflict.dart';
 import 'package:diary/domain/diary_settings.dart';
 import 'package:diary/domain/sync_state.dart';
@@ -56,6 +57,7 @@ class DiaryShellActions {
     required this.saveQuickCaptureWithPhotos,
     required this.saveQuickCaptureWithMedia,
     required this.saveChatMessage,
+    this.saveChatLocation,
     required this.importQuickPhotos,
     required this.loadDraft,
     required this.saveDraft,
@@ -103,6 +105,7 @@ class DiaryShellActions {
     String? moodLabel,
   )
   saveChatMessage;
+  final Future<void> Function(DiaryPlace place)? saveChatLocation;
   final Future<List<String>> Function(List<String> paths) importQuickPhotos;
   final Future<DraftPayload?> Function(String id) loadDraft;
   final Future<void> Function(DraftPayload draft) saveDraft;
@@ -333,6 +336,7 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
           saveQuickCaptureWithPhotos: _saveQuickCaptureWithPhotos,
           saveQuickCaptureWithMedia: _saveQuickCaptureWithMedia,
           saveChatMessage: _saveChatMessage,
+          saveChatLocation: _saveChatLocation,
           importQuickPhotos: importQuickPhotos,
           loadDraft: widget.repository.loadDraft,
           saveDraft: widget.repository.saveDraft,
@@ -374,6 +378,7 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
           quickCaptureSide: widget.settingsController.settings.quickCaptureSide,
           defaultHomeMode: widget.settingsController.settings.defaultHomeMode,
           chatTitle: widget.settingsController.settings.chatTitle,
+          amapAndroidKey: widget.settingsController.settings.amapAndroidKey,
           chatBackground: widget.settingsController.settings.chatBackground,
           syncState: _syncState,
           onSyncNow: _syncEngine == null ? null : _syncNow,
@@ -519,6 +524,26 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
         imagePaths: imagePaths,
         audioPaths: audioPaths,
         videoPaths: videoPaths,
+      ),
+    );
+    unawaited(_syncNow());
+  }
+
+  Future<void> _saveChatLocation(DiaryPlace place) async {
+    if (!place.isValid) return;
+    final now = DateTime.now();
+    await _controller.save(
+      DiaryEntry(
+        id: now.microsecondsSinceEpoch.toString(),
+        createdAt: now,
+        updatedAt: now,
+        title: place.name.trim(),
+        content: '',
+        contentText: '',
+        category: '生活',
+        positions: [place.name.trim(), place.address.trim()],
+        latitude: place.latitude,
+        longitude: place.longitude,
       ),
     );
     unawaited(_syncNow());

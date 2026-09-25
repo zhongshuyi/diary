@@ -201,6 +201,7 @@ class DiarySettings {
     this.biometricLock = false,
     this.syncEndpoint = '',
     this.syncToken = '',
+    this.amapAndroidKey = '',
     this.updateEndpoint = '',
     this.quickCaptureSide = QuickCaptureSide.right,
     this.defaultHomeMode = DiaryHomeMode.timeline,
@@ -221,6 +222,7 @@ class DiarySettings {
   final bool biometricLock;
   final String syncEndpoint;
   final String syncToken;
+  final String amapAndroidKey;
   final String updateEndpoint;
   final QuickCaptureSide quickCaptureSide;
   final DiaryHomeMode defaultHomeMode;
@@ -242,6 +244,7 @@ class DiarySettings {
     bool? biometricLock,
     String? syncEndpoint,
     String? syncToken,
+    String? amapAndroidKey,
     String? updateEndpoint,
     QuickCaptureSide? quickCaptureSide,
     DiaryHomeMode? defaultHomeMode,
@@ -265,6 +268,7 @@ class DiarySettings {
       biometricLock: biometricLock ?? this.biometricLock,
       syncEndpoint: syncEndpoint ?? this.syncEndpoint,
       syncToken: syncToken ?? this.syncToken,
+      amapAndroidKey: amapAndroidKey ?? this.amapAndroidKey,
       updateEndpoint: updateEndpoint ?? this.updateEndpoint,
       quickCaptureSide: quickCaptureSide ?? this.quickCaptureSide,
       defaultHomeMode: defaultHomeMode ?? this.defaultHomeMode,

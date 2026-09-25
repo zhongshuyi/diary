@@ -1,6 +1,7 @@
 package com.ling.diary
 
 import android.content.Intent
+import android.app.Activity
 import android.content.pm.ShortcutInfo
 import android.net.Uri
 import android.os.Bundle
@@ -16,6 +17,8 @@ import java.util.ArrayDeque
 import java.util.UUID
 
 class MainActivity : FlutterFragmentActivity() {
+    private val placeRequestCode = 7041
+    private var pendingPlaceResult: MethodChannel.Result? = null
     private data class IncomingShare(val id: String, val text: String, val images: List<Uri>)
 
     private val pendingShares = ArrayDeque<IncomingShare>()
@@ -38,6 +41,39 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.ling.diary/amap_location")
+            .setMethodCallHandler { call, result ->
+                if (call.method != "pickPlace" && call.method != "showPlace") {
+                    result.notImplemented()
+                    return@setMethodCallHandler
+                }
+                val arguments = call.arguments as? Map<*, *>
+                val key = (arguments?.get("key") as? String).orEmpty().trim()
+                if (key.isEmpty()) {
+                    result.error("NO_KEY", "请先配置高德 Android Key", null)
+                    return@setMethodCallHandler
+                }
+                if (pendingPlaceResult != null) {
+                    result.error("BUSY", "位置选择正在进行中", null)
+                    return@setMethodCallHandler
+                }
+                val placeIntent = Intent(this, AmapPlaceActivity::class.java).apply {
+                    putExtra("key", key)
+                    putExtra("viewOnly", call.method == "showPlace")
+                    putExtra("name", arguments?.get("name") as? String)
+                    putExtra("address", arguments?.get("address") as? String)
+                    putExtra("latitude", (arguments?.get("latitude") as? Number)?.toDouble())
+                    putExtra("longitude", (arguments?.get("longitude") as? Number)?.toDouble())
+                }
+                try {
+                    pendingPlaceResult = result
+                    @Suppress("DEPRECATION")
+                    startActivityForResult(placeIntent, placeRequestCode)
+                } catch (error: Exception) {
+                    pendingPlaceResult = null
+                    result.error("OPEN_FAILED", error.message, null)
+                }
+            }
         shareChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.ling.diary/incoming_share")
         shareChannel?.setMethodCallHandler { call, result ->
             if (call.method == "takePendingShortcut") {
@@ -76,6 +112,24 @@ class MainActivity : FlutterFragmentActivity() {
                 }
             }.start()
         }
+    }
+
+    @Deprecated("Deprecated in Android")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != placeRequestCode) return
+        val pending = pendingPlaceResult ?: return
+        pendingPlaceResult = null
+        if (resultCode != Activity.RESULT_OK || data == null) {
+            pending.success(null)
+            return
+        }
+        pending.success(mapOf(
+            "name" to data.getStringExtra("name"),
+            "address" to data.getStringExtra("address"),
+            "latitude" to data.getDoubleExtra("latitude", 0.0),
+            "longitude" to data.getDoubleExtra("longitude", 0.0)
+        ))
     }
 
     private fun registerShortcuts() {

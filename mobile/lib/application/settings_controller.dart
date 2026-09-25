@@ -130,6 +130,9 @@ class SettingsController extends ChangeNotifier {
   Future<void> setSyncToken(String value) =>
       _update(_settings.copyWith(syncToken: value));
 
+  Future<void> setAmapAndroidKey(String value) =>
+      _update(_settings.copyWith(amapAndroidKey: value.trim()));
+
   Future<void> saveConnectionSettings({
     required String syncEndpoint,
     required String syncToken,

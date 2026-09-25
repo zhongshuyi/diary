@@ -5,10 +5,86 @@ import 'package:diary/domain/diary_entry.dart';
 import 'package:diary/data/diary_repository.dart';
 import 'package:diary/domain/diary_settings.dart';
 import 'package:diary/pages/chat/chat_page.dart';
+import 'package:diary/domain/diary_place.dart';
 import 'package:diary/widgets/diary_audio_player.dart';
 import 'package:diary/widgets/diary_video_player.dart';
 
 void main() {
+  testWidgets('location menu sends the selected place as a separate message', (
+    tester,
+  ) async {
+    DiaryPlace? sent;
+    await tester.pumpWidget(
+      _ChatHarness(
+        amapAndroidKey: 'configured-key',
+        pickLocation: () async => const DiaryPlace(
+          name: '人民公园',
+          address: '上海市黄浦区南京西路',
+          latitude: 31.23,
+          longitude: 121.47,
+        ),
+        onSendLocation: (place) async => sent = place,
+      ),
+    );
+    await tester.tap(find.byKey(const Key('chat-add-button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('位置'));
+    await tester.pumpAndSettle();
+    expect(sent?.name, '人民公园');
+    expect(sent?.latitude, 31.23);
+  });
+
+  testWidgets('location picker suspends the app lock while the map is open', (
+    tester,
+  ) async {
+    final calls = <String>[];
+    await tester.pumpWidget(
+      _ChatHarness(
+        amapAndroidKey: 'configured-key',
+        onSendLocation: (_) async {},
+        pickLocation: () async {
+          calls.add('picker');
+          return null;
+        },
+        onExternalActivityStart: () => calls.add('start'),
+        onExternalActivityEnd: () => calls.add('end'),
+      ),
+    );
+    await tester.tap(find.byKey(const Key('chat-add-button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('位置'));
+    await tester.pumpAndSettle();
+
+    expect(calls, ['start', 'picker', 'end']);
+  });
+
+  testWidgets('a saved location opens its map without opening the diary', (
+    tester,
+  ) async {
+    DiaryEntry? opened;
+    await tester.pumpWidget(
+      _ChatHarness(
+        entries: [
+          DiaryEntry(
+            id: 'place-message',
+            createdAt: DateTime(2026, 9, 24),
+            updatedAt: DateTime(2026, 9, 24),
+            title: '人民公园',
+            content: '',
+            contentText: '',
+            category: '生活',
+            positions: const ['人民公园', '上海市黄浦区南京西路'],
+            latitude: 31.23,
+            longitude: 121.47,
+          ),
+        ],
+        onOpenLocation: (entry) => opened = entry,
+      ),
+    );
+    await tester.tap(find.byKey(const Key('chat-location-place-message')));
+    await tester.pumpAndSettle();
+    expect(opened?.id, 'place-message');
+  });
   testWidgets('restores an unsent chat draft and clears it after sending', (
     tester,
   ) async {
@@ -86,6 +162,49 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.getSize(composer).height, initialHeight);
     expect(tester.getSize(surface).height, initialInputHeight);
+  });
+
+  testWidgets('opening the keyboard keeps the latest message visible', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetViewInsets);
+
+    final entries = [
+      for (var index = 0; index < 40; index++)
+        DiaryEntry(
+          id: 'keyboard-message-$index',
+          createdAt: DateTime(2026, 9, 19, 8, index),
+          updatedAt: DateTime(2026, 9, 19, 8, index),
+          title: '消息 $index',
+          content: '消息 $index',
+          contentText: '消息 $index',
+          category: '生活',
+        ),
+    ];
+    await tester.pumpWidget(_ChatHarness(entries: entries));
+    await tester.pumpAndSettle();
+
+    final list = find.byKey(const Key('chat-message-list'));
+    final scrollable = find.descendant(
+      of: list,
+      matching: find.byType(Scrollable),
+    );
+    final position = tester.state<ScrollableState>(scrollable).position;
+    expect(position.extentAfter, closeTo(0, 1));
+
+    await tester.drag(list, const Offset(0, 400));
+    await tester.pumpAndSettle();
+    expect(position.extentAfter, greaterThan(120));
+
+    await tester.tap(find.byKey(const Key('chat-message-field')));
+    tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+    await tester.pumpAndSettle();
+
+    expect(position.extentAfter, closeTo(0, 1));
   });
 
   testWidgets('composer controls keep equal size and stable spacing', (
@@ -669,6 +788,10 @@ class _ChatHarness extends StatelessWidget {
     this.theme,
     this.entries = const [],
     this.onSend,
+    this.onSendLocation,
+    this.pickLocation,
+    this.onOpenLocation,
+    this.amapAndroidKey = '',
     this.onEdit,
     this.pickGalleryPhotos,
     this.pickCameraPhoto,
@@ -687,6 +810,10 @@ class _ChatHarness extends StatelessWidget {
   final List<DiaryEntry> entries;
   final ThemeData? theme;
   final ChatMessageSender? onSend;
+  final Future<void> Function(DiaryPlace place)? onSendLocation;
+  final Future<DiaryPlace?> Function()? pickLocation;
+  final ValueChanged<DiaryEntry>? onOpenLocation;
+  final String amapAndroidKey;
   final Future<void> Function(DiaryEntry entry)? onEdit;
   final Future<List<String>> Function(int maxAssets)? pickGalleryPhotos;
   final Future<String?> Function()? pickCameraPhoto;
@@ -715,6 +842,10 @@ class _ChatHarness extends StatelessWidget {
           onSend:
               onSend ??
               (content, images, audio, videos, mood, moodLabel) async {},
+          onSendLocation: onSendLocation,
+          pickLocation: pickLocation,
+          onOpenLocation: onOpenLocation,
+          amapAndroidKey: amapAndroidKey,
           onOpenEntry: (_) {},
           onEdit: onEdit ?? (_) async {},
           onDelete: (_) async {},

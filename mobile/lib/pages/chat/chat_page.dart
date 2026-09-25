@@ -9,7 +9,9 @@ import 'package:diary/app/app_theme.dart';
 import 'package:diary/app/diary_motion.dart';
 import 'package:diary/data/diary_repository.dart';
 import 'package:diary/domain/diary_entry.dart';
+import 'package:diary/domain/diary_place.dart';
 import 'package:diary/domain/diary_settings.dart';
+import 'package:diary/data/amap_location_bridge.dart';
 import 'package:diary/widgets/diary_audio_player.dart';
 import 'package:diary/widgets/diary_avatar.dart';
 import 'package:diary/widgets/diary_chat_background.dart';
@@ -122,6 +124,10 @@ class ChatPage extends StatefulWidget {
     required this.onOpenEditor,
     required this.onImportAttachments,
     required this.onNavigate,
+    this.onSendLocation,
+    this.pickLocation,
+    this.onOpenLocation,
+    this.amapAndroidKey = '',
     this.title = diaryDefaultChatTitle,
     this.chatBackground = const DiaryChatBackground(),
     this.showChatAvatar = false,
@@ -144,6 +150,10 @@ class ChatPage extends StatefulWidget {
   final VoidCallback onOpenEditor;
   final Future<List<String>> Function(List<String> paths) onImportAttachments;
   final ValueChanged<ChatPageDestination> onNavigate;
+  final Future<void> Function(DiaryPlace place)? onSendLocation;
+  final Future<DiaryPlace?> Function()? pickLocation;
+  final ValueChanged<DiaryEntry>? onOpenLocation;
+  final String amapAndroidKey;
   final String title;
   final DiaryChatBackground chatBackground;
   final bool showChatAvatar;
@@ -162,6 +172,7 @@ class ChatPage extends StatefulWidget {
 
 class _ChatPageState extends State<ChatPage> {
   final _scrollController = ScrollController();
+  final _composerFocusNode = FocusNode();
   final _enteringMessageIds = <String>{};
   List<DiaryEntry>? _sortedSource;
   List<DiaryEntry> _sortedCache = const [];
@@ -197,6 +208,7 @@ class _ChatPageState extends State<ChatPage> {
   @override
   void dispose() {
     _scrollController.dispose();
+    _composerFocusNode.dispose();
     super.dispose();
   }
 
@@ -281,6 +293,15 @@ class _ChatPageState extends State<ChatPage> {
     if (confirmed == true && mounted) await widget.onDelete(entry);
   }
 
+  Future<void> _openLocation(DiaryEntry entry) async {
+    widget.onExternalActivityStart?.call();
+    try {
+      await AmapLocationBridge.showEntry(context, entry, widget.amapAndroidKey);
+    } finally {
+      widget.onExternalActivityEnd?.call();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = DiaryThemeColors.of(context);
@@ -301,28 +322,52 @@ class _ChatPageState extends State<ChatPage> {
                   : null,
               child: entries.isEmpty
                   ? const _EmptyChat()
-                  : ListView.builder(
-                      key: const Key('chat-message-list'),
-                      controller: _scrollController,
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
-                      itemCount: entries.length,
-                      itemBuilder: (context, index) {
-                        final entry = entries[index];
-                        return _ChatEntryItem(
-                          entry: entry,
-                          enteringMessageIds: _enteringMessageIds,
-                          onMessageEntranceFinished: _finishMessageEntrance,
-                          onOpenEntry: widget.onOpenEntry,
-                          onLongPress: _showEntryActions,
-                          showChatAvatar: widget.showChatAvatar,
-                          profileAvatarPath: widget.profileAvatarPath,
-                        );
+                  : NotificationListener<ScrollMetricsNotification>(
+                      onNotification: (notification) {
+                        if (notification.depth == 0 &&
+                            _composerFocusNode.hasFocus) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (mounted && _scrollController.hasClients) {
+                              _scrollController.jumpTo(
+                                _scrollController.position.maxScrollExtent,
+                              );
+                            }
+                          });
+                        }
+                        return false;
                       },
+                      child: ListView.builder(
+                        key: const Key('chat-message-list'),
+                        controller: _scrollController,
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
+                        itemCount: entries.length,
+                        itemBuilder: (context, index) {
+                          final entry = entries[index];
+                          return _ChatEntryItem(
+                            entry: entry,
+                            enteringMessageIds: _enteringMessageIds,
+                            onMessageEntranceFinished: _finishMessageEntrance,
+                            onOpenEntry: widget.onOpenEntry,
+                            onOpenLocation:
+                                widget.onOpenLocation ??
+                                (entry) => unawaited(_openLocation(entry)),
+                            onLongPress: _showEntryActions,
+                            showChatAvatar: widget.showChatAvatar,
+                            profileAvatarPath: widget.profileAvatarPath,
+                          );
+                        },
+                      ),
                     ),
             ),
           ),
           _ChatComposer(
+            focusNode: _composerFocusNode,
             onSend: widget.onSend,
+            onSendLocation: widget.onSendLocation,
+            pickLocation:
+                widget.pickLocation ??
+                () => AmapLocationBridge.pick(context, widget.amapAndroidKey),
+            amapAndroidKey: widget.amapAndroidKey,
             onSent: _scrollToLatest,
             onOpenEditor: widget.onOpenEditor,
             onImportAttachments: widget.onImportAttachments,
@@ -475,6 +520,7 @@ class _ChatEntryItem extends StatelessWidget {
     required this.enteringMessageIds,
     required this.onMessageEntranceFinished,
     required this.onOpenEntry,
+    required this.onOpenLocation,
     required this.onLongPress,
     required this.showChatAvatar,
     required this.profileAvatarPath,
@@ -484,6 +530,7 @@ class _ChatEntryItem extends StatelessWidget {
   final Set<String> enteringMessageIds;
   final ValueChanged<String> onMessageEntranceFinished;
   final ValueChanged<DiaryEntry> onOpenEntry;
+  final ValueChanged<DiaryEntry> onOpenLocation;
   final Future<void> Function(DiaryEntry entry) onLongPress;
   final bool showChatAvatar;
   final String? profileAvatarPath;
@@ -510,6 +557,7 @@ class _ChatEntryItem extends StatelessWidget {
             _ChatEntryBubble(
               entry: entry,
               onOpen: () => onOpenEntry(entry),
+              onOpenLocation: () => onOpenLocation(entry),
               onLongPress: () => unawaited(onLongPress(entry)),
               showChatAvatar: showChatAvatar,
               profileAvatarPath: profileAvatarPath,
@@ -569,6 +617,7 @@ class _ChatEntryBubble extends StatelessWidget {
   const _ChatEntryBubble({
     required this.entry,
     required this.onOpen,
+    required this.onOpenLocation,
     required this.onLongPress,
     required this.showChatAvatar,
     required this.profileAvatarPath,
@@ -576,6 +625,7 @@ class _ChatEntryBubble extends StatelessWidget {
 
   final DiaryEntry entry;
   final VoidCallback onOpen;
+  final VoidCallback onOpenLocation;
   final VoidCallback onLongPress;
   final bool showChatAvatar;
   final String? profileAvatarPath;
@@ -583,6 +633,58 @@ class _ChatEntryBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = DiaryThemeColors.of(context);
+    if (entry.latitude != null &&
+        entry.longitude != null &&
+        entry.positions.isNotEmpty) {
+      return Align(
+        alignment: Alignment.centerRight,
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Material(
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(16),
+            child: InkWell(
+              key: Key('chat-location-${entry.id}'),
+              borderRadius: BorderRadius.circular(16),
+              onTap: onOpenLocation,
+              onLongPress: onLongPress,
+              child: SizedBox(
+                width: 250,
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Row(
+                    children: [
+                      Icon(Icons.location_on_rounded, color: colors.terracotta),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              entry.positions.first,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleSmall,
+                            ),
+                            if (entry.positions.length > 1)
+                              Text(
+                                entry.positions[1],
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     final content = entry.contentText.trim();
     final mood = _ChatMood.forLabel(entry.moodLabel);
     final isMoodOnly = content.isEmpty && mood != null && !entry.hasMedia;
@@ -1003,7 +1105,11 @@ class _ChatImageStackLayer extends StatelessWidget {
 
 class _ChatComposer extends StatefulWidget {
   const _ChatComposer({
+    required this.focusNode,
     required this.onSend,
+    this.onSendLocation,
+    this.pickLocation,
+    this.amapAndroidKey = '',
     required this.onSent,
     required this.onOpenEditor,
     required this.onImportAttachments,
@@ -1016,7 +1122,11 @@ class _ChatComposer extends StatefulWidget {
     this.onClearDraft,
   });
 
+  final FocusNode focusNode;
   final ChatMessageSender onSend;
+  final Future<void> Function(DiaryPlace place)? onSendLocation;
+  final Future<DiaryPlace?> Function()? pickLocation;
+  final String amapAndroidKey;
   final VoidCallback onSent;
   final VoidCallback onOpenEditor;
   final Future<List<String>> Function(List<String> paths) onImportAttachments;
@@ -1036,7 +1146,6 @@ class _ChatComposerState extends State<_ChatComposer>
     with WidgetsBindingObserver {
   static const _draftId = 'chat-composer';
   final _controller = TextEditingController();
-  final _focusNode = FocusNode();
   final _imagePaths = <String>[];
   final _audioPaths = <String>[];
   final _videoPaths = <String>[];
@@ -1141,7 +1250,6 @@ class _ChatComposerState extends State<_ChatComposer>
     if (_draftTimer?.isActive == true) _persistDraft();
     _draftTimer?.cancel();
     _controller.dispose();
-    _focusNode.dispose();
     super.dispose();
   }
 
@@ -1189,6 +1297,15 @@ class _ChatComposerState extends State<_ChatComposer>
                 onTap: () =>
                     Navigator.pop(context, _ChatAttachmentAction.audio),
               ),
+              if (widget.onSendLocation != null &&
+                  !kIsWeb &&
+                  defaultTargetPlatform == TargetPlatform.android)
+                ListTile(
+                  leading: const Icon(Icons.location_on_outlined),
+                  title: const Text('位置'),
+                  onTap: () =>
+                      Navigator.pop(context, _ChatAttachmentAction.location),
+                ),
               ListTile(
                 leading: const Icon(Icons.edit_note_outlined),
                 title: const Text('写完整日记'),
@@ -1218,9 +1335,34 @@ class _ChatComposerState extends State<_ChatComposer>
       case _ChatAttachmentAction.audio:
         await _recordVoice();
         break;
+      case _ChatAttachmentAction.location:
+        await _sendLocation();
+        break;
       case _ChatAttachmentAction.entry:
         widget.onOpenEditor();
         break;
+    }
+  }
+
+  Future<void> _sendLocation() async {
+    if (widget.onSendLocation == null || widget.pickLocation == null) return;
+    try {
+      DiaryPlace? place;
+      widget.onExternalActivityStart?.call();
+      try {
+        place = await widget.pickLocation!();
+      } finally {
+        widget.onExternalActivityEnd?.call();
+      }
+      if (!mounted || place == null) return;
+      if (!place.isValid) {
+        _showMessage('选择的位置无效，请重试');
+        return;
+      }
+      await widget.onSendLocation!(place);
+      widget.onSent();
+    } catch (_) {
+      if (mounted) _showMessage('位置没有发送成功，请重试');
     }
   }
 
@@ -1493,7 +1635,7 @@ class _ChatComposerState extends State<_ChatComposer>
                     child: TextField(
                       key: const Key('chat-message-field'),
                       controller: _controller,
-                      focusNode: _focusNode,
+                      focusNode: widget.focusNode,
                       minLines: 1,
                       maxLines: 4,
                       textAlignVertical: TextAlignVertical.center,
@@ -1924,6 +2066,7 @@ enum _ChatAttachmentAction {
   videoGallery,
   videoCamera,
   audio,
+  location,
   entry,
 }
 
