@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -327,6 +329,76 @@ void main() {
     expect(find.text('从一句话开始'), findsOneWidget);
   });
 
+  testWidgets('sending keeps the keyboard open and preserves new typing', (
+    tester,
+  ) async {
+    final sendFinished = Completer<void>();
+    await tester.pumpWidget(
+      _ChatHarness(
+        onSend: (content, images, audio, videos, mood, moodLabel) async {
+          expect(content, '第一条');
+          await sendFinished.future;
+        },
+      ),
+    );
+    final field = find.byKey(const Key('chat-message-field'));
+    await tester.tap(field);
+    await tester.enterText(field, '第一条');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('chat-send-button')));
+    await tester.pump();
+    expect(tester.widget<TextField>(field).controller!.text, isEmpty);
+    expect(find.byKey(const Key('chat-sending-indicator')), findsOneWidget);
+    expect(tester.widget<TextField>(field).focusNode!.hasFocus, isTrue);
+    expect(tester.testTextInput.isVisible, isTrue);
+    expect(tester.widget<TextField>(field).readOnly, isFalse);
+
+    await tester.enterText(field, '下一条');
+    sendFinished.complete();
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(field).controller!.text, '下一条');
+    expect(tester.widget<TextField>(field).focusNode!.hasFocus, isTrue);
+    expect(tester.testTextInput.isVisible, isTrue);
+  });
+
+  testWidgets('failed send restores text without losing new typing', (
+    tester,
+  ) async {
+    final sendFinished = Completer<void>();
+    await tester.pumpWidget(
+      _ChatHarness(
+        onSend: (content, images, audio, videos, mood, moodLabel) =>
+            sendFinished.future,
+      ),
+    );
+    final field = find.byKey(const Key('chat-message-field'));
+    await tester.enterText(field, '未发出的消息');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('chat-send-button')));
+    await tester.pump();
+    await tester.enterText(field, '后来输入的内容');
+
+    sendFinished.completeError(StateError('save failed'));
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<TextField>(field).controller!.text, '未发出的消息\n后来输入的内容');
+    expect(find.text('发送失败，请稍后重试'), findsOneWidget);
+  });
+
+  testWidgets('keyboard send action keeps the field focused', (tester) async {
+    await tester.pumpWidget(const _ChatHarness());
+    final field = find.byKey(const Key('chat-message-field'));
+    await tester.tap(field);
+    await tester.enterText(field, '第一条');
+    await tester.testTextInput.receiveAction(TextInputAction.send);
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<TextField>(field).controller!.text, isEmpty);
+    expect(tester.widget<TextField>(field).focusNode!.hasFocus, isTrue);
+    expect(tester.testTextInput.isVisible, isTrue);
+  });
+
   testWidgets('groups diary entries by date and offers edit on long press', (
     tester,
   ) async {
@@ -403,6 +475,7 @@ void main() {
   testWidgets('shows the profile avatar beside messages only when enabled', (
     tester,
   ) async {
+    ChatPageDestination? destination;
     final entry = DiaryEntry(
       id: 'avatar-message',
       createdAt: DateTime(2026, 9, 20, 19),
@@ -418,6 +491,7 @@ void main() {
         entries: [entry],
         showChatAvatar: true,
         profileAvatarPath: 'missing-avatar.jpg',
+        onNavigate: (value) => destination = value,
       ),
     );
     await tester.pumpAndSettle();
@@ -425,6 +499,10 @@ void main() {
       find.byKey(const ValueKey('chat-profile-avatar-avatar-message')),
       findsOneWidget,
     );
+    await tester.tap(
+      find.byKey(const ValueKey('chat-profile-avatar-avatar-message')),
+    );
+    expect(destination, ChatPageDestination.profile);
 
     await tester.pumpWidget(
       _ChatHarness(entries: [entry], showChatAvatar: false),
@@ -570,6 +648,7 @@ void main() {
   testWidgets('renders an image-only diary record without message chrome', (
     tester,
   ) async {
+    ChatPageDestination? destination;
     final entry = DiaryEntry(
       id: 'image-only-entry',
       createdAt: DateTime(2026, 9, 19, 19, 10),
@@ -580,7 +659,13 @@ void main() {
       category: '生活',
       imagePaths: const ['photo.jpg'],
     );
-    await tester.pumpWidget(_ChatHarness(entries: [entry]));
+    await tester.pumpWidget(
+      _ChatHarness(
+        entries: [entry],
+        showChatAvatar: true,
+        onNavigate: (value) => destination = value,
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(
@@ -591,6 +676,10 @@ void main() {
       find.byKey(const Key('diary-image-thumbnail-image-only-entry-0')),
       findsOneWidget,
     );
+    await tester.tap(
+      find.byKey(const ValueKey('chat-profile-avatar-image-only-entry')),
+    );
+    expect(destination, ChatPageDestination.profile);
   });
 
   testWidgets('renders a playable video cover in the conversation', (

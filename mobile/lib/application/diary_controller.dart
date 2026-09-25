@@ -19,6 +19,7 @@ class DiaryController extends ChangeNotifier {
   List<DiaryEntry> _trash = const [];
   bool _isLoading = true;
   Object? _error;
+  int _entryVersion = 0;
 
   List<DiaryEntry> get entries => _entries;
   List<DiaryEntry> get trash => _trash;
@@ -37,25 +38,42 @@ class DiaryController extends ChangeNotifier {
 
   Future<void> initialize() => refresh();
 
-  Future<void> refresh() async {
+  Future<void> refresh({bool notifyBeforeLoad = true}) async {
+    final entryVersion = _entryVersion;
     _isLoading = true;
     _error = null;
-    notifyListeners();
+    if (notifyBeforeLoad) notifyListeners();
     try {
       final all = await _repository.load(includeTrash: true);
+      if (entryVersion != _entryVersion) return;
       _entries = List.unmodifiable(all.where((entry) => !entry.isInTrash));
       _trash = List.unmodifiable(all.where((entry) => entry.isInTrash));
     } catch (error) {
-      _error = error;
+      if (entryVersion == _entryVersion) _error = error;
     } finally {
-      _isLoading = false;
-      notifyListeners();
+      if (entryVersion == _entryVersion) {
+        _isLoading = false;
+        notifyListeners();
+      }
     }
   }
 
   Future<void> save(DiaryEntry entry) async {
     await _repository.save(entry);
-    await refresh();
+    await refresh(notifyBeforeLoad: false);
+  }
+
+  /// New chat entries already have all fields needed by the visible list.
+  /// Avoid reloading and decoding every diary entry on the send path.
+  Future<void> saveNewChatEntry(DiaryEntry entry) async {
+    await _repository.save(entry);
+    _entryVersion++;
+    _isLoading = false;
+    _entries = List.unmodifiable([
+      entry,
+      ..._entries.where((existing) => existing.id != entry.id),
+    ]);
+    notifyListeners();
   }
 
   Future<void> toggleFavorite(DiaryEntry entry) async {
