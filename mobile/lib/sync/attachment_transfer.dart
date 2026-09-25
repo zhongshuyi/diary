@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:path/path.dart' as p;
 
 import '../data/mobile_attachment_store.dart';
@@ -33,6 +35,27 @@ String _portablePath(Attachment attachment) {
       ? extension
       : '';
   return 'asset://${attachment.sha256}$safeExtension';
+}
+
+Future<String> _mapRichTextImages(
+  String content,
+  Future<String> Function(String path) convert,
+) async {
+  if (content.trim().isEmpty) return content;
+  dynamic operations;
+  try {
+    operations = jsonDecode(content);
+  } on FormatException {
+    return content;
+  }
+  if (operations is! List) return content;
+  for (final operation in operations) {
+    if (operation is! Map || operation['insert'] is! Map) continue;
+    final insert = operation['insert'] as Map;
+    final image = insert['image'];
+    if (image is String) insert['image'] = await convert(image);
+  }
+  return jsonEncode(operations);
 }
 
 class AttachmentTransfer {
@@ -96,8 +119,21 @@ class AttachmentTransfer {
         return task;
       }),
     );
+    final images = await hydrate(entry.imagePaths);
+    var content = entry.content;
+    if (entry.editorType == DiaryEditorType.richText) {
+      content = await _mapRichTextImages(
+        content,
+        (path) async => (await hydrate([path])).single,
+      );
+    } else if (entry.editorType == DiaryEditorType.markdown) {
+      for (var index = 0; index < images.length; index++) {
+        content = content.replaceAll(entry.imagePaths[index], images[index]);
+      }
+    }
     return entry.copyWith(
-      imagePaths: await hydrate(entry.imagePaths),
+      content: content,
+      imagePaths: images,
       audioPaths: await hydrate(entry.audioPaths),
       videoPaths: await hydrate(entry.videoPaths),
     );
@@ -119,8 +155,9 @@ class AttachmentTransfer {
               attachment.remoteState == AttachmentRemoteState.failed,
         )
         .toList(growable: false);
-    if (failed.isNotEmpty)
+    if (failed.isNotEmpty) {
       throw const SyncFailure('asset_upload_failed', '附件上传失败');
+    }
     final syncedById = {
       for (final attachment in synced) attachment.assetId: attachment,
     };
@@ -132,12 +169,25 @@ class AttachmentTransfer {
           return attachment == null ? path : _portablePath(attachment);
         })
         .toList(growable: false);
+    final images = portable(entry.imagePaths);
+    var content = entry.content;
+    if (entry.editorType == DiaryEditorType.richText) {
+      content = await _mapRichTextImages(
+        content,
+        (path) async => portable([path]).single,
+      );
+    } else if (entry.editorType == DiaryEditorType.markdown) {
+      for (var index = 0; index < images.length; index++) {
+        content = content.replaceAll(entry.imagePaths[index], images[index]);
+      }
+    }
     return entry.copyWith(
+      content: content,
       attachmentIds: {
         ...entry.attachmentIds,
         ...synced.map((attachment) => attachment.assetId),
       }.toList(growable: false),
-      imagePaths: portable(entry.imagePaths),
+      imagePaths: images,
       audioPaths: portable(entry.audioPaths),
       videoPaths: portable(entry.videoPaths),
     );
@@ -158,8 +208,9 @@ class AttachmentTransfer {
     Future<void> collect(List<String> paths, AttachmentKind kind) async {
       for (final path in paths) {
         final key = p.normalize(path);
-        if (_parseReference(path) != null || attachments.containsKey(key))
+        if (_parseReference(path) != null || attachments.containsKey(key)) {
           continue;
+        }
         attachments[key] = await store.importFile(path, kind: kind);
       }
     }

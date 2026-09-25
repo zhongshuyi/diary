@@ -107,6 +107,36 @@ class DiaryController extends ChangeNotifier {
     await refresh();
   }
 
+  /// Keeps existing records, including trash, when importing another app's data.
+  Future<int> addMissingEntries(
+    List<DiaryEntry> entries, {
+    bool resyncMatching = false,
+  }) async {
+    final existing = await _repository.load(includeTrash: true);
+    final byId = {for (final entry in existing) entry.id: entry};
+    var imported = 0;
+    for (final entry in entries) {
+      final current = byId[entry.id];
+      if (current != null) {
+        if (resyncMatching &&
+            current.createdAt.isAtSameMomentAs(entry.createdAt) &&
+            current.title == entry.title &&
+            current.contentText == entry.contentText &&
+            current.editorType == entry.editorType &&
+            current.isInTrash == entry.isInTrash &&
+            listEquals(current.imagePaths, entry.imagePaths)) {
+          await _repository.save(current.copyWith(updatedAt: DateTime.now()));
+        }
+        continue;
+      }
+      await _repository.save(entry);
+      byId[entry.id] = entry;
+      imported++;
+    }
+    await refresh(notifyBeforeLoad: false);
+    return imported;
+  }
+
   Future<void> batchSetFavorite(Iterable<String> ids, bool value) async {
     await _repository.batchSetFavorite(ids, value);
     await refresh();

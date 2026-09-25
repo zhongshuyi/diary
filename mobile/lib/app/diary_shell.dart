@@ -14,6 +14,7 @@ import 'package:diary/application/settings_controller.dart';
 import 'package:diary/data/diary_repository.dart';
 import 'package:diary/data/amap_location_bridge.dart';
 import 'package:diary/data/profile_avatar_store.dart';
+import 'package:diary/data/portable_backup_importer.dart';
 import 'package:diary/data/quick_photo_importer.dart';
 import 'package:diary/domain/diary_entry.dart';
 import 'package:diary/domain/diary_place.dart';
@@ -830,11 +831,16 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
       MaterialPageRoute(
         settings: const RouteSettings(name: AppRoutes.backup),
         builder: (_) => BackupPage(
-          entries: _entries,
+          entries: [..._entries, ..._trash],
           onExternalActivityStart: widget.lockCoordinator.beginExternalActivity,
           onExternalActivityEnd: widget.lockCoordinator.endExternalActivity,
           onImport: (entries) async {
             await _controller.replaceAll(entries);
+          },
+          onImportPackage: (package) async {
+            final entries = await PortableBackupImporter().materialize(package);
+            await _controller.addMissingEntries(entries, resyncMatching: true);
+            unawaited(_syncNow());
           },
         ),
       ),

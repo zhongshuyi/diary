@@ -48,8 +48,14 @@ void main() {
         createdAt: DateTime(2026, 9, 18),
         updatedAt: DateTime(2026, 9, 18),
         title: '照片',
-        content: '',
+        content: jsonEncode([
+          {
+            'insert': {'image': source.path},
+          },
+          {'insert': '\n'},
+        ]),
         contentText: '',
+        editorType: DiaryEditorType.richText,
         category: '生活',
         imagePaths: [source.path],
       );
@@ -69,6 +75,10 @@ void main() {
         prepared.single['entry'] as Map,
       );
       expect(wireEntry['imagePaths'], ['asset://$sha256.png']);
+      expect(
+        jsonDecode(wireEntry['content'] as String)[0]['insert']['image'],
+        'asset://$sha256.png',
+      );
       expect(wireEntry['attachmentIds'], ['asset-$sha256']);
     },
   );
@@ -97,8 +107,14 @@ void main() {
         createdAt: DateTime(2026, 9, 18),
         updatedAt: DateTime(2026, 9, 18),
         title: '来自桌面',
-        content: '',
+        content: jsonEncode([
+          {
+            'insert': {'image': 'asset://$sha256.jpg'},
+          },
+          {'insert': '\n'},
+        ]),
         contentText: '',
+        editorType: DiaryEditorType.richText,
         category: '生活',
         imagePaths: ['asset://$sha256.jpg'],
       );
@@ -106,6 +122,10 @@ void main() {
       final hydrated = await transfer.hydrateEntry(entry);
 
       expect(hydrated.imagePaths.single, endsWith('.jpg'));
+      expect(
+        jsonDecode(hydrated.content)[0]['insert']['image'],
+        hydrated.imagePaths.single,
+      );
       expect(
         await File(hydrated.imagePaths.single).readAsString(),
         'asset-bytes',

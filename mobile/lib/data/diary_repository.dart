@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -48,11 +49,13 @@ class ImportPackage {
   const ImportPackage({
     this.entries = const [],
     this.attachments = const [],
+    this.attachmentBytes = const {},
     this.settings = const {},
   });
 
   final List<DiaryEntry> entries;
   final List<Attachment> attachments;
+  final Map<String, Uint8List> attachmentBytes;
   final Map<String, dynamic> settings;
 }
 
