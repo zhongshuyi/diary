@@ -64,6 +64,12 @@ class MainActivity : FlutterFragmentActivity() {
                     putExtra("address", arguments?.get("address") as? String)
                     putExtra("latitude", (arguments?.get("latitude") as? Number)?.toDouble())
                     putExtra("longitude", (arguments?.get("longitude") as? Number)?.toDouble())
+                    for (colorKey in listOf("paperColor", "surfaceColor", "inkColor",
+                        "mutedColor", "lineColor", "accentColor", "accentSoftColor", "onAccentColor")) {
+                        (arguments?.get(colorKey) as? Number)?.toInt()?.let { putExtra(colorKey, it) }
+                    }
+                    putExtra("darkTheme", arguments?.get("darkTheme") as? Boolean ?: false)
+                    putExtra("includeThumbnail", arguments?.get("includeThumbnail") as? Boolean ?: true)
                 }
                 try {
                     pendingPlaceResult = result
@@ -128,7 +134,8 @@ class MainActivity : FlutterFragmentActivity() {
             "name" to data.getStringExtra("name"),
             "address" to data.getStringExtra("address"),
             "latitude" to data.getDoubleExtra("latitude", 0.0),
-            "longitude" to data.getDoubleExtra("longitude", 0.0)
+            "longitude" to data.getDoubleExtra("longitude", 0.0),
+            "thumbnailPath" to data.getStringExtra("thumbnailPath")
         ))
     }
 

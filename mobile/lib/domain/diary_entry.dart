@@ -143,6 +143,33 @@ class DiaryEntry {
   bool get hasMedia =>
       imagePaths.isNotEmpty || audioPaths.isNotEmpty || videoPaths.isNotEmpty;
 
+  bool get isStandaloneLocation =>
+      latitude != null &&
+      longitude != null &&
+      positions.isNotEmpty &&
+      title.trim() == positions.first.trim() &&
+      contentText.trim().isEmpty &&
+      audioPaths.isEmpty &&
+      videoPaths.isEmpty;
+
+  bool get hasGenericLocationName =>
+      positions.isNotEmpty &&
+      (positions.first.trim() == '地图中心位置' || positions.first.trim() == '选定位置');
+
+  String get locationDisplayName {
+    if (!hasGenericLocationName) return positions.first.trim();
+    if (positions.length > 1 && positions[1].trim().isNotEmpty) {
+      return positions[1].trim();
+    }
+    if (latitude != null && longitude != null) {
+      return '${latitude!.toStringAsFixed(5)}, ${longitude!.toStringAsFixed(5)}';
+    }
+    return positions.first.trim();
+  }
+
+  String get locationDisplayAddress =>
+      hasGenericLocationName || positions.length < 2 ? '' : positions[1].trim();
+
   int get wordCount => contentText.trim().runes.length;
 
   bool matches(String query) {

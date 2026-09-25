@@ -300,7 +300,11 @@ class _DetailHeader extends StatelessWidget {
             _MoodOnlyHeader(mood: mood)
           else ...[
             Text(
-              entry.title.trim().isEmpty ? '无题片段' : entry.title.trim(),
+              entry.isStandaloneLocation
+                  ? entry.locationDisplayName
+                  : entry.title.trim().isEmpty
+                  ? '无题片段'
+                  : entry.title.trim(),
               style: Theme.of(context).textTheme.displaySmall?.copyWith(
                 color: colors.ink,
                 height: 1.18,
@@ -323,12 +327,11 @@ class _DetailHeader extends StatelessWidget {
                   (weather) =>
                       _MetaChip(label: weather, icon: Icons.wb_sunny_outlined),
                 ),
-                ...entry.positions.map(
-                  (position) => _MetaChip(
-                    label: position,
+                if (entry.positions.isNotEmpty)
+                  _MetaChip(
+                    label: entry.locationDisplayName,
                     icon: Icons.location_on_outlined,
                   ),
-                ),
                 ...entry.tags.map(
                   (tag) => _MetaChip(label: '#$tag', icon: Icons.sell_outlined),
                 ),

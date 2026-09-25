@@ -33,6 +33,7 @@ class _MediaPageState extends State<MediaPage> {
   List<_MediaItem> _collectItems(List<DiaryEntry> entries) {
     final result = <_MediaItem>[];
     for (final entry in entries) {
+      if (entry.isStandaloneLocation) continue;
       for (final path in entry.imagePaths) {
         result.add(
           _MediaItem(

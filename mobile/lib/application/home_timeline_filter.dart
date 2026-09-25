@@ -129,8 +129,9 @@ class HomeTimelineFilter {
   bool _matchesMedia(DiaryEntry entry) {
     return switch (mediaFilter) {
       HomeMediaFilter.all => true,
-      HomeMediaFilter.anyMedia => entry.hasMedia,
-      HomeMediaFilter.image => entry.imagePaths.isNotEmpty,
+      HomeMediaFilter.anyMedia => entry.hasMedia && !entry.isStandaloneLocation,
+      HomeMediaFilter.image =>
+        entry.imagePaths.isNotEmpty && !entry.isStandaloneLocation,
       HomeMediaFilter.audio => entry.audioPaths.isNotEmpty,
       HomeMediaFilter.video => entry.videoPaths.isNotEmpty,
     };

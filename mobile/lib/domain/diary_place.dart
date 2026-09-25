@@ -4,12 +4,14 @@ class DiaryPlace {
     required this.address,
     required this.latitude,
     required this.longitude,
+    this.thumbnailPath,
   });
 
   final String name;
   final String address;
   final double latitude;
   final double longitude;
+  final String? thumbnailPath;
 
   bool get isValid =>
       name.trim().isNotEmpty &&

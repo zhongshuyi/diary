@@ -87,6 +87,38 @@ void main() {
     await tester.pumpAndSettle();
     expect(opened?.id, 'place-message');
   });
+
+  testWidgets('legacy map-center location displays its saved address', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _ChatHarness(
+        entries: [
+          DiaryEntry(
+            id: 'old-place-message',
+            createdAt: DateTime(2026, 9, 24),
+            updatedAt: DateTime(2026, 9, 24),
+            title: '地图中心位置',
+            content: '',
+            contentText: '',
+            category: '生活',
+            positions: const ['地图中心位置', '深圳市布吉一村'],
+            latitude: 22.5,
+            longitude: 114.1,
+          ),
+        ],
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('chat-location-old-place-message')),
+      findsOneWidget,
+    );
+    expect(find.text('深圳市布吉一村'), findsOneWidget);
+    expect(find.text('地图中心位置'), findsNothing);
+  });
+
   testWidgets('restores an unsent chat draft and clears it after sending', (
     tester,
   ) async {

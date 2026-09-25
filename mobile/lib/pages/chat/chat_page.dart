@@ -19,6 +19,7 @@ import 'package:diary/widgets/diary_image_viewer.dart';
 import 'package:diary/widgets/diary_video_player.dart';
 import 'package:diary/widgets/hold_to_record_button.dart';
 import 'package:diary/widgets/in_app_photo_picker.dart';
+import 'package:diary/widgets/local_media_preview.dart';
 import 'package:diary/widgets/selected_photo_strip.dart';
 
 typedef ChatMessageSender =
@@ -626,51 +627,103 @@ class _ChatEntryBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = DiaryThemeColors.of(context);
-    if (entry.latitude != null &&
-        entry.longitude != null &&
-        entry.positions.isNotEmpty) {
+    if (entry.isStandaloneLocation) {
       return Align(
         alignment: Alignment.centerRight,
         child: Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: Material(
             color: colors.surface,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(18),
+            clipBehavior: Clip.antiAlias,
             child: InkWell(
               key: Key('chat-location-${entry.id}'),
-              borderRadius: BorderRadius.circular(16),
               onTap: onOpenLocation,
               onLongPress: onLongPress,
               child: SizedBox(
-                width: 250,
-                child: Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: Row(
-                    children: [
-                      Icon(Icons.location_on_rounded, color: colors.terracotta),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              entry.positions.first,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.titleSmall,
-                            ),
-                            if (entry.positions.length > 1)
-                              Text(
-                                entry.positions[1],
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodySmall,
+                width: 270,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      height: 138,
+                      width: double.infinity,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          if (entry.imagePaths.isNotEmpty)
+                            LocalMediaPreview(
+                              path: entry.imagePaths.first,
+                              kind: DiaryMediaKind.image,
+                              cacheWidth: 560,
+                              cacheHeight: 280,
+                            )
+                          else
+                            CustomPaint(
+                              painter: _LocationPreviewPainter(
+                                background: colors.sage,
+                                road: colors.surface,
+                                line: colors.line,
                               ),
-                          ],
-                        ),
+                            ),
+                          Center(
+                            child: Container(
+                              padding: const EdgeInsets.all(5),
+                              decoration: BoxDecoration(
+                                color: colors.surface,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: colors.ink.withValues(alpha: .18),
+                                    blurRadius: 10,
+                                  ),
+                                ],
+                              ),
+                              child: Icon(
+                                Icons.location_on_rounded,
+                                color: colors.terracotta,
+                                size: 28,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(13, 11, 12, 13),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  entry.locationDisplayName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.titleSmall,
+                                ),
+                                if (entry.locationDisplayAddress.isNotEmpty)
+                                  Text(
+                                    entry.locationDisplayAddress,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodySmall,
+                                  ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Icon(
+                            Icons.chevron_right_rounded,
+                            color: colors.mutedInk,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -836,6 +889,57 @@ class _ChatEntryBubble extends StatelessWidget {
       ),
     );
   }
+}
+
+class _LocationPreviewPainter extends CustomPainter {
+  const _LocationPreviewPainter({
+    required this.background,
+    required this.road,
+    required this.line,
+  });
+
+  final Color background;
+  final Color road;
+  final Color line;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawColor(background, BlendMode.src);
+    final majorRoad = Paint()
+      ..color = road
+      ..strokeWidth = 13
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+    final minorRoad = Paint()
+      ..color = line.withValues(alpha: .72)
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+    final paths = [
+      Path()
+        ..moveTo(-20, size.height * .25)
+        ..lineTo(size.width * .43, size.height * .52)
+        ..lineTo(size.width + 20, size.height * .38),
+      Path()
+        ..moveTo(size.width * .24, -15)
+        ..lineTo(size.width * .36, size.height * .48)
+        ..lineTo(size.width * .25, size.height + 15),
+      Path()
+        ..moveTo(size.width * .75, -15)
+        ..lineTo(size.width * .64, size.height * .57)
+        ..lineTo(size.width * .85, size.height + 15),
+    ];
+    for (final path in paths) {
+      canvas.drawPath(path, majorRoad);
+      canvas.drawPath(path, minorRoad);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _LocationPreviewPainter oldDelegate) =>
+      oldDelegate.background != background ||
+      oldDelegate.road != road ||
+      oldDelegate.line != line;
 }
 
 class _ChatImageMessage extends StatelessWidget {

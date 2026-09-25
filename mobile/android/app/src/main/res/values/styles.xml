@@ -1,5 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <style name="AmapPlaceTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:colorAccent">#B55C44</item>
+        <item name="android:statusBarColor">#F7F3EC</item>
+        <item name="android:navigationBarColor">#F7F3EC</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowBackground">#F7F3EC</item>
+    </style>
+    <style name="AmapPlaceDarkTheme" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:colorAccent">#E89578</item>
+        <item name="android:statusBarColor">#1A1917</item>
+        <item name="android:navigationBarColor">#1A1917</item>
+        <item name="android:windowBackground">#1A1917</item>
+    </style>
     <!-- Theme applied to the Android Window while the process is starting when the OS's Dark Mode setting is off -->
     <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
         <!-- Show a splash screen on the activity. Automatically removed when

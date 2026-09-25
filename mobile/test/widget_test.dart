@@ -97,10 +97,10 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    expect(find.text('查看'), findsOneWidget);
-    await tester.tap(find.text('查看'));
-    await tester.pumpAndSettle();
-    expect(find.byType(SnackBar), findsNothing);
+    expect(find.byKey(const Key('trash-feedback-toast')), findsOneWidget);
+    expect(find.text('已移入回收站'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 1300));
+    expect(find.byKey(const Key('trash-feedback-toast')), findsNothing);
   });
 
   testWidgets('summarizes a multi-select trash action once', (tester) async {
@@ -139,8 +139,54 @@ void main() {
     await tester.tap(find.byTooltip('移入回收站'));
     await tester.pumpAndSettle();
 
-    expect(find.text('已移入回收站，共 2 篇'), findsOneWidget);
+    expect(find.text('已移入回收站 · 2 篇'), findsOneWidget);
     expect(await repository.load(), isEmpty);
+  });
+
+  testWidgets('trash feedback follows the dark theme and clears quickly', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final now = DateTime.now();
+    final store = _TestSettingsStore()
+      ..value = const DiarySettings(themeMode: DiaryThemeMode.dark);
+    await tester.pumpWidget(
+      MyApp(
+        repository: MemoryDiaryRepository([
+          DiaryEntry(
+            id: 'dark-trash',
+            createdAt: now,
+            updatedAt: now,
+            title: '待删除',
+            content: '正文',
+            contentText: '正文',
+            category: '生活',
+          ),
+        ]),
+        settingsStore: store,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('更多操作：待删除'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('移入回收站').last);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 180));
+
+    final toast = find.byKey(const Key('trash-feedback-toast'));
+    expect(toast, findsOneWidget);
+    expect(tester.widget<Material>(toast).color, DiaryThemeColors.dark.surface);
+    final placement = tester.widget<Positioned>(
+      find.ancestor(of: toast, matching: find.byType(Positioned)).first,
+    );
+    expect(placement.bottom, greaterThan(60));
+
+    await tester.pump(const Duration(milliseconds: 1200));
+    expect(toast, findsNothing);
   });
 
   testWidgets('opens the saved chat homepage by default', (tester) async {
