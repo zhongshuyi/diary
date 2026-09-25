@@ -704,6 +704,8 @@ void main() {
     );
     final syncSetting = find.byKey(const Key('settings-sync'));
     await tester.ensureVisible(syncSetting);
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -120));
+    await tester.pumpAndSettle();
     await tester.tap(syncSetting);
     await tester.pumpAndSettle();
 

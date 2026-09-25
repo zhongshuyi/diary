@@ -14,6 +14,7 @@ import 'package:diary/domain/diary_entry.dart';
 import 'package:diary/domain/diary_settings.dart';
 import 'package:diary/widgets/diary_chat_background.dart';
 import 'package:diary/widgets/in_app_photo_picker.dart';
+import 'package:diary/widgets/app_lock_settings.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({
@@ -215,16 +216,13 @@ class SettingsPage extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 12),
+              Text('应用锁', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 10),
+              AppLockSettings(controller: controller),
+              const SizedBox(height: 12),
               _Section(
-                title: '安全与提醒',
+                title: '提醒',
                 children: [
-                  _SwitchTile(
-                    title: '生物识别锁',
-                    subtitle: '打开应用或回到前台时使用系统生物识别/设备解锁',
-                    value: settings.biometricLock,
-                    onChanged: (value) =>
-                        unawaited(controller.setBiometricLock(value)),
-                  ),
                   _SwitchTile(
                     key: const Key('settings-daily-reminder'),
                     title: '每日提醒',
