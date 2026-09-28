@@ -42,6 +42,12 @@ class _EntryDetailPageState extends State<EntryDetailPage> {
   @override
   Widget build(BuildContext context) {
     final colors = DiaryThemeColors.of(context);
+    final embeddedImages = _entry.editorType == DiaryEditorType.richText
+        ? richTextImagePaths(_entry.content)
+        : <String>{};
+    final standaloneImages = _entry.imagePaths
+        .where((path) => !embeddedImages.contains(path))
+        .toList();
     return Scaffold(
       backgroundColor: colors.paper,
       appBar: AppBar(
@@ -95,17 +101,17 @@ class _EntryDetailPageState extends State<EntryDetailPage> {
                   const SizedBox(height: 10),
                   _Content(entry: _entry),
                 ],
-                if (_entry.imagePaths.isNotEmpty) ...[
+                if (standaloneImages.isNotEmpty) ...[
                   const SizedBox(height: 26),
                   _DetailSectionTitle(
                     icon: Icons.photo_library_outlined,
                     title: '照片',
-                    count: _entry.imagePaths.length,
+                    count: standaloneImages.length,
                   ),
                   const SizedBox(height: 10),
                   DiaryImageGallery(
                     entryId: _entry.id,
-                    imagePaths: _entry.imagePaths,
+                    imagePaths: standaloneImages,
                     showHeader: false,
                     maxGridHeight: 340,
                   ),

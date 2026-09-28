@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
@@ -692,8 +693,19 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
 
   Widget _attachmentControls(BuildContext context) {
     final colors = DiaryThemeColors.of(context);
+    final inlineImages = _editorType == DiaryEditorType.richText
+        ? {
+            for (final operation
+                in _quillController.document.toDelta().toJson())
+              if (operation['insert'] case {'image': final String path}) path,
+          }
+        : <String>{};
     final photos = _attachments
-        .where((path) => diaryMediaKindForPath(path) == DiaryMediaKind.image)
+        .where(
+          (path) =>
+              diaryMediaKindForPath(path) == DiaryMediaKind.image &&
+              !inlineImages.contains(path),
+        )
         .toList(growable: false);
     final otherFiles = _attachments
         .where((path) => diaryMediaKindForPath(path) != DiaryMediaKind.image)
@@ -979,6 +991,13 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
     final colors = DiaryThemeColors.of(context);
     switch (_editorType) {
       case DiaryEditorType.richText:
+        final imageConfig = QuillEditorImageEmbedConfig(
+          onImageRemovedCallback: (path) async {
+            if (!mounted) return;
+            setState(() => _attachments = [..._attachments]..remove(path));
+            _scheduleDraftSave();
+          },
+        );
         return Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
@@ -988,14 +1007,64 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
           ),
           child: Column(
             children: [
-              quill.QuillSimpleToolbar(
-                controller: _quillController,
-                config: quill.QuillSimpleToolbarConfig(
-                  multiRowsDisplay: false,
-                  showFontFamily: false,
-                  showFontSize: false,
-                  embedButtons: FlutterQuillEmbeds.toolbarButtons(),
-                ),
+              Row(
+                children: [
+                  QuillToolbarImageButton(
+                    controller: _quillController,
+                    options: QuillToolbarImageButtonOptions(
+                      tooltip: '插入图片',
+                      imageButtonConfig: QuillToolbarImageConfig(
+                        onRequestPickImage: (_) => _pickInlineImage(),
+                        onImageInsertCallback: (path, controller) async {
+                          final selection = controller.selection;
+                          final index = selection.isValid
+                              ? selection.start
+                              : controller.document.length - 1;
+                          controller
+                            ..skipRequestKeyboard = true
+                            ..replaceText(
+                              index,
+                              selection.isValid ? selection.end - index : 0,
+                              quill.BlockEmbed.image(path),
+                              null,
+                            )
+                            ..moveCursorToPosition(index + 1);
+                          if (mounted) {
+                            setState(
+                              () => _attachments = [
+                                ..._attachments.where((item) => item != path),
+                                path,
+                              ],
+                            );
+                            _scheduleDraftSave();
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: quill.QuillSimpleToolbar(
+                      controller: _quillController,
+                      config: const quill.QuillSimpleToolbarConfig(
+                        multiRowsDisplay: false,
+                        showDividers: false,
+                        showFontFamily: false,
+                        showFontSize: false,
+                        showStrikeThrough: false,
+                        showInlineCode: false,
+                        showSubscript: false,
+                        showSuperscript: false,
+                        showColorButton: false,
+                        showBackgroundColorButton: false,
+                        showClearFormat: false,
+                        showListCheck: false,
+                        showCodeBlock: false,
+                        showIndent: false,
+                        showSearchButton: false,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const Divider(height: 1),
               SizedBox(
@@ -1006,7 +1075,13 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
                     scrollable: true,
                     padding: const EdgeInsets.fromLTRB(8, 15, 8, 15),
                     placeholder: '从一个词开始……',
-                    embedBuilders: FlutterQuillEmbeds.defaultEditorBuilders(),
+                    embedBuilders: kIsWeb
+                        ? FlutterQuillEmbeds.editorWebBuilders(
+                            imageEmbedConfig: imageConfig,
+                          )
+                        : FlutterQuillEmbeds.editorBuilders(
+                            imageEmbedConfig: imageConfig,
+                          ),
                   ),
                 ),
               ),
@@ -1054,6 +1129,35 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
             hintText: '此刻的你，正在想什么？\n\n不必完整，也不必漂亮。',
           ),
         );
+    }
+  }
+
+  Future<String?> _pickInlineImage() async {
+    if (_pickingAttachment || _saving) return null;
+    setState(() => _pickingAttachment = true);
+    if (widget.desktopLayout) widget.onExternalActivityStart?.call();
+    try {
+      final selection = widget.desktopLayout
+          ? ImagePicker()
+                .pickImage(source: ImageSource.gallery)
+                .then((image) => image == null ? <String>[] : [image.path])
+          : widget.pickGalleryPhotos?.call() ??
+                pickDiaryPhotos(context, maxAssets: 1);
+      final paths = await selection;
+      if (paths.isEmpty) return null;
+      final imported =
+          await widget.onImportPhotos?.call([paths.first]) ?? [paths.first];
+      return imported.firstOrNull;
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('图片没有插入成功，请重试')));
+      }
+      return null;
+    } finally {
+      if (widget.desktopLayout) widget.onExternalActivityEnd?.call();
+      if (mounted) setState(() => _pickingAttachment = false);
     }
   }
 
