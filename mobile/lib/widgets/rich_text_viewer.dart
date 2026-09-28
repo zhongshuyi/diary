@@ -6,16 +6,35 @@ import 'package:flutter_quill_extensions/flutter_quill_extensions.dart';
 
 import 'package:diary/app/app_theme.dart';
 
+Set<String> richTextImagePaths(String content) {
+  try {
+    final decoded = jsonDecode(content);
+    final operations = decoded is List ? decoded : (decoded as Map)['ops'];
+    if (operations is! List) return {};
+    return {
+      for (final operation in operations)
+        if (operation is Map &&
+            operation['insert'] is Map &&
+            operation['insert']['image'] is String)
+          operation['insert']['image'] as String,
+    };
+  } on Object {
+    return {};
+  }
+}
+
 /// A read-only Quill renderer that is safe for imported and legacy entries.
 class DiaryRichTextViewer extends StatefulWidget {
   const DiaryRichTextViewer({
     required this.content,
     required this.fallbackText,
+    this.compact = false,
     super.key,
   });
 
   final String content;
   final String fallbackText;
+  final bool compact;
 
   @override
   State<DiaryRichTextViewer> createState() => _DiaryRichTextViewerState();
@@ -49,24 +68,27 @@ class _DiaryRichTextViewerState extends State<DiaryRichTextViewer> {
   Widget build(BuildContext context) {
     final controller = _controller;
     if (controller == null) {
+      if (widget.compact) return Text(widget.fallbackText);
       return _FallbackContent(text: widget.fallbackText);
     }
     final colors = DiaryThemeColors.of(context);
+    final editor = quill.QuillEditor.basic(
+      controller: controller,
+      config: quill.QuillEditorConfig(
+        padding: widget.compact ? EdgeInsets.zero : const EdgeInsets.all(20),
+        minHeight: widget.compact ? 0 : 120,
+        scrollable: false,
+        embedBuilders: FlutterQuillEmbeds.defaultEditorBuilders(),
+      ),
+    );
+    if (widget.compact) return editor;
     return DecoratedBox(
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: colors.line),
       ),
-      child: quill.QuillEditor.basic(
-        controller: controller,
-        config: quill.QuillEditorConfig(
-          padding: const EdgeInsets.all(20),
-          minHeight: 120,
-          scrollable: false,
-          embedBuilders: FlutterQuillEmbeds.defaultEditorBuilders(),
-        ),
-      ),
+      child: editor,
     );
   }
 

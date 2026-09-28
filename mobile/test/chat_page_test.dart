@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,8 +11,54 @@ import 'package:diary/pages/chat/chat_page.dart';
 import 'package:diary/domain/diary_place.dart';
 import 'package:diary/widgets/diary_audio_player.dart';
 import 'package:diary/widgets/diary_video_player.dart';
+import 'package:diary/widgets/rich_text_viewer.dart';
 
 void main() {
+  testWidgets('conversation keeps rich formatting and attached photos', (
+    tester,
+  ) async {
+    final entry = DiaryEntry(
+      id: 'rich-message',
+      createdAt: DateTime(2026, 9, 28),
+      updatedAt: DateTime(2026, 9, 28),
+      title: '完整日记',
+      content: jsonEncode([
+        {
+          'insert': '加粗的文字',
+          'attributes': {'bold': true},
+        },
+        {'insert': '\n'},
+      ]),
+      contentText: '加粗的文字',
+      editorType: DiaryEditorType.richText,
+      category: '生活',
+      imagePaths: const ['photo.jpg'],
+    );
+    await tester.pumpWidget(_ChatHarness(entries: [entry]));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(DiaryRichTextViewer), findsOneWidget);
+    expect(
+      find.byKey(const Key('diary-image-thumbnail-rich-message-0')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  test('embedded rich-text image paths are identified', () {
+    expect(
+      richTextImagePaths(
+        jsonEncode([
+          {
+            'insert': {'image': 'photo.jpg'},
+          },
+          {'insert': '\n'},
+        ]),
+      ),
+      {'photo.jpg'},
+    );
+  });
+
   testWidgets('location menu sends the selected place as a separate message', (
     tester,
   ) async {

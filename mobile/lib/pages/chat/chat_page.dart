@@ -21,6 +21,7 @@ import 'package:diary/widgets/hold_to_record_button.dart';
 import 'package:diary/widgets/in_app_photo_picker.dart';
 import 'package:diary/widgets/local_media_preview.dart';
 import 'package:diary/widgets/selected_photo_strip.dart';
+import 'package:diary/widgets/rich_text_viewer.dart';
 
 typedef ChatMessageSender =
     Future<void> Function(
@@ -879,22 +880,35 @@ class _ChatEntryBubble extends StatelessWidget {
       );
     }
     final content = entry.contentText.trim();
+    final isRichText = entry.editorType == DiaryEditorType.richText;
+    final embeddedImages = isRichText
+        ? richTextImagePaths(entry.content)
+        : <String>{};
+    final imageEntry = embeddedImages.isEmpty
+        ? entry
+        : entry.copyWith(
+            imagePaths: entry.imagePaths
+                .where((path) => !embeddedImages.contains(path))
+                .toList(),
+          );
+    final hasText =
+        content.isNotEmpty || (isRichText && entry.content.isNotEmpty);
     final mood = _ChatMood.forLabel(entry.moodLabel);
-    final isMoodOnly = content.isEmpty && mood != null && !entry.hasMedia;
+    final isMoodOnly = !hasText && mood != null && !entry.hasMedia;
     final isImageOnly =
-        content.isEmpty &&
+        !hasText &&
         mood == null &&
         entry.imagePaths.isNotEmpty &&
         entry.audioPaths.isEmpty &&
         entry.videoPaths.isEmpty;
     final isVoiceOnly =
-        content.isEmpty &&
+        !hasText &&
         mood == null &&
         entry.imagePaths.isEmpty &&
         entry.videoPaths.isEmpty &&
         entry.audioPaths.isNotEmpty;
     final hasBubbleContent =
-        content.isNotEmpty ||
+        hasText ||
         mood != null ||
         entry.imagePaths.isNotEmpty ||
         entry.audioPaths.isNotEmpty;
@@ -954,12 +968,18 @@ class _ChatEntryBubble extends StatelessWidget {
                                 children: [
                                   if (mood != null) ...[
                                     _ChatMoodBadge(mood: mood),
-                                    if (content.isNotEmpty ||
-                                        entry.imagePaths.isNotEmpty ||
+                                    if (hasText ||
+                                        imageEntry.imagePaths.isNotEmpty ||
                                         entry.audioPaths.isNotEmpty)
                                       const SizedBox(height: 8),
                                   ],
-                                  if (content.isNotEmpty)
+                                  if (hasText && isRichText)
+                                    DiaryRichTextViewer(
+                                      content: entry.content,
+                                      fallbackText: content,
+                                      compact: true,
+                                    )
+                                  else if (content.isNotEmpty)
                                     Text(
                                       content,
                                       style: Theme.of(context)
@@ -971,13 +991,13 @@ class _ChatEntryBubble extends StatelessWidget {
                                             height: 1.45,
                                           ),
                                     ),
-                                  if (content.isNotEmpty &&
-                                      (entry.imagePaths.isNotEmpty ||
+                                  if (hasText &&
+                                      (imageEntry.imagePaths.isNotEmpty ||
                                           entry.audioPaths.isNotEmpty))
                                     const SizedBox(height: 10),
-                                  if (entry.imagePaths.isNotEmpty)
-                                    _ChatImageGrid(entry: entry),
-                                  if (entry.imagePaths.isNotEmpty &&
+                                  if (imageEntry.imagePaths.isNotEmpty)
+                                    _ChatImageGrid(entry: imageEntry),
+                                  if (imageEntry.imagePaths.isNotEmpty &&
                                       entry.audioPaths.isNotEmpty)
                                     const SizedBox(height: 8),
                                   for (

@@ -1,5 +1,9 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_quill/flutter_quill.dart' as quill;
 
 import 'package:diary/app/app_theme.dart';
 import 'package:diary/application/diary_draft_store.dart';
@@ -10,6 +14,65 @@ import 'package:diary/pages/entry/entry_detail_page.dart';
 import 'package:diary/pages/entry/entry_editor_page.dart';
 
 void main() {
+  testWidgets('rich editor imports inline images and tracks the attachment', (
+    tester,
+  ) async {
+    final directory = await tester.runAsync(
+      () => Directory.systemTemp.createTemp('diary-inline-test'),
+    );
+    if (directory == null) fail('Could not create test image directory');
+    addTearDown(() => directory.delete(recursive: true));
+    final image = File('${directory.path}/photo.png');
+    await tester.runAsync(
+      () => image.writeAsBytes(
+        base64Decode(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/lXcAAAAASUVORK5CYII=',
+        ),
+      ),
+    );
+    DiaryEntry? saved;
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: const [
+          quill.FlutterQuillLocalizations.delegate,
+        ],
+        home: EntryEditorPage(
+          categories: const ['生活'],
+          defaultEditorType: DiaryEditorType.richText,
+          pickGalleryPhotos: () async => [image.path],
+          onImportPhotos: (paths) async => paths,
+          onSave: (entry) async => saved = entry,
+        ),
+      ),
+    );
+    await tester.tap(find.byTooltip('插入图片'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('保存日记'));
+    await tester.tap(find.text('保存日记'));
+    await tester.pumpAndSettle();
+
+    expect(saved?.imagePaths, [image.path]);
+    expect(
+      (jsonDecode(saved!.content) as List).first['insert']['image'],
+      image.path,
+    );
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpWidget(
+      MaterialApp(
+        home: EntryDetailPage(
+          entry: saved!,
+          onEdit: (_) async => null,
+          onShare: () {},
+          onDelete: () {},
+          onToggleFavorite: () {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('照片'), findsNothing);
+  });
+
   testWidgets('only stores a mood when the writer selects one', (tester) async {
     final store = MemoryDiaryDraftStore();
     DiaryEntry? saved;
