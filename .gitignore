@@ -41,3 +41,6 @@ server/.env.*
 
 # Git worktrees
 .worktrees/
+
+# Private deployment notes and local history-rewrite backups
+/.local/
