@@ -1,68 +1,99 @@
-# My Diary
+# 此刻 · Flutter 客户端
 
-一个以隐私和长期记录为核心的 Flutter 日记应用。UI 采用温暖纸张、深墨绿和陶土色的编辑感设计，手机与 Windows 桌面端使用不同的应用壳层和交互逻辑，共享同一套本地日记数据与业务用例。
+此刻是一款本地优先的私人日记工具。这个目录主要维护 Android 客户端，适合对话式速记、随手拍照和离线记录。独立桌面客户端位于 [`../desktop/`](../desktop/README.md)；本目录保留的 iOS、Windows、macOS、Linux 和 Web 工程需要分别验证，不能视为已经具备相同的平台能力。
 
-## 当前能力
+## 已实现功能
 
-- 时间线、搜索、分类筛选和收藏
-- 首页快速记录：手机端打开后可直接写下一条碎碎念，同一天支持多次独立记录
-- 纯文本、Markdown 预览、Quill 富文本三种编辑方式
-- 图片/文件附件入口、单篇分享、JSON 全量备份
-- 日历视图、媒体库、情绪洞察、回收站恢复与永久删除
-- 主题模式、全局阅读字号、默认编辑器和字数显示均可持久化
-- 可选系统生物识别/设备解锁，应用切回前台时重新验证
-- 原生端使用 Isar Community 3.3.2 存储，带唯一 ID、时间、分类和回收站索引
-- Web 端使用同一仓储接口切换到 SharedPreferences，规避 Isar 3.x schema 的 JavaScript 64 位常量限制
-- Windows 端使用独立的桌面工作区：侧边导航、今日快速记录面板、分栏编辑器、键盘快捷键和 Flutter 自绘无标题栏
+- 对话式记录、首页速记和完整日记编辑，支持草稿保存与恢复。
+- 纯文本、Markdown 编辑与预览、Quill 富文本；分类、标签、心情和收藏。
+- 照片、拍照、视频、录音和文件附件，以及图片预览、音频和视频播放。
+- 时间线、搜索与筛选、日历、媒体库、本地心情统计和每周回顾。
+- 回收站恢复与永久删除，ZIP 完整备份和 ZIP / JSON 导入。
+- 6 位应用密码和可选生物识别快捷解锁，可选每日本地提醒。
+- 主题模式与配色、阅读字号、头像和聊天背景设置。
+- 可选自托管同步、附件传输与冲突处理；Android 高德位置消息、系统文字/图片分享接收和启动快捷方式。
 
-## 工程结构
+## 数据与同步
 
-```text
-lib/
-├─ app/             应用主题、路由常量、手机壳层与 Windows 桌面壳层
-├─ application/     日记与设置用例、页面状态控制器
-├─ domain/          DiaryEntry、DiarySettings 领域模型与演示数据
-├─ data/            日记仓储、Isar 模型、设置存储与平台实现
-├─ pages/           按功能拆分的页面：主页、日历、媒体、洞察、编辑、详情、分享、回收站、设置
-└─ widgets/         导航、媒体预览、日记卡片、页面标题等可复用组件
-```
+Android 使用 Isar Community 保存日记、草稿、待同步记录和同步状态，附件复制到应用自己的目录并以 SHA256 标识。单个导入附件上限为 128 MB。无需启动服务器即可保存和阅读本地日记。
 
-页面不直接依赖数据库；所有持久化操作通过 `DiaryRepository`，原生端默认使用 Isar Community，测试可以注入内存仓储。
+需要跨设备同步时，在“设置 → 同步”填写服务地址和可选 token。服务部署参见 [`../server/README.md`](../server/README.md)，协议参见 [`../docs/sync-contract.md`](../docs/sync-contract.md)。也可在构建时通过 `DIARY_SYNC_URL` 和 `DIARY_SYNC_TOKEN` 提供默认连接；设备设置优先。
 
-## 依赖策略
+“备份与恢复”可以保存包含正文、分类、标签、心情和本机附件的 ZIP，也支持分享 JSON 文本及导入 ZIP / JSON。需要迁移附件时使用 ZIP。备份格式未加密，应用密码是访问控制，不会加密日记或备份文件。
 
-依赖已按当前 Flutter 3.41.2 / Dart 3.11.0 环境验证。`isar_community` 用于原生端的大量日记数据；没有实际使用的参考项目依赖不会为了“堆包”而加入。`local_auth` 用于可选隐私锁。`flutter_quill`、`share_plus` 和 `file_picker` 已选择当前依赖树可解析且测试通过的版本；Pub 显示的更高版本需要 Dart 3.12 或会与现有 Windows 依赖冲突，待升级 Flutter 后再升级。
+## 开发准备
 
-## 参考 moodiary 后的取舍
-
-已加入：媒体库、持久化偏好、主题与字号、系统隐私锁、回收站、日历、洞察和本地备份。这些功能与“离线优先、长期记录”目标直接相关。
-
-暂不默认加入：AI 助手、地图轨迹、WebDAV/MinIO 云同步和涂鸦实验室。它们会扩大日记隐私边界；后续可以作为独立可选模块接入。
-
-## 位置消息（Android）
-
-在“设置 → 高德 Android Key”填写与当前 APK 包名及签名 SHA1 匹配的高德 Key。对话页“＋ → 位置”会先显示高德隐私说明和系统定位授权，再打开地图选点页；可以选择当前位置、拖动地图选择附近地点或搜索地点。确认发送后，地点名称、地址和经纬度作为一条日记消息保存，并通过现有日记同步协议传输。点击位置消息可查看地图，安装了高德地图 App 时还可跳转打开。
-
-Key 保存在当前设备的设置中，不随日记同步。正式版包名是 `com.ling.diary`，dev 版是 `com.ling.diary.dev`，两者应分别申请 Key。iOS 版需要单独申请 iOS Key 并接入对应 SDK。
-
-## 开发
+需要 Flutter SDK（Dart SDK 满足 `^3.11.0`）、Android SDK，以及可供 Android 构建使用的 JDK 17。以下命令均在本目录执行：
 
 ```powershell
 flutter pub get
-dart run build_runner build
 flutter test -j 1
-flutter run
+flutter devices
 ```
 
-Windows 桌面端：
+Isar 生成代码已保存在仓库中。修改 `lib/data/` 下的 `@collection` 模型后，重新生成：
 
 ```powershell
-flutter run -d windows
-flutter build windows --release
+dart run build_runner build
 ```
 
-关于页支持从同步服务器检查手机端更新，并从实际构建信息读取当前版本。发布构建时通过 `--dart-define=DIARY_UPDATE_SERVER_URL=https://your-sync-host.example` 指定同步服务器地址；`DIARY_APP_VERSION` 仅作为无法读取构建信息时的兜底。
+### Android 签名配置
 
-Release 产物位于 `build/windows/x64/runner/Release/diary.exe`。Windows 顶栏提供主题图标、窗口拖动、最小化、最大化/还原和关闭；常用快捷键为 `Ctrl + N` 新建日记、`Ctrl + K` 聚焦搜索、`Ctrl + Enter` 保存编辑中的日记、`Esc` 返回。手机端继续使用底部导航和首页快速记录入口。
+当前 Gradle 配置在加载时要求 `android/key.properties` 存在，debug 构建也需要这个配置文件。准备自己的 keystore，然后创建该文件；以下仅为占位模板：
 
-Isar 生成文件位于 `lib/data/isar_diary_record.g.dart`，修改 `@collection` 模型后重新运行生成命令。
+```properties
+storeFile=C:/private/path/diary-release.jks
+storePassword=YOUR_STORE_PASSWORD
+keyAlias=YOUR_KEY_ALIAS
+keyPassword=YOUR_KEY_PASSWORD
+```
+
+`storeFile` 可使用绝对路径，Windows 路径建议使用 `/`。配置文件与 keystore 均已被 Git 忽略，不应提交到仓库。更新已有正式版时必须沿用原签名密钥。
+
+## 构建与覆盖安装
+
+debug 版包名为 `com.ling.diary.dev`，显示名为 `Diary Dev`；正式版包名为 `com.ling.diary`，显示名为“此刻”。两者分别保存应用数据。
+
+先通过 `adb devices` 确认目标设备，再构建并覆盖安装 dev 版：
+
+```powershell
+adb devices
+flutter build apk --debug
+adb -s <设备序列号> install -r build/app/outputs/flutter-apk/app-debug.apk
+```
+
+正式版：
+
+```powershell
+flutter build apk --release
+adb -s <设备序列号> install -r build/app/outputs/flutter-apk/app-release.apk
+```
+
+更新时保留原应用及数据，不先卸载、不清除数据，也不使用 `flutter install`。如果覆盖安装因签名或版本失败，应先处理失败原因，不能通过卸载绕过。
+
+## 位置与更新配置
+
+位置功能目前仅支持 Android。在“设置 → 高德 Android Key”填写与当前 APK 包名及签名 SHA1 匹配的 Key；dev 和正式版应分别配置。首次使用会请求高德隐私授权和系统定位权限，可在设置中撤回隐私授权。对话页“＋ → 位置”支持选点和发送位置消息，点击消息可查看地图。Key 仅保存在当前设备，不随日记同步。
+
+关于页可以手动检查同步服务器提供的版本信息，并打开下载地址。需要配置默认更新服务器时，可在构建命令中追加：
+
+```powershell
+--dart-define=DIARY_UPDATE_SERVER_URL=https://your-sync-host.example
+```
+
+当前版本优先读取实际安装包信息；`DIARY_APP_VERSION` 只用于无法读取构建信息时的兜底。
+
+## 代码结构
+
+| 目录 | 职责 |
+| --- | --- |
+| `lib/app/` | 主题、路由、平台壳层和应用锁入口 |
+| `lib/application/` | 用例、状态控制器、提醒与本地统计 |
+| `lib/domain/` | 日记、设置、附件和同步模型 |
+| `lib/data/` | 仓储、Isar 模型、备份和原生桥接 |
+| `lib/sync/` | 同步客户端、待同步队列和附件传输 |
+| `lib/pages/` | 对话、时间线、编辑、日历、媒体及设置页面 |
+| `lib/widgets/` | 编辑、媒体展示和其他可复用组件 |
+| `test/` | 单元测试与 Widget 测试 |
+
+页面通过 `DiaryRepository` 和控制器执行持久化操作，测试可以注入内存仓储。Web 仓储有 SharedPreferences fallback；完整 Web 运行和媒体能力仍需单独验证。
