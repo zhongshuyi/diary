@@ -63,6 +63,22 @@ export function assertTag(info, tag) {
   if (tag !== info.tag) throw new Error(`tag ${tag} 与源码版本不一致，应为 ${info.tag}`);
 }
 
+export function assertSourceCommit(tagCommit, sourceCommit) {
+  if (!/^[a-f0-9]{40}$/.test(tagCommit) || tagCommit !== sourceCommit) {
+    throw new Error('发布 tag 与构建源码提交不一致；不要移动已有发布 tag，请递增版本');
+  }
+}
+
+export function assertPublishedRelease(release, info) {
+  if (release.tagName !== info.tag || release.isDraft !== false || (info.platform === 'mobile' && release.isPrerelease !== false)) {
+    throw new Error(`${info.tag} 尚未公开发布到对应渠道`);
+  }
+  const asset = release.assets?.find((item) => item.name === info.fileName);
+  if (!asset || asset.state !== 'uploaded' || asset.size <= 0 || asset.url !== info.downloadUrl) {
+    throw new Error(`${info.tag} 缺少可下载的对应安装包`);
+  }
+}
+
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, { cwd: ROOT, encoding: 'utf8', windowsHide: true, ...options });
   if (result.error) throw result.error;
@@ -115,6 +131,8 @@ function prepare(platform) {
   const info = check(platform);
   if (run('git', ['status', '--porcelain'])) throw new Error('工作区有未提交修改，先固定发布源码');
   const sourceCommit = run('git', ['rev-parse', 'HEAD']);
+  const tagCommit = run('git', ['rev-parse', '--verify', `refs/tags/${info.tag}^{commit}`]);
+  assertSourceCommit(tagCommit, sourceCommit);
   const commitTimeMs = Number(run('git', ['show', '-s', '--format=%ct', 'HEAD'])) * 1000;
   const source = platform === 'mobile'
     ? join(ROOT, 'mobile/build/app/outputs/flutter-apk/app-release.apk')
@@ -173,6 +191,16 @@ export function updateManifest(root = ROOT) {
   return { platforms };
 }
 
+function verifyPublishedPlatforms() {
+  const windowsGh = process.env.ProgramFiles && join(process.env.ProgramFiles, 'GitHub CLI/gh.exe');
+  const gh = process.platform === 'win32' && windowsGh && existsSync(windowsGh) ? windowsGh : 'gh';
+  for (const platform of ['mobile', 'desktop']) {
+    const info = releaseInfo(platform);
+    const release = JSON.parse(run(gh, ['release', 'view', info.tag, '--repo', 'zhongshuyi/diary', '--json', 'tagName,isDraft,isPrerelease,assets']));
+    assertPublishedRelease(release, info);
+  }
+}
+
 export function main(args) {
   const [command, platform, value, build] = args;
   if (command === 'versions' && args.length === 1) {
@@ -187,14 +215,22 @@ export function main(args) {
     bump(platform, value, build);
   } else if (command === 'prepare' && args.length === 2) {
     prepare(platform);
-  } else if (command === 'manifest' && (args.length === 1 || (args.length === 3 && platform === '--output'))) {
-    const output = resolve(ROOT, value || 'artifacts/update-manifest.json');
+  } else if (command === 'manifest') {
+    let outputPath = 'artifacts/update-manifest.json';
+    let offline = false;
+    for (let index = 1; index < args.length; index++) {
+      if (args[index] === '--offline' && !offline) offline = true;
+      else if (args[index] === '--output' && args[index + 1] && !args[index + 1].startsWith('--')) outputPath = args[++index];
+      else throw new Error('manifest 只接受 --output <file> 和 --offline');
+    }
+    if (!offline) verifyPublishedPlatforms();
+    const output = resolve(ROOT, outputPath);
     const manifest = updateManifest();
     mkdirSync(dirname(output), { recursive: true });
     writeFileSync(output, `${JSON.stringify(manifest, null, 2)}\n`);
-    console.log(`更新清单已生成：${output}`);
+    console.log(`${offline ? '离线草稿（尚未校验公开安装包）' : '公开安装包校验通过，更新清单已生成'}：${output}`);
   } else {
-    throw new Error('用法：versions | check all | check <mobile|desktop> [tag] | bump mobile <version> <build> | bump desktop <version> | prepare <mobile|desktop> | manifest [--output <file>]');
+    throw new Error('用法：versions | check all | check <mobile|desktop> [tag] | bump mobile <version> <build> | bump desktop <version> | prepare <mobile|desktop> | manifest [--output <file>] [--offline]');
   }
 }
 

@@ -72,6 +72,8 @@ node scripts/release.mjs prepare mobile
 
 构建失败时停止，不能使用目录中遗留的旧 APK 继续发布。`prepare mobile` 使用 Android SDK 的 `aapt2` 和 Java / `apksigner` 校验 APK 的正式包名、版本、build number 和签名，并输出公开安装包及元数据。版本检查通过并不代表签名与用户已有安装一致；首次准备该签名的公开发行时，还应与可信旧正式 APK 的签名证书摘要比对。
 
+`prepare` 要求该版本 tag 已在本机存在，并且指向当前干净工作区的 HEAD。tag 对应其他提交时停止；不移动已发布 tag，也不把旧版本号用于新构建。
+
 如果需要在手机上验证更新，先确认目标设备，再使用覆盖安装：
 
 ```powershell
@@ -190,5 +192,7 @@ CI 检查版本规则及相关模块，不代替设备验证。Windows 打包工
 ```powershell
 node scripts/release.mjs manifest --output artifacts/update-manifest.json
 ```
+
+默认通过 `gh` 核验两端 Release 均已公开且对应安装包可下载；Android 必须是正式渠道，Windows 可为明确标注的公开预览。任一版本仍为 draft 或资产缺失时停止，避免把先递增但尚未发布的平台写进完整清单。仅预览文件时可加 `--offline`，生成的离线草稿需要完成公开资产核验后再部署。
 
 核对清单中的平台版本与具体 tag 下载地址，再按[同步服务说明](../server/README.md)部署到自己的更新服务。脚本只生成文件，不部署服务、不修改真实服务器配置。上传 GitHub Release 本身不会改变已部署的更新清单；客户端当前检查更新后打开下载链接，不自动替用户安装。

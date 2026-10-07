@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, utimesSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
-import { parseVersion, parseMobileVersion, assertVersionIncrease, assertTag, releaseInfo, assertFreshArtifact, assertApkMetadata, assertDesktopMetadata, updateManifest } from './release.mjs';
+import { parseVersion, parseMobileVersion, assertVersionIncrease, assertTag, assertSourceCommit, assertPublishedRelease, releaseInfo, assertFreshArtifact, assertApkMetadata, assertDesktopMetadata, updateManifest } from './release.mjs';
 
 function removeTestDirectory(root) {
   assert.equal(dirname(resolve(root)), resolve(tmpdir()));
@@ -36,6 +36,24 @@ test('两端独立 tag，跨平台与旧版本 tag 均停止', () => {
   assertTag(info, 'mobile-v1.0.2');
   assert.throws(() => assertTag(info, 'desktop-v1.0.2'));
   assert.throws(() => assertTag(info, 'mobile-v1.0.1'));
+});
+
+test('同版本的 tag 已指向其他提交时不能关联新安装包', () => {
+  const source = 'a'.repeat(40);
+  assertSourceCommit(source, source);
+  assert.throws(() => assertSourceCommit('b'.repeat(40), source));
+  assert.throws(() => assertSourceCommit('main', source));
+});
+
+test('更新清单不能指向草稿、缺失资产或错误 URL，桌面公开预览可用', () => {
+  const info = { platform: 'desktop', tag: 'desktop-v0.1.1', fileName: 'setup.exe', downloadUrl: 'https://example.com/setup.exe' };
+  const release = { tagName: info.tag, isDraft: false, isPrerelease: true, assets: [{ name: info.fileName, state: 'uploaded', size: 100, url: info.downloadUrl }] };
+  assertPublishedRelease(release, info);
+  assert.throws(() => assertPublishedRelease({ ...release, isDraft: true }, info));
+  assert.throws(() => assertPublishedRelease({ ...release, assets: [] }, info));
+  assert.throws(() => assertPublishedRelease({ ...release, assets: [{ ...release.assets[0], url: 'https://example.com/old.exe' }] }, info));
+  assert.throws(() => assertPublishedRelease({ ...release, tagName: 'desktop-v0.1.0' }, info));
+  assert.throws(() => assertPublishedRelease(release, { ...info, platform: 'mobile' }));
 });
 
 test('拒绝旧 APK、dev 包和不对应源码的安装包', () => {
