@@ -1,0 +1,82 @@
+name: 缺陷报告
+description: 报告使用过程中遇到的问题，提供可复现的步骤。
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        提交前请搜索已有 Issue。Issue 内容公开，请用虚构日记复现，不要填写真实服务器 IP、访问令牌或私人日记数据。安全漏洞请通过[私有报告入口](https://github.com/zhongshuyi/diary/security/advisories/new)提交。
+  - type: dropdown
+    id: platform
+    attributes:
+      label: 平台
+      options:
+        - Android 手机端
+        - Windows 桌面端
+        - 同步服务
+        - 文档或其他
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: 应用版本或提交
+      description: 填写关于页版本、正式版或开发版；构建号可见时一并填写。源码运行或服务端问题请填写 commit SHA。
+      placeholder: "例如：1.0.2（正式版），或 commit SHA"
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: 运行环境
+      description: 填写操作系统版本、设备型号；源码运行时可补充 Flutter 或 Node.js 版本。
+      placeholder: "例如：Android 15，设备型号；或 Windows 11"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 使用虚构内容给出最少步骤，说明问题是否每次出现。
+      placeholder: |
+        1. 打开……
+        2. 执行……
+        3. 出现……
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望结果
+      description: 描述你希望看到的行为。
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际结果
+      description: 描述实际发生的情况及可见的错误提示。
+    validations:
+      required: true
+  - type: dropdown
+    id: sync_status
+    attributes:
+      label: 同步状态（可选）
+      description: 仅选择状态，不填写服务器地址或访问令牌。
+      options:
+        - 未启用同步
+        - 已启用，尚未触发同步
+        - 同步成功
+        - 同步失败
+        - 不确定或不适用
+    validations:
+      required: false
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 日志或截图（可选）
+      description: 仅提供相关片段，先隐去 IP、令牌、日记内容及其他个人信息。
+    validations:
+      required: false

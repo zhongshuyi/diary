@@ -37,6 +37,8 @@ npm test
 
 只修改文档时，检查命令、相对链接及 `git diff --check` 即可。涉及交互时还需在对应平台验证实际行为；涉及同步时应检查离线保存、失败重试、跨端增量、附件和删除传播。
 
+仓库 CI 分别运行发布脚本、手机端、桌面端与服务端检查。修改版本或发布流程时，在仓库根目录运行 `node --test scripts/release.test.mjs` 和 `node scripts/release.mjs check all`；打包与版本规则见[发布指南](docs/releasing.md)。安全问题请通过[私有漏洞报告](SECURITY.md)反馈。
+
 在手机上验证更新时先确认设备序列号，构建后使用 `adb -s <设备序列号> install -r <APK路径>` 覆盖安装。保留原有应用与数据；签名或版本不兼容导致失败时先处理原因，不通过卸载绕过。
 
 ## 提交说明

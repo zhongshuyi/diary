@@ -1,13 +1,13 @@
 {
   "name": "diary-desktop",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "packageManager": "pnpm@11.17.0",
   "description": "A focused Electron desktop shell for the Diary app",
   "main": "src/main.cjs",
   "scripts": {
     "build": "vite build",
-    "dist:win": "pnpm run build && electron-builder --win nsis",
+    "dist:win": "pnpm run build && electron-builder --win nsis --publish never",
     "test": "node --test src/main/**/*.test.cjs",
     "start": "pnpm run build && electron .",
     "dev": "pnpm run build && electron ."
@@ -44,10 +44,18 @@
       "output": "release"
     },
     "files": [
-      "**/*",
-      "!release*/**"
+      "dist/**/*",
+      "src/main.cjs",
+      "src/preload.cjs",
+      "src/main/**/*.cjs",
+      "src/renderer/brand/diary_logo.png",
+      "!**/*.test.cjs",
+      "!**/.env",
+      "!**/.env.*",
+      "!**/.local/**"
     ],
     "win": {
+      "artifactName": "diary-desktop-${version}-win-${arch}-setup.${ext}",
       "icon": "resources/diary.ico",
       "target": [
         {

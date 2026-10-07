@@ -1,0 +1,125 @@
+name: Windows desktop draft release
+run-name: Prepare ${{ inputs.tag }} as a draft
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing pushed desktop tag, for example desktop-v0.1.1'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-draft-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  draft:
+    name: Build Windows x64 and create preview draft
+    runs-on: windows-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      RELEASE_TAG: ${{ inputs.tag }}
+    steps:
+      - name: Validate tag input
+        run: |
+          if ($env:RELEASE_TAG -cnotmatch '\Adesktop-v(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\z') {
+            throw 'Expected an existing desktop-vX.Y.Z tag'
+          }
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Confirm checked out tag and release notes
+        run: |
+          git show-ref --verify --quiet "refs/tags/$env:RELEASE_TAG"
+          if ($LASTEXITCODE -ne 0) { throw 'The input must name a pushed Git tag' }
+          $tagCommit = git rev-parse --verify "$($env:RELEASE_TAG)^{commit}"
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve tag commit' }
+          $headCommit = git rev-parse HEAD
+          if ($LASTEXITCODE -ne 0 -or $tagCommit -ne $headCommit) { throw 'Checkout does not match tag commit' }
+          if (-not (Test-Path -LiteralPath "releases/$env:RELEASE_TAG.md" -PathType Leaf)) {
+            throw 'Missing release notes for tag'
+          }
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+
+      - name: Check version against tag
+        run: node scripts/release.mjs check desktop "$env:RELEASE_TAG"
+
+      - name: Install pinned pnpm
+        run: npm install --global pnpm@11.17.0
+
+      - name: Install desktop dependencies
+        working-directory: desktop
+        run: pnpm install --frozen-lockfile
+
+      - name: Test desktop main process
+        working-directory: desktop
+        run: pnpm test
+
+      - name: Build Windows installer without publishing
+        working-directory: desktop
+        run: pnpm run dist:win
+
+      - name: Prepare and validate release artifacts
+        run: |
+          node scripts/release.mjs prepare desktop
+          if ($LASTEXITCODE -ne 0) { throw 'Artifact preparation failed' }
+          $releaseDirectory = Join-Path 'artifacts/releases' $env:RELEASE_TAG
+          $releaseFiles = @(Get-ChildItem -LiteralPath $releaseDirectory -File)
+          $installers = @($releaseFiles | Where-Object { $_.Extension -eq '.exe' })
+          if ($releaseFiles.Count -ne 3 -or $installers.Count -ne 1) {
+            throw 'Expected one EXE, SHA256SUMS and release.json'
+          }
+          foreach ($requiredFile in @('SHA256SUMS', 'release.json')) {
+            if (-not (Test-Path -LiteralPath (Join-Path $releaseDirectory $requiredFile) -PathType Leaf)) {
+              throw "Missing $requiredFile"
+            }
+          }
+          $metadata = Get-Content -LiteralPath (Join-Path $releaseDirectory 'release.json') -Raw | ConvertFrom-Json
+          $tagCommit = git rev-parse --verify "$($env:RELEASE_TAG)^{commit}"
+          if ($LASTEXITCODE -ne 0 -or $metadata.sourceCommit -ne $tagCommit) {
+            throw 'Artifact metadata does not match the tag commit'
+          }
+
+      - name: Save prepared artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ inputs.tag }}
+          path: |
+            artifacts/releases/${{ inputs.tag }}/*.exe
+            artifacts/releases/${{ inputs.tag }}/SHA256SUMS
+            artifacts/releases/${{ inputs.tag }}/release.json
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+      - name: Create preview draft and upload assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $existingTags = @(gh api "repos/$env:GITHUB_REPOSITORY/releases" --paginate --jq '.[].tag_name')
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect existing releases' }
+          if ($existingTags -contains $env:RELEASE_TAG) { throw 'Release already exists; no assets will be overwritten' }
+          $releaseDirectory = Join-Path 'artifacts/releases' $env:RELEASE_TAG
+          $installer = @(Get-ChildItem -LiteralPath $releaseDirectory -File -Filter '*.exe')[0]
+          gh release create "$env:RELEASE_TAG" --repo "$env:GITHUB_REPOSITORY" --verify-tag --draft --prerelease --latest=false --title "此刻 Windows $env:RELEASE_TAG 公开预览" --notes-file "releases/$env:RELEASE_TAG.md"
+          if ($LASTEXITCODE -ne 0) { throw 'Draft creation failed' }
+          gh release upload "$env:RELEASE_TAG" --repo "$env:GITHUB_REPOSITORY" $installer.FullName (Join-Path $releaseDirectory 'SHA256SUMS') (Join-Path $releaseDirectory 'release.json')
+          if ($LASTEXITCODE -ne 0) { throw 'Asset upload failed; inspect the draft before retrying' }
+          gh release view "$env:RELEASE_TAG" --repo "$env:GITHUB_REPOSITORY" --json tagName,isDraft,isPrerelease,assets
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect the created draft' }

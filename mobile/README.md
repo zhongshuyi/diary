@@ -2,6 +2,8 @@
 
 此刻是一款本地优先的私人日记工具。这个目录主要维护 Android 客户端，适合对话式速记、随手拍照和离线记录。独立桌面客户端位于 [`../desktop/`](../desktop/README.md)；本目录保留的 iOS、Windows、macOS、Linux 和 Web 工程需要分别验证，不能视为已经具备相同的平台能力。
 
+当前正式安装包：[Android 1.0.2+3](https://github.com/zhongshuyi/diary/releases/tag/mobile-v1.0.2)。版本、签名校验与后续发布步骤见[发布指南](../docs/releasing.md)。
+
 ## 已实现功能
 
 - 对话式记录、首页速记和完整日记编辑，支持草稿保存与恢复。

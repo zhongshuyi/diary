@@ -13,6 +13,17 @@
 
 此刻把快速记录和日后回看放在一起：手机上像发消息一样写下一个瞬间，电脑上用键盘和宽屏继续编辑、检索和整理。记录先保存到自己的设备，离线也能使用；需要在设备之间接续时，再连接自己的同步服务。
 
+[![CI](https://github.com/zhongshuyi/diary/actions/workflows/ci.yml/badge.svg)](https://github.com/zhongshuyi/diary/actions/workflows/ci.yml)
+
+## 下载安装
+
+| 平台 | 当前版本 | 安装包 |
+| --- | --- | --- |
+| Android 7.0 及以上 | [1.0.2+3 正式版](https://github.com/zhongshuyi/diary/releases/tag/mobile-v1.0.2) | [APK](https://github.com/zhongshuyi/diary/releases/download/mobile-v1.0.2/diary-android-1.0.2-build3.apk) |
+| Windows x64 | [0.1.1 公开预览](https://github.com/zhongshuyi/diary/releases/tag/desktop-v0.1.1) | [NSIS 安装包](https://github.com/zhongshuyi/diary/releases/download/desktop-v0.1.1/diary-desktop-0.1.1-win-x64-setup.exe) |
+
+每个 Release 附带 `SHA256SUMS` 和源码提交元数据。Android 正式版更新请覆盖安装，保留现有数据与原签名。Windows 预览包未进行代码签名，也尚未完成完整 GUI 验收。两端独立管理版本，详见[更新日志](CHANGELOG.md)与[发布指南](docs/releasing.md)。
+
 ## 可以做什么
 
 - **随手记录**：Android 提供对话式速记、首页速记和完整编辑器；Windows 提供工作区、独立速记窗口和全局快捷键。
@@ -116,5 +127,8 @@ npm start
 | [开发机部署](docs/sync-service-deployment.md) | Windows 与手机局域网连接、排障 |
 | [服务器部署](docs/server-sync-service-deployment.md) | HTTPS、PM2、数据备份、更新与回退 |
 | [贡献指南](CONTRIBUTING.md) | 问题反馈、修改范围和验证命令 |
+| [更新日志](CHANGELOG.md) | 两端版本与用户可见变化 |
+| [发布指南](docs/releasing.md) | 版本、tag、安装包校验与 GitHub Release |
+| [安全漏洞报告](SECURITY.md) | 私有报告入口与报告方式 |
 
 欢迎通过 [Issues](https://github.com/zhongshuyi/diary/issues) 反馈问题或提出建议，也欢迎提交 Pull Request。提交前请阅读贡献指南；功能路线与待验收项另见[桌面实施方案](docs/desktop-implementation-plan.md)。

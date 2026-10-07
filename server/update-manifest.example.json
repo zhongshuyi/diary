@@ -1,14 +1,14 @@
 {
   "platforms": {
-    "desktop": {
-      "version": "0.1.0",
-      "downloadUrl": "https://your-download-host.example/diary-desktop",
-      "notes": ""
-    },
     "mobile": {
-      "version": "1.0.0",
-      "downloadUrl": "https://your-download-host.example/diary-mobile",
-      "notes": ""
+      "version": "1.0.2",
+      "downloadUrl": "https://github.com/zhongshuyi/diary/releases/download/mobile-v1.0.2/diary-android-1.0.2-build3.apk",
+      "notes": "优化对话页键盘和气泡动画，减少发送后立即收起键盘时的重复布局。\n修复长按并删除消息后输入法重新弹出的问题。\n自动同步使用延迟队列，交互停顿后分批处理，手动同步可立即执行。\n分批处理附件哈希、补齐与传输，改善富文本显示和包含附件的备份流程。"
+    },
+    "desktop": {
+      "version": "0.1.1",
+      "downloadUrl": "https://github.com/zhongshuyi/diary/releases/download/desktop-v0.1.1/diary-desktop-0.1.1-win-x64-setup.exe",
+      "notes": "公开预览：提供独立桌面版本与安装包，包含速记、Markdown / 富文本编辑、检索、媒体浏览和托盘功能。\n本地 SQLite、附件、滚动备份、Sync API v2 与冲突处理随预览包分发。\n收紧打包范围，排除项目测试、开发配置和私有文件。\n保持应用身份与数据目录兼容，构建命令关闭自动上传。"
     }
   }
 }

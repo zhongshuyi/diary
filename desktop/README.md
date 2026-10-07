@@ -4,6 +4,8 @@
 
 当前安装包配置面向 **Windows x64**，使用 NSIS 安装程序；macOS 和 Linux 尚未配置发布打包入口。仓库中的 Flutter Windows 工程属于 `mobile/` 的平台目录，本文的桌面启动与打包入口均在 `desktop/`。
 
+当前安装包：[Windows 0.1.1 公开预览](https://github.com/zhongshuyi/diary/releases/tag/desktop-v0.1.1)，尚未完成完整 GUI 与代码签名验收。版本与发布步骤见[发布指南](../docs/releasing.md)。
+
 ## 技术与代码入口
 
 | 部分 | 当前实现 | 入口 |

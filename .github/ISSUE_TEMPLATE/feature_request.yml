@@ -1,0 +1,43 @@
+name: 功能建议
+description: 描述真实使用场景，以及你希望增加或改善的功能。
+title: "[Feature] "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        提交前请搜索已有建议。请用虚构内容说明场景，不要附上真实服务器 IP、访问令牌或私人日记数据。
+  - type: dropdown
+    id: platform
+    attributes:
+      label: 涉及平台（可选）
+      multiple: true
+      options:
+        - Android 手机端
+        - Windows 桌面端
+        - 同步服务
+        - 通用或其他
+    validations:
+      required: false
+  - type: textarea
+    id: scenario
+    attributes:
+      label: 使用场景与遇到的问题
+      description: 说明你在什么情况下需要这个功能，以及现有流程哪里不方便。
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 建议的行为
+      description: 描述希望怎样操作、得到什么结果。
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 当前替代办法或补充说明（可选）
+      description: 可说明现有解决办法，以及这个建议如何改善使用体验；截图请先脱敏。
+    validations:
+      required: false
