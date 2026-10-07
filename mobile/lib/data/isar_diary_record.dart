@@ -57,6 +57,9 @@ class DiaryRecord {
   late List<String> attachmentIds;
   late List<String> imagePaths;
   late List<String> audioPaths;
+  List<String> audioTranscripts = [];
+  @Index(type: IndexType.value)
+  String audioTranscriptText = '';
   late List<String> videoPaths;
   late List<String> weather;
   late List<String> positions;
@@ -91,6 +94,8 @@ class DiaryRecord {
       ..attachmentIds = List<String>.from(entry.attachmentIds)
       ..imagePaths = List<String>.from(entry.imagePaths)
       ..audioPaths = List<String>.from(entry.audioPaths)
+      ..audioTranscripts = List<String>.from(entry.audioTranscripts)
+      ..audioTranscriptText = entry.audioTranscripts.join('\n')
       ..videoPaths = List<String>.from(entry.videoPaths)
       ..weather = List<String>.from(entry.weather)
       ..positions = List<String>.from(entry.positions)
@@ -124,6 +129,7 @@ class DiaryRecord {
       attachmentIds: attachmentIds,
       imagePaths: imagePaths,
       audioPaths: audioPaths,
+      audioTranscripts: audioTranscripts,
       videoPaths: videoPaths,
       weather: weather,
       positions: positions,

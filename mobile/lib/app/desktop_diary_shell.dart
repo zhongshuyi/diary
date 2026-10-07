@@ -6,8 +6,11 @@ import 'package:flutter/services.dart';
 import 'package:diary/app/app_theme.dart';
 import 'package:diary/app/diary_shell.dart';
 import 'package:diary/application/settings_controller.dart';
+import 'package:diary/application/local_assistant_controller.dart';
+import 'package:diary/application/transcription_controller.dart';
 import 'package:diary/domain/diary_entry.dart';
 import 'package:diary/domain/diary_settings.dart';
+import 'package:diary/domain/sync_state.dart';
 import 'package:diary/pages/calendar/calendar_page.dart';
 import 'package:diary/pages/chat/chat_page.dart';
 import 'package:diary/pages/entry/entry_detail_page.dart';
@@ -38,6 +41,12 @@ class DesktopDiaryShell extends StatefulWidget {
     this.chatTitle = diaryDefaultChatTitle,
     this.chatBackground = const DiaryChatBackground(),
     this.conflictCount = 0,
+    this.syncState = const SyncState(),
+    this.onOpenSyncSettings,
+    this.onPickAvatar,
+    this.onClearAvatar,
+    this.localAssistantController,
+    this.transcriptionController,
     super.key,
   });
 
@@ -50,6 +59,12 @@ class DesktopDiaryShell extends StatefulWidget {
   final String chatTitle;
   final DiaryChatBackground chatBackground;
   final int conflictCount;
+  final SyncState syncState;
+  final Future<void> Function()? onOpenSyncSettings;
+  final Future<void> Function()? onPickAvatar;
+  final Future<void> Function()? onClearAvatar;
+  final LocalAssistantController? localAssistantController;
+  final TranscriptionController? transcriptionController;
 
   @override
   State<DesktopDiaryShell> createState() => _DesktopDiaryShellState();
@@ -166,8 +181,23 @@ class _DesktopDiaryShellState extends State<DesktopDiaryShell> {
       ),
       ChatPage(
         entries: widget.entries,
+        localAssistantController: widget.localAssistantController,
+        transcriptionController: widget.transcriptionController,
+        onOpenLocalAssistant: widget.actions.openLocalAssistant == null
+            ? null
+            : () => unawaited(widget.actions.openLocalAssistant!()),
+        onOpenTranscriptionSettings: widget.actions.openTranscription == null
+            ? null
+            : () => unawaited(widget.actions.openTranscription!()),
         title: widget.chatTitle,
         chatBackground: widget.chatBackground,
+        chatStyle: widget.settingsController.settings.chatStyle,
+        companionAvatarPath:
+            widget.settingsController.settings.companionAvatarPath,
+        companionName: widget.settingsController.settings.companionName,
+        onOpenChatAppearance: widget.actions.openChatAppearance == null
+            ? null
+            : () => unawaited(widget.actions.openChatAppearance!()),
         showChatAvatar: widget.settingsController.settings.showChatAvatar,
         profileAvatarPath: widget.settingsController.settings.profileAvatarPath,
         onSend: widget.actions.saveChatMessage,
@@ -202,6 +232,9 @@ class _DesktopDiaryShellState extends State<DesktopDiaryShell> {
         showProfileSignature:
             widget.settingsController.settings.showProfileSignature,
         onSaveProfile: widget.settingsController.setProfileDetails,
+        profileAvatarPath: widget.settingsController.settings.profileAvatarPath,
+        onPickAvatar: widget.onPickAvatar,
+        onClearAvatar: widget.onClearAvatar,
         entryCount: widget.entries.length,
         trashCount: widget.trash.length,
         onOpenRecycle: () => unawaited(_openRecycle()),
@@ -209,7 +242,20 @@ class _DesktopDiaryShellState extends State<DesktopDiaryShell> {
         onOpenCategories: _openCategories,
         onOpenBackup: _openBackup,
         onOpenAbout: _openAbout,
+        onOpenLocalAssistant: widget.actions.openLocalAssistant == null
+            ? null
+            : () => unawaited(widget.actions.openLocalAssistant!()),
+        onOpenTranscription: widget.actions.openTranscription == null
+            ? null
+            : () => unawaited(widget.actions.openTranscription!()),
+        onOpenChatAppearance: widget.actions.openChatAppearance == null
+            ? null
+            : () => unawaited(widget.actions.openChatAppearance!()),
         conflictCount: widget.conflictCount,
+        syncState: widget.syncState,
+        onOpenSyncSettings: widget.onOpenSyncSettings == null
+            ? null
+            : () => unawaited(widget.onOpenSyncSettings!()),
         onOpenConflicts: () => unawaited(widget.actions.openConflicts()),
       ),
     ];
@@ -298,6 +344,13 @@ class _DesktopDiaryShellState extends State<DesktopDiaryShell> {
   Widget _detailPage(BuildContext context, DiaryEntry entry) {
     return EntryDetailPage(
       entry: entry,
+      localAssistantController: widget.localAssistantController,
+      transcriptionController: widget.transcriptionController,
+      getCurrentEntry: () =>
+          widget.entries.where((item) => item.id == entry.id).firstOrNull,
+      onOpenTranscriptionSettings: widget.actions.openTranscription == null
+          ? null
+          : () => unawaited(widget.actions.openTranscription!()),
       onEdit: (value) => _openEditor(value),
       onShare: () => unawaited(_openShare(entry)),
       onDelete: () => unawaited(widget.actions.moveToTrash(entry)),
@@ -340,6 +393,15 @@ class _DesktopDiaryShellState extends State<DesktopDiaryShell> {
       (context) => SettingsPage(
         controller: widget.settingsController,
         onImportPhotos: widget.actions.importQuickPhotos,
+        onOpenLocalAssistant: widget.actions.openLocalAssistant == null
+            ? null
+            : () => unawaited(widget.actions.openLocalAssistant!()),
+        onOpenTranscription: widget.actions.openTranscription == null
+            ? null
+            : () => unawaited(widget.actions.openTranscription!()),
+        onOpenChatAppearance: widget.actions.openChatAppearance == null
+            ? null
+            : () => unawaited(widget.actions.openChatAppearance!()),
         onOpenCategories: () => unawaited(_openCategories()),
         onOpenBackup: () => unawaited(_openBackup()),
         onOpenAbout: () => unawaited(_openAbout()),

@@ -1,0 +1,12 @@
+group = "com.ling.diary.offline_speech.android_x86_64"
+version = "1.0"
+
+apply plugin: "com.android.library"
+
+android {
+    namespace "com.ling.diary.offline_speech.android_x86_64"
+    compileSdk = 34
+    defaultConfig { minSdk = 21 }
+    // Intentionally no native libraries: this ABI retains ordinary diary use.
+ }
+

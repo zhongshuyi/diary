@@ -111,8 +111,9 @@ class _QuickCaptureSheetState extends State<QuickCaptureSheet> {
         draft == null ||
         _controller.text.isNotEmpty ||
         _imagePaths.isNotEmpty ||
-        _audioPaths.isNotEmpty)
+        _audioPaths.isNotEmpty) {
       return;
+    }
     _restoring = true;
     final content = '${draft.payload['content'] ?? ''}';
     if (draft.payload['editorType'] == 'richText') {

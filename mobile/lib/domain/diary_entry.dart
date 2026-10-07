@@ -61,6 +61,7 @@ class DiaryEntry {
     this.attachmentIds = const [],
     this.imagePaths = const [],
     this.audioPaths = const [],
+    List<String> audioTranscripts = const [],
     this.videoPaths = const [],
     this.weather = const [],
     this.positions = const [],
@@ -70,7 +71,10 @@ class DiaryEntry {
     this.isFavorite = false,
     this.isInTrash = false,
     this.isDeleted = false,
-  });
+  }) : _audioTranscripts = audioTranscripts;
+
+  static const maxAudioTranscripts = 32;
+  static const maxAudioTranscriptCharacters = 16000;
 
   final String id;
   final DateTime createdAt;
@@ -98,6 +102,46 @@ class DiaryEntry {
   final List<String> attachmentIds;
   final List<String> imagePaths;
   final List<String> audioPaths;
+  final List<String> _audioTranscripts;
+
+  /// Results align with [audioPaths]; empty slots have not been transcribed.
+  /// Positions, rather than device file paths, survive portable backups/sync.
+  List<String> get audioTranscripts =>
+      _readAudioTranscripts(_audioTranscripts, audioPaths.length);
+
+  String? transcriptForAudioPath(String path) {
+    final index = audioPaths.indexOf(path);
+    if (index < 0 || index >= maxAudioTranscripts) return null;
+    final transcripts = audioTranscripts;
+    if (index >= transcripts.length || transcripts[index].isEmpty) return null;
+    return transcripts[index];
+  }
+
+  /// A stale result for an attachment that was removed does not modify entries.
+  DiaryEntry withAudioTranscript(String path, String text) {
+    final index = audioPaths.indexOf(path);
+    if (index < 0) return this;
+    if (index >= maxAudioTranscripts) {
+      throw const FormatException('每条日记最多保存 32 条录音转写');
+    }
+    final result = text.trim();
+    if (result.length > maxAudioTranscriptCharacters) {
+      throw const FormatException('录音转写内容超过 16000 字，请使用较短的录音');
+    }
+    final previous = audioTranscripts;
+    return copyWith(
+      audioTranscripts: List.generate(
+        audioPaths.length.clamp(0, maxAudioTranscripts),
+        (position) => position == index
+            ? result
+            : position < previous.length
+            ? previous[position]
+            : '',
+        growable: false,
+      ),
+    );
+  }
+
   final List<String> videoPaths;
   final List<String> weather;
   final List<String> positions;
@@ -180,6 +224,7 @@ class DiaryEntry {
       contentText,
       category,
       ...tags,
+      ...audioTranscripts,
     ].join(' ').toLowerCase();
     return searchable.contains(normalized);
   }
@@ -206,6 +251,7 @@ class DiaryEntry {
     List<String>? attachmentIds,
     List<String>? imagePaths,
     List<String>? audioPaths,
+    List<String>? audioTranscripts,
     List<String>? videoPaths,
     List<String>? weather,
     List<String>? positions,
@@ -223,6 +269,17 @@ class DiaryEntry {
             : isInTrash
             ? (updatedAt ?? DateTime.now())
             : null);
+    final nextAudioPaths = audioPaths ?? this.audioPaths;
+    // Attachment editing follows paths, while a portable-path rewrite must
+    // explicitly carry the existing parallel results with audioTranscripts.
+    final nextTranscripts =
+        audioTranscripts ??
+        (audioPaths == null
+            ? this.audioTranscripts
+            : nextAudioPaths
+                  .take(maxAudioTranscripts)
+                  .map((path) => transcriptForAudioPath(path) ?? '')
+                  .toList(growable: false));
     return DiaryEntry(
       id: id ?? this.id,
       createdAt: createdAt ?? this.createdAt,
@@ -244,7 +301,8 @@ class DiaryEntry {
       tags: tags ?? this.tags,
       attachmentIds: attachmentIds ?? this.attachmentIds,
       imagePaths: imagePaths ?? this.imagePaths,
-      audioPaths: audioPaths ?? this.audioPaths,
+      audioPaths: nextAudioPaths,
+      audioTranscripts: nextTranscripts,
       videoPaths: videoPaths ?? this.videoPaths,
       weather: weather ?? this.weather,
       positions: positions ?? this.positions,
@@ -281,6 +339,7 @@ class DiaryEntry {
       'attachmentIds': attachmentIds,
       'imagePaths': imagePaths,
       'audioPaths': audioPaths,
+      'audioTranscripts': audioTranscripts,
       'videoPaths': videoPaths,
       'weather': weather,
       'positions': positions,
@@ -302,6 +361,23 @@ class DiaryEntry {
         json['isInTrash'] == true ||
         json['show'] == false ||
         deletedAt != null;
+    final rawAudioPaths = json['audioPaths'] ?? json['audioName'];
+    final audioPaths = _readStringList(rawAudioPaths);
+    final rawAudioTranscripts = json['audioTranscripts'];
+    final audioTranscripts = <Object?>[];
+    if (rawAudioPaths is List && rawAudioTranscripts is List) {
+      for (
+        var index = 0;
+        index < rawAudioPaths.length &&
+            audioTranscripts.length < maxAudioTranscripts;
+        index++
+      ) {
+        if (rawAudioPaths[index] is! String) continue;
+        audioTranscripts.add(
+          index < rawAudioTranscripts.length ? rawAudioTranscripts[index] : '',
+        );
+      }
+    }
     return DiaryEntry(
       id: _readString(
         json['id'],
@@ -348,7 +424,11 @@ class DiaryEntry {
       tags: _readStringList(json['tags']),
       attachmentIds: _readStringList(json['attachmentIds']),
       imagePaths: _readStringList(json['imagePaths'] ?? json['imageName']),
-      audioPaths: _readStringList(json['audioPaths'] ?? json['audioName']),
+      audioPaths: audioPaths,
+      audioTranscripts: _readAudioTranscripts(
+        audioTranscripts,
+        audioPaths.length,
+      ),
       videoPaths: _readStringList(json['videoPaths'] ?? json['videoName']),
       weather: _readStringList(json['weather']),
       positions: _readStringList(json['positions'] ?? json['position']),
@@ -385,6 +465,7 @@ class DiaryEntry {
         _listEquals(attachmentIds, other.attachmentIds) &&
         _listEquals(imagePaths, other.imagePaths) &&
         _listEquals(audioPaths, other.audioPaths) &&
+        _listEquals(audioTranscripts, other.audioTranscripts) &&
         _listEquals(videoPaths, other.videoPaths) &&
         _listEquals(weather, other.weather) &&
         _listEquals(positions, other.positions) &&
@@ -419,6 +500,7 @@ class DiaryEntry {
     Object.hashAll(attachmentIds),
     Object.hashAll(imagePaths),
     Object.hashAll(audioPaths),
+    Object.hashAll(audioTranscripts),
     Object.hashAll(videoPaths),
     Object.hashAll(weather),
     Object.hashAll(positions),
@@ -463,6 +545,24 @@ int _readInt(Object? value, {required int fallback}) {
 List<String> _readStringList(Object? value) {
   if (value is! List) return const [];
   return value.whereType<String>().toList(growable: false);
+}
+
+List<String> _readAudioTranscripts(Object? value, int audioCount) {
+  if (value is! List || value.isEmpty || audioCount == 0) return const [];
+  final count = audioCount.clamp(0, DiaryEntry.maxAudioTranscripts);
+  final result = List<String>.generate(count, (index) {
+    final text = index < value.length && value[index] is String
+        ? (value[index] as String).trim()
+        : '';
+    if (text.length <= DiaryEntry.maxAudioTranscriptCharacters) return text;
+    var end = DiaryEntry.maxAudioTranscriptCharacters;
+    // Never leave half of a supplementary Unicode character at the boundary.
+    final codeUnit = text.codeUnitAt(end - 1);
+    if (codeUnit >= 0xd800 && codeUnit <= 0xdbff) end--;
+    return text.substring(0, end);
+  }, growable: false);
+  if (result.every((text) => text.isEmpty)) return const [];
+  return List.unmodifiable(result);
 }
 
 bool _listEquals(List<String> left, List<String> right) {

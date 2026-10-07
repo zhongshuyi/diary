@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'package:diary/app/app_routes.dart';
 import 'package:diary/app/app_theme.dart';
@@ -11,12 +12,17 @@ import 'package:diary/application/diary_controller.dart';
 import 'package:diary/application/diary_lock_coordinator.dart';
 import 'package:diary/application/incoming_share_bridge.dart';
 import 'package:diary/application/settings_controller.dart';
+import 'package:diary/application/local_assistant_controller.dart';
+import 'package:diary/application/transcription_controller.dart';
+import 'package:diary/services/local_llm_engine.dart';
+import 'package:diary/pages/assistant/local_assistant_settings_page.dart';
 import 'package:diary/data/diary_repository.dart';
 import 'package:diary/data/amap_location_bridge.dart';
 import 'package:diary/data/profile_avatar_store.dart';
 import 'package:diary/data/portable_backup_importer.dart';
 import 'package:diary/data/quick_photo_importer.dart';
 import 'package:diary/domain/diary_entry.dart';
+import 'package:diary/domain/assistant_provider_settings.dart';
 import 'package:diary/domain/diary_place.dart';
 import 'package:diary/domain/conflict.dart';
 import 'package:diary/domain/diary_settings.dart';
@@ -32,6 +38,8 @@ import 'package:diary/pages/settings/about_page.dart';
 import 'package:diary/pages/settings/backup_page.dart';
 import 'package:diary/pages/settings/category_page.dart';
 import 'package:diary/pages/settings/settings_page.dart';
+import 'package:diary/pages/settings/transcription_settings_page.dart';
+import 'package:diary/pages/settings/chat_appearance_settings_page.dart';
 import 'package:diary/pages/share/share_page.dart';
 import 'package:diary/widgets/avatar_cropper.dart';
 import 'package:diary/widgets/trash_feedback_toast.dart';
@@ -71,6 +79,9 @@ class DiaryShellActions {
     required this.openCategories,
     required this.openBackup,
     required this.openAbout,
+    this.openLocalAssistant,
+    this.openTranscription,
+    this.openChatAppearance,
     required this.toggleTheme,
     required this.saveEntry,
     required this.beginExternalActivity,
@@ -119,6 +130,9 @@ class DiaryShellActions {
   final Future<void> Function() openCategories;
   final Future<void> Function() openBackup;
   final Future<void> Function() openAbout;
+  final Future<void> Function()? openLocalAssistant;
+  final Future<void> Function()? openTranscription;
+  final Future<void> Function()? openChatAppearance;
   final Future<void> Function() toggleTheme;
   final Future<void> Function(DiaryEntry entry) saveEntry;
   final VoidCallback beginExternalActivity;
@@ -162,6 +176,15 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
   _SyncConnection? _syncConnection;
   SyncState _syncState = const SyncState();
   final ProfileAvatarStore _profileAvatarStore = ProfileAvatarStore();
+  final ProfileAvatarStore _companionAvatarStore = ProfileAvatarStore(
+    role: ProfileAvatarRole.companion,
+  );
+  bool _avatarOperationRunning = false;
+  Future<LocalAssistantController>? _assistantControllerFuture;
+  LocalAssistantController? _assistantController;
+  Future<TranscriptionController>? _transcriptionControllerFuture;
+  TranscriptionController? _transcriptionController;
+  int _backgroundWorkEpoch = 0;
 
   List<DiaryEntry> get _entries => _controller.entries;
   List<DiaryEntry> get _trash => _controller.trash;
@@ -188,6 +211,14 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
     });
     _refreshConflicts();
     WidgetsBinding.instance.addPostFrameCallback((_) => _configureSync());
+    if (!kIsWeb) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          unawaited(_getAssistantController());
+          unawaited(_getTranscriptionController());
+        }
+      });
+    }
   }
 
   @override
@@ -203,6 +234,8 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
     _incomingShareBridge.dispose();
     _shortcutRequest.removeListener(_onShortcutRequestChanged);
     _shortcutRequest.dispose();
+    _assistantController?.dispose();
+    _transcriptionController?.dispose();
     super.dispose();
   }
 
@@ -360,6 +393,9 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
           openCategories: _openCategories,
           openBackup: _openBackup,
           openAbout: _openAbout,
+          openLocalAssistant: !kIsWeb ? _openLocalAssistantSettings : null,
+          openTranscription: !kIsWeb ? _openTranscriptionSettings : null,
+          openChatAppearance: _openChatAppearance,
           toggleTheme: _toggleTheme,
           saveEntry: _saveEntryAndSync,
           beginExternalActivity: widget.lockCoordinator.beginExternalActivity,
@@ -383,6 +419,12 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
             chatTitle: widget.settingsController.settings.chatTitle,
             chatBackground: widget.settingsController.settings.chatBackground,
             conflictCount: _conflicts.length,
+            syncState: _syncState,
+            onOpenSyncSettings: _openSyncSettings,
+            onPickAvatar: _pickProfileAvatar,
+            onClearAvatar: _clearProfileAvatar,
+            localAssistantController: _assistantController,
+            transcriptionController: _transcriptionController,
           );
         }
         return MobileDiaryShell(
@@ -398,6 +440,10 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
           chatTitle: widget.settingsController.settings.chatTitle,
           amapAndroidKey: widget.settingsController.settings.amapAndroidKey,
           chatBackground: widget.settingsController.settings.chatBackground,
+          chatStyle: widget.settingsController.settings.chatStyle,
+          companionAvatarPath:
+              widget.settingsController.settings.companionAvatarPath,
+          companionName: widget.settingsController.settings.companionName,
           syncState: _syncState,
           onSyncNow: _syncEngine == null ? null : _syncNow,
           onOpenSyncSettings: _openSyncSettings,
@@ -406,6 +452,8 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
           onPickAvatar: _pickProfileAvatar,
           onClearAvatar: _clearProfileAvatar,
           showChatAvatar: widget.settingsController.settings.showChatAvatar,
+          localAssistantController: _assistantController,
+          transcriptionController: _transcriptionController,
           actions: actions,
           shortcutRequest: _shortcutRequest,
           conflictCount: _conflicts.length,
@@ -443,11 +491,91 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
   @override
   void didChangeMetrics() {
     _syncQueue.deferForInteraction();
+    _transcriptionController?.deferForInteraction();
   }
 
   Future<void> _saveEntryAndSync(DiaryEntry entry) async {
+    final previous = _entries.where((item) => item.id == entry.id).firstOrNull;
     await _controller.save(entry);
+    final transcription = _transcriptionController;
+    if (previous != null && transcription != null) {
+      for (final path in previous.audioPaths) {
+        if (!entry.audioPaths.contains(path)) {
+          unawaited(transcription.cancel(entry.id, path));
+        }
+      }
+    }
     _scheduleAutoSync();
+    _scheduleTranscriptions(entry.id);
+    if (previous == null ||
+        previous.contentText != entry.contentText ||
+        !listEquals(previous.imagePaths, entry.imagePaths)) {
+      _updateCompanionReply(entry.id, entry.contentText);
+    }
+  }
+
+  void _scheduleCompanionReply(String entryId, String text) {
+    if (kIsWeb) return;
+    final epoch = _backgroundWorkEpoch;
+    final entry = _entries.where((item) => item.id == entryId).firstOrNull;
+    if (entry == null || (text.trim().isEmpty && entry.imagePaths.isEmpty)) {
+      return;
+    }
+    final images = List<String>.unmodifiable(entry.imagePaths);
+    unawaited(
+      _getAssistantController().then<void>((controller) {
+        if (mounted &&
+            epoch == _backgroundWorkEpoch &&
+            _companionInForeground &&
+            _entryStillMatches(entryId, text, images)) {
+          controller.scheduleReply(entryId, text, imagePaths: images);
+        }
+      }),
+    );
+  }
+
+  bool _entryStillMatches(String entryId, String text, List<String> images) {
+    final entry = _entries.where((item) => item.id == entryId).firstOrNull;
+    return entry != null &&
+        !entry.isDeleted &&
+        !entry.isInTrash &&
+        entry.contentText.trim() == text.trim() &&
+        listEquals(entry.imagePaths, images);
+  }
+
+  bool get _companionInForeground {
+    final state = WidgetsBinding.instance.lifecycleState;
+    return state == null || state == AppLifecycleState.resumed;
+  }
+
+  void _updateCompanionReply(String entryId, String text) {
+    if (kIsWeb) return;
+    final epoch = _backgroundWorkEpoch;
+    final entry = _entries.where((item) => item.id == entryId).firstOrNull;
+    if (entry == null) return;
+    final images = List<String>.unmodifiable(entry.imagePaths);
+    unawaited(
+      _getAssistantController().then<void>((controller) async {
+        if (mounted &&
+            epoch == _backgroundWorkEpoch &&
+            _entryStillMatches(entryId, text, images)) {
+          if (_companionInForeground) {
+            await controller.updateEntryReply(
+              entryId,
+              text,
+              imagePaths: images,
+              isCurrent: () =>
+                  mounted &&
+                  epoch == _backgroundWorkEpoch &&
+                  _companionInForeground &&
+                  _entryStillMatches(entryId, text, images),
+            );
+          } else {
+            await controller.forgetReply(entryId);
+          }
+        }
+      }),
+    );
   }
 
   Future<void> _replaceEntriesAndSync(List<DiaryEntry> entries) async {
@@ -466,6 +594,14 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) _scheduleAutoSync();
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
+      _backgroundWorkEpoch++;
+      unawaited(_assistantController?.suspend());
+      unawaited(_transcriptionController?.stop());
+      unawaited(_transcriptionController?.cancelDownload());
+    }
   }
 
   Future<void> _refreshConflicts() async {
@@ -531,6 +667,8 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('已保存在本机')));
+    _scheduleCompanionReply(now.microsecondsSinceEpoch.toString(), text);
+    _scheduleTranscriptions(now.microsecondsSinceEpoch.toString());
   }
 
   Future<void> _saveChatMessage(
@@ -576,6 +714,8 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
       ),
     );
     _scheduleAutoSync();
+    _scheduleCompanionReply(now.microsecondsSinceEpoch.toString(), text);
+    _scheduleTranscriptions(now.microsecondsSinceEpoch.toString());
   }
 
   Future<void> _saveChatLocation(DiaryPlace place) async {
@@ -662,6 +802,12 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
         settings: const RouteSettings(name: AppRoutes.entryDetail),
         builder: (_) => EntryDetailPage(
           entry: entry,
+          localAssistantController: _assistantController,
+          transcriptionController: _transcriptionController,
+          getCurrentEntry: () =>
+              _entries.where((item) => item.id == entry.id).firstOrNull,
+          onOpenTranscriptionSettings: () =>
+              unawaited(_openTranscriptionSettings()),
           onEdit: _editEntry,
           onShare: () => _openShare(entry),
           onDelete: () => _moveToTrash(entry),
@@ -706,6 +852,8 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
 
   Future<void> _moveToTrash(DiaryEntry entry) async {
     await _controller.moveToTrash(entry);
+    unawaited(_assistantController?.forgetReply(entry.id));
+    unawaited(_transcriptionController?.removeEntry(entry.id));
     _scheduleAutoSync();
     if (!mounted) return;
     _showTrashFeedback(1);
@@ -715,6 +863,10 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
     final selectedIds = ids.toSet();
     if (selectedIds.isEmpty) return;
     await _controller.batchMoveToTrash(selectedIds);
+    for (final id in selectedIds) {
+      unawaited(_assistantController?.forgetReply(id));
+      unawaited(_transcriptionController?.removeEntry(id));
+    }
     _scheduleAutoSync();
     if (!mounted) return;
     _showTrashFeedback(selectedIds.length);
@@ -779,7 +931,163 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
         builder: (_) => SettingsPage(
           controller: widget.settingsController,
           onImportPhotos: importQuickPhotos,
-          showDataControls: false,
+          onOpenChatAppearance: () => unawaited(_openChatAppearance()),
+          onOpenCategories: () => unawaited(_openCategories()),
+          onOpenBackup: () => unawaited(_openBackup()),
+          onOpenAbout: () => unawaited(_openAbout()),
+          onOpenLocalAssistant: !kIsWeb
+              ? () => unawaited(_openLocalAssistantSettings())
+              : null,
+          onOpenTranscription: !kIsWeb
+              ? () => unawaited(_openTranscriptionSettings())
+              : null,
+        ),
+      ),
+    );
+  }
+
+  Future<LocalAssistantController> _getAssistantController() {
+    return _assistantControllerFuture ??= _createAssistantController();
+  }
+
+  Future<LocalAssistantController> _createAssistantController() async {
+    var supported = false;
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      try {
+        final capabilities = await const MethodChannel(
+          'com.ling.diary/local_assistant',
+        ).invokeMapMethod<String, Object?>('capabilities');
+        supported = capabilities?['supported'] == true;
+      } on PlatformException {
+        supported = false;
+      } on MissingPluginException {
+        supported = false;
+      }
+    }
+    final controller = LocalAssistantController(
+      engine: LlamadartLocalLlmEngine(),
+      supportedOverride: supported,
+      canStart: () => _transcriptionController?.transcribing != true,
+    );
+    await controller.initialize();
+    if (mounted) {
+      setState(() => _assistantController = controller);
+    } else {
+      controller.dispose();
+    }
+    return controller;
+  }
+
+  bool _audioStillPresent(String entryId, String path) {
+    if (!mounted) return false;
+    final entry = _entries.where((item) => item.id == entryId).firstOrNull;
+    return entry != null &&
+        !entry.isInTrash &&
+        !entry.isDeleted &&
+        entry.audioPaths.contains(path);
+  }
+
+  Future<TranscriptionController> _getTranscriptionController() =>
+      _transcriptionControllerFuture ??= _createTranscriptionController();
+
+  Future<TranscriptionController> _createTranscriptionController() async {
+    final controller = TranscriptionController(
+      isCurrent: _audioStillPresent,
+      canStart: () =>
+          mounted &&
+          _companionInForeground &&
+          (_assistantController?.source == AssistantReplySource.online ||
+              (_assistantController?.loading != true &&
+                  _assistantController?.generating != true)),
+      onCompleted: (entryId, path, text) async {
+        if (!_audioStillPresent(entryId, path)) return;
+        final stored = await _controller.saveAudioTranscript(
+          entryId,
+          path,
+          text,
+        );
+        if (stored != null) _scheduleAutoSync();
+      },
+    );
+    await controller.initialize();
+    if (mounted) {
+      setState(() => _transcriptionController = controller);
+    } else {
+      controller.dispose();
+    }
+    return controller;
+  }
+
+  void _scheduleTranscriptions(String entryId) {
+    if (kIsWeb) return;
+    final epoch = _backgroundWorkEpoch;
+    unawaited(
+      _getTranscriptionController().then((controller) async {
+        if (!mounted ||
+            epoch != _backgroundWorkEpoch ||
+            !_companionInForeground ||
+            !controller.autoTranscribe) {
+          return;
+        }
+        final entry = _entries.where((item) => item.id == entryId).firstOrNull;
+        if (entry == null) return;
+        for (final path in entry.audioPaths.take(
+          DiaryEntry.maxAudioTranscripts,
+        )) {
+          if (_audioStillPresent(entryId, path) &&
+              entry.transcriptForAudioPath(path) == null) {
+            await controller.enqueue(entryId, path);
+          }
+        }
+      }),
+    );
+  }
+
+  Future<void> _openTranscriptionSettings() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    final controller = await _getTranscriptionController();
+    if (!mounted) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        settings: const RouteSettings(name: AppRoutes.transcriptionSettings),
+        builder: (_) => TranscriptionSettingsPage(controller: controller),
+      ),
+    );
+  }
+
+  Future<void> _openLocalAssistantSettings() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    final controller = await _getAssistantController();
+    await controller.suspend();
+    if (!mounted) return;
+    try {
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          settings: const RouteSettings(name: AppRoutes.localAssistantSettings),
+          builder: (_) => LocalAssistantSettingsPage(
+            controller: controller,
+            onExternalActivityStart:
+                widget.lockCoordinator.beginExternalActivity,
+            onExternalActivityEnd: widget.lockCoordinator.endExternalActivity,
+          ),
+        ),
+      );
+    } finally {
+      await controller.suspend();
+    }
+  }
+
+  Future<void> _openChatAppearance() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        settings: const RouteSettings(name: AppRoutes.chatAppearance),
+        builder: (_) => ChatAppearanceSettingsPage(
+          controller: widget.settingsController,
+          onPickOwnAvatar: _pickProfileAvatar,
+          onClearOwnAvatar: _clearProfileAvatar,
+          onPickCompanionAvatar: _pickCompanionAvatar,
+          onClearCompanionAvatar: _clearCompanionAvatar,
         ),
       ),
     );
@@ -793,9 +1101,18 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
     );
   }
 
-  Future<void> _pickProfileAvatar() async {
+  Future<void> _pickProfileAvatar() => _pickAvatar(companion: false);
+
+  Future<void> _pickCompanionAvatar() => _pickAvatar(companion: true);
+
+  Future<void> _pickAvatar({required bool companion}) async {
+    if (_avatarOperationRunning) return;
+    _avatarOperationRunning = true;
     try {
-      final source = await chooseDiaryPhotoSource(context, title: '更换头像');
+      final source = await chooseDiaryPhotoSource(
+        context,
+        title: companion ? '更换陪伴者头像' : '更换头像',
+      );
       if (source == null || !mounted) return;
       final runsOutsideApp = source == DiaryPhotoSource.camera;
       final photos = await (() async {
@@ -813,8 +1130,13 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
       if (!mounted || photos.isEmpty) return;
       final cropped = await cropDiaryAvatar(context, photos.single);
       if (!mounted || cropped == null) return;
-      final storedPath = await _profileAvatarStore.savePng(cropped);
-      await widget.settingsController.setProfileAvatarPath(storedPath);
+      final store = companion ? _companionAvatarStore : _profileAvatarStore;
+      final storedPath = await store.savePng(cropped);
+      if (companion) {
+        await widget.settingsController.setCompanionAvatarPath(storedPath);
+      } else {
+        await widget.settingsController.setProfileAvatarPath(storedPath);
+      }
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
@@ -824,13 +1146,26 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('头像更新失败，请重试')));
+    } finally {
+      _avatarOperationRunning = false;
     }
   }
 
-  Future<void> _clearProfileAvatar() async {
+  Future<void> _clearProfileAvatar() => _clearAvatar(companion: false);
+
+  Future<void> _clearCompanionAvatar() => _clearAvatar(companion: true);
+
+  Future<void> _clearAvatar({required bool companion}) async {
+    if (_avatarOperationRunning) return;
+    _avatarOperationRunning = true;
     try {
-      await _profileAvatarStore.clear();
-      await widget.settingsController.clearProfileAvatarPath();
+      final store = companion ? _companionAvatarStore : _profileAvatarStore;
+      await store.clear();
+      if (companion) {
+        await widget.settingsController.clearCompanionAvatarPath();
+      } else {
+        await widget.settingsController.clearProfileAvatarPath();
+      }
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
@@ -840,6 +1175,8 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('恢复默认头像失败，请重试')));
+    } finally {
+      _avatarOperationRunning = false;
     }
   }
 

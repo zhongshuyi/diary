@@ -27,6 +27,9 @@ class ProfilePage extends StatelessWidget {
     this.onOpenConflicts,
     this.syncState = const SyncState(),
     this.onOpenSyncSettings,
+    this.onOpenLocalAssistant,
+    this.onOpenTranscription,
+    this.onOpenChatAppearance,
     this.profileAvatarPath,
     this.onPickAvatar,
     this.onClearAvatar,
@@ -58,6 +61,9 @@ class ProfilePage extends StatelessWidget {
   final VoidCallback? onOpenConflicts;
   final SyncState syncState;
   final VoidCallback? onOpenSyncSettings;
+  final VoidCallback? onOpenLocalAssistant;
+  final VoidCallback? onOpenTranscription;
+  final VoidCallback? onOpenChatAppearance;
   final String? profileAvatarPath;
   final Future<void> Function()? onPickAvatar;
   final Future<void> Function()? onClearAvatar;
@@ -110,6 +116,9 @@ class ProfilePage extends StatelessWidget {
         onOpenBackup: onOpenBackup,
         onOpenConflicts: onOpenConflicts,
         onOpenSettings: onOpenSettings,
+        onOpenLocalAssistant: onOpenLocalAssistant,
+        onOpenTranscription: onOpenTranscription,
+        onOpenChatAppearance: onOpenChatAppearance,
         onOpenAbout: onOpenAbout,
         profileAvatarPath: profileAvatarPath,
         onPickAvatar: onPickAvatar,
@@ -189,11 +198,40 @@ class ProfilePage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 14),
+              if (onOpenLocalAssistant != null ||
+                  onOpenTranscription != null ||
+                  onOpenChatAppearance != null) ...[
+                _ProfileSection(
+                  title: '记录与陪伴',
+                  children: [
+                    if (onOpenLocalAssistant != null)
+                      _ProfileTile(
+                        icon: Icons.chat_bubble_outline,
+                        title: '日记陪伴',
+                        onTap: onOpenLocalAssistant!,
+                      ),
+                    if (onOpenTranscription != null)
+                      _ProfileTile(
+                        icon: Icons.record_voice_over_outlined,
+                        title: '录音转文字',
+                        onTap: onOpenTranscription!,
+                      ),
+                    if (onOpenChatAppearance != null)
+                      _ProfileTile(
+                        icon: Icons.forum_outlined,
+                        title: '对话外观',
+                        onTap: onOpenChatAppearance!,
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+              ],
               _ProfileTile(
                 icon: Icons.delete_outline,
                 title: '回收站',
                 subtitle: trashCount == 0 ? '这里还没有被丢弃的日记' : '$trashCount 篇待处理',
                 onTap: onOpenRecycle,
+                standalone: true,
               ),
               if (onOpenConflicts != null) ...[
                 const SizedBox(height: 8),
@@ -204,6 +242,7 @@ class ProfilePage extends StatelessWidget {
                       ? '双端数据保持一致'
                       : '$conflictCount 篇待确认',
                   onTap: onOpenConflicts!,
+                  standalone: true,
                 ),
               ],
               const SizedBox(height: 8),
@@ -254,6 +293,9 @@ class _MobileProfileWorkspace extends StatelessWidget {
     required this.onOpenBackup,
     required this.onOpenConflicts,
     required this.onOpenSettings,
+    required this.onOpenLocalAssistant,
+    required this.onOpenTranscription,
+    required this.onOpenChatAppearance,
     required this.onOpenAbout,
     required this.profileAvatarPath,
     required this.onPickAvatar,
@@ -277,120 +319,176 @@ class _MobileProfileWorkspace extends StatelessWidget {
   final VoidCallback onOpenBackup;
   final VoidCallback? onOpenConflicts;
   final VoidCallback onOpenSettings;
+  final VoidCallback? onOpenLocalAssistant;
+  final VoidCallback? onOpenTranscription;
+  final VoidCallback? onOpenChatAppearance;
   final VoidCallback onOpenAbout;
   final String? profileAvatarPath;
   final Future<void> Function()? onPickAvatar;
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 110),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _MobileProfileHeader(
-                name: profileName,
-                signature: profileSignature,
-                showSignature: showProfileSignature,
-                onEdit: onEditProfile,
-                avatarPath: profileAvatarPath,
-                onPickAvatar: onPickAvatar,
-              ),
-              const SizedBox(height: 26),
-              _ProfileSection(
-                title: '回看',
-                children: [
-                  if (onOpenFavorites != null)
-                    _ProfileTile(
-                      icon: Icons.bookmark_outline,
-                      title: '收藏夹',
-                      subtitle: favoriteCount == 0 ? null : '$favoriteCount 篇',
-                      onTap: onOpenFavorites!,
-                    ),
-                  if (onOpenMedia != null)
-                    _ProfileTile(
-                      icon: Icons.collections_outlined,
-                      title: '媒体库',
-                      onTap: onOpenMedia!,
-                    ),
-                  if (onOpenInsights != null)
-                    _ProfileTile(
-                      icon: Icons.auto_graph_outlined,
-                      title: '洞察',
-                      onTap: onOpenInsights!,
-                    ),
-                ],
-              ),
-              const SizedBox(height: 22),
-              _ProfileSection(
-                title: '整理',
-                children: [
-                  _ProfileTile(
-                    icon: Icons.sell_outlined,
-                    title: '分类与标签',
-                    onTap: onOpenCategories,
+              _MobileProfileHeading(onOpenSettings: onOpenSettings),
+              const SizedBox(height: 12),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.only(bottom: 110),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _MobileProfileHeader(
+                        name: profileName,
+                        signature: profileSignature,
+                        showSignature: showProfileSignature,
+                        onEdit: onEditProfile,
+                        avatarPath: profileAvatarPath,
+                        onPickAvatar: onPickAvatar,
+                      ),
+                      if (onOpenFavorites != null ||
+                          onOpenMedia != null ||
+                          onOpenInsights != null) ...[
+                        const SizedBox(height: 14),
+                        _ProfileBrowseList(
+                          favoriteCount: favoriteCount,
+                          onOpenFavorites: onOpenFavorites,
+                          onOpenMedia: onOpenMedia,
+                          onOpenInsights: onOpenInsights,
+                        ),
+                      ],
+                      if (onOpenLocalAssistant != null ||
+                          onOpenTranscription != null ||
+                          onOpenChatAppearance != null) ...[
+                        const SizedBox(height: 20),
+                        _ProfileSection(
+                          title: '记录与陪伴',
+                          children: [
+                            if (onOpenLocalAssistant != null)
+                              _ProfileTile(
+                                key: const Key('profile-assistant-button'),
+                                icon: Icons.chat_bubble_outline,
+                                title: '日记陪伴',
+                                onTap: onOpenLocalAssistant!,
+                              ),
+                            if (onOpenTranscription != null)
+                              _ProfileTile(
+                                key: const Key('profile-transcription-button'),
+                                icon: Icons.record_voice_over_outlined,
+                                title: '录音转文字',
+                                onTap: onOpenTranscription!,
+                              ),
+                            if (onOpenChatAppearance != null)
+                              _ProfileTile(
+                                key: const Key(
+                                  'profile-chat-appearance-button',
+                                ),
+                                icon: Icons.forum_outlined,
+                                title: '对话外观',
+                                onTap: onOpenChatAppearance!,
+                              ),
+                          ],
+                        ),
+                      ],
+                      const SizedBox(height: 20),
+                      _ProfileSection(
+                        title: '数据与整理',
+                        children: [
+                          _ProfileTile(
+                            icon: Icons.sell_outlined,
+                            title: '分类与标签',
+                            onTap: onOpenCategories,
+                          ),
+                          _ProfileTile(
+                            icon: Icons.delete_outline,
+                            title: '回收站',
+                            subtitle: trashCount == 0 ? null : '$trashCount 篇',
+                            onTap: onOpenRecycle,
+                          ),
+                          _ProfileTile(
+                            icon: _syncIcon(syncState.status),
+                            title: '同步',
+                            subtitle: _syncSubtitle(syncState, conflictCount),
+                            onTap: onOpenSyncSettings,
+                          ),
+                          _ProfileTile(
+                            icon: Icons.import_export_outlined,
+                            title: '备份与恢复',
+                            onTap: onOpenBackup,
+                          ),
+                          if (conflictCount > 0 && onOpenConflicts != null)
+                            _ProfileTile(
+                              icon: Icons.sync_problem_outlined,
+                              title: '同步冲突',
+                              subtitle: '$conflictCount 篇待确认',
+                              onTap: onOpenConflicts!,
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      TextButton.icon(
+                        key: const Key('profile-about-button'),
+                        style: TextButton.styleFrom(
+                          minimumSize: const Size(48, 48),
+                          foregroundColor: DiaryThemeColors.of(
+                            context,
+                          ).mutedInk,
+                        ),
+                        onPressed: onOpenAbout,
+                        icon: const Icon(Icons.info_outline, size: 18),
+                        label: const Text('关于此刻'),
+                      ),
+                    ],
                   ),
-                  _ProfileTile(
-                    icon: Icons.delete_outline,
-                    title: '回收站',
-                    subtitle: trashCount == 0 ? null : '$trashCount 篇',
-                    onTap: onOpenRecycle,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 22),
-              _ProfileSection(
-                title: '数据',
-                children: [
-                  _ProfileTile(
-                    icon: _syncIcon(syncState.status),
-                    title: '同步',
-                    subtitle: _syncSubtitle(syncState, conflictCount),
-                    onTap: onOpenSyncSettings,
-                  ),
-                  _ProfileTile(
-                    icon: Icons.import_export_outlined,
-                    title: '备份与恢复',
-                    onTap: onOpenBackup,
-                  ),
-                  if (conflictCount > 0 && onOpenConflicts != null)
-                    _ProfileTile(
-                      icon: Icons.sync_problem_outlined,
-                      title: '同步冲突',
-                      subtitle: '$conflictCount 篇待确认',
-                      onTap: onOpenConflicts!,
-                    ),
-                ],
-              ),
-              const SizedBox(height: 22),
-              _ProfileSection(
-                title: '应用',
-                children: [
-                  _ProfileTile(
-                    icon: Icons.tune_outlined,
-                    title: '偏好设置',
-                    onTap: onOpenSettings,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 22),
-              _ProfileSection(
-                title: '关于',
-                children: [
-                  _ProfileTile(
-                    icon: Icons.auto_awesome_outlined,
-                    title: '关于此刻',
-                    onTap: onOpenAbout,
-                  ),
-                ],
+                ),
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+class _MobileProfileHeading extends StatelessWidget {
+  const _MobileProfileHeading({required this.onOpenSettings});
+
+  final VoidCallback onOpenSettings;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'A QUIET PLACE FOR YOU',
+                style: Theme.of(
+                  context,
+                ).textTheme.labelSmall?.copyWith(color: colors.terracotta),
+              ),
+              const SizedBox(height: 4),
+              Text('我的', style: Theme.of(context).textTheme.headlineMedium),
+            ],
+          ),
+        ),
+        IconButton(
+          key: const Key('profile-settings-button'),
+          tooltip: '设置',
+          onPressed: onOpenSettings,
+          icon: Icon(Icons.settings_outlined, color: colors.ink),
+        ),
+      ],
     );
   }
 }
@@ -418,8 +516,6 @@ class _MobileProfileHeader extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const DiaryPageIntro(eyebrow: 'A QUIET PLACE FOR YOU', title: '我的'),
-        const SizedBox(height: 18),
         Container(
           key: const Key('profile-identity-panel'),
           width: double.infinity,
@@ -654,9 +750,85 @@ class _ProfileSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 9),
-        ...children,
+        Padding(
+          padding: const EdgeInsets.only(left: 4),
+          child: Text(title, style: Theme.of(context).textTheme.titleMedium),
+        ),
+        const SizedBox(height: 8),
+        _ProfileList(children: children),
+      ],
+    );
+  }
+}
+
+class _ProfileList extends StatelessWidget {
+  const _ProfileList({required this.children, super.key});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      margin: EdgeInsets.zero,
+      child: Column(
+        children: [
+          for (var index = 0; index < children.length; index++) ...[
+            if (index > 0)
+              Divider(
+                height: 1,
+                indent: 60,
+                endIndent: 14,
+                color: DiaryThemeColors.of(context).line,
+              ),
+            children[index],
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileBrowseList extends StatelessWidget {
+  const _ProfileBrowseList({
+    required this.favoriteCount,
+    required this.onOpenFavorites,
+    required this.onOpenMedia,
+    required this.onOpenInsights,
+  });
+
+  final int favoriteCount;
+  final VoidCallback? onOpenFavorites;
+  final VoidCallback? onOpenMedia;
+  final VoidCallback? onOpenInsights;
+
+  @override
+  Widget build(BuildContext context) {
+    return _ProfileList(
+      key: const Key('profile-shortcuts'),
+      children: [
+        if (onOpenFavorites != null)
+          _ProfileTile(
+            key: const Key('profile-favorites-button'),
+            icon: Icons.bookmark_outline,
+            title: '收藏夹',
+            trailingLabel: favoriteCount == 0 ? null : '$favoriteCount 篇',
+            onTap: onOpenFavorites!,
+          ),
+        if (onOpenMedia != null)
+          _ProfileTile(
+            key: const Key('profile-media-button'),
+            icon: Icons.collections_outlined,
+            title: '媒体库',
+            onTap: onOpenMedia!,
+          ),
+        if (onOpenInsights != null)
+          _ProfileTile(
+            key: const Key('profile-insights-button'),
+            icon: Icons.auto_graph_outlined,
+            title: '洞察',
+            onTap: onOpenInsights!,
+          ),
       ],
     );
   }
@@ -719,41 +891,63 @@ class _ProfileTile extends StatelessWidget {
     required this.icon,
     required this.title,
     this.subtitle,
+    this.trailingLabel,
     required this.onTap,
+    this.standalone = false,
+    super.key,
   });
 
   final IconData icon;
   final String title;
   final String? subtitle;
+  final String? trailingLabel;
   final VoidCallback onTap;
+  final bool standalone;
 
   @override
   Widget build(BuildContext context) {
     final colors = DiaryThemeColors.of(context);
+    final tile = ListTile(
+      onTap: onTap,
+      minTileHeight: 56,
+      minLeadingWidth: 32,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+      tileColor: Colors.transparent,
+      splashColor: colors.terracotta.withValues(alpha: .12),
+      hoverColor: colors.terracotta.withValues(alpha: .06),
+      focusColor: colors.terracotta.withValues(alpha: .08),
+      leading: Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          color: colors.paper,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(icon, color: colors.terracotta, size: 20),
+      ),
+      title: Text(title),
+      subtitle: subtitle == null ? null : Text(subtitle!),
+      trailing: trailingLabel == null
+          ? Icon(Icons.chevron_right, color: colors.mutedInk)
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  trailingLabel!,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: colors.mutedInk),
+                ),
+                const SizedBox(width: 8),
+                Icon(Icons.chevron_right, color: colors.mutedInk),
+              ],
+            ),
+    );
+    if (!standalone) return tile;
     return Card(
       clipBehavior: Clip.antiAlias,
       margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        onTap: onTap,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        tileColor: Colors.transparent,
-        splashColor: colors.terracotta.withValues(alpha: .12),
-        hoverColor: colors.terracotta.withValues(alpha: .06),
-        focusColor: colors.terracotta.withValues(alpha: .08),
-        leading: Container(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(
-            color: colors.paper,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(icon, color: colors.terracotta, size: 20),
-        ),
-        title: Text(title),
-        subtitle: subtitle == null ? null : Text(subtitle!),
-        trailing: Icon(Icons.chevron_right, color: colors.mutedInk),
-      ),
+      child: tile,
     );
   }
 }

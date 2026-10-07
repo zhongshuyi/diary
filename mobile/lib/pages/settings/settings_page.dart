@@ -22,6 +22,9 @@ class SettingsPage extends StatelessWidget {
     this.onOpenCategories,
     this.onOpenBackup,
     this.onOpenAbout,
+    this.onOpenLocalAssistant,
+    this.onOpenTranscription,
+    this.onOpenChatAppearance,
     this.onImportPhotos,
     this.pickChatBackgroundPhoto,
     this.showDataControls = true,
@@ -32,6 +35,9 @@ class SettingsPage extends StatelessWidget {
   final VoidCallback? onOpenCategories;
   final VoidCallback? onOpenBackup;
   final VoidCallback? onOpenAbout;
+  final VoidCallback? onOpenLocalAssistant;
+  final VoidCallback? onOpenTranscription;
+  final VoidCallback? onOpenChatAppearance;
   final Future<List<String>> Function(List<String> paths)? onImportPhotos;
   final Future<List<String>> Function()? pickChatBackgroundPhoto;
   final bool showDataControls;
@@ -43,6 +49,327 @@ class SettingsPage extends StatelessWidget {
       builder: (context, _) {
         final colors = DiaryThemeColors.of(context);
         final settings = controller.settings;
+        Widget tile({
+          Key? key,
+          IconData? icon,
+          required String title,
+          String? status,
+          required VoidCallback onTap,
+        }) => _SettingsTile(
+          key: key,
+          flat: true,
+          leading: icon == null ? null : Icon(icon, color: colors.terracotta),
+          title: Text(title),
+          subtitle: status == null ? null : Text(status),
+          trailing: Icon(Icons.chevron_right, color: colors.mutedInk),
+          onTap: onTap,
+        );
+        final groups = <_SettingsGroup>[
+          _SettingsGroup(
+            id: 'recording',
+            title: '记录与陪伴',
+            label: '记录',
+            icon: Icons.edit_note_rounded,
+            items: [
+              if (onOpenLocalAssistant != null)
+                _SearchableSetting(
+                  keywords:
+                      '日记陪伴 AI LLM 人工智能 助手 回复 安慰 鼓励 情绪 语气 人设 模型 API 密钥 本地 在线 MiniMax DeepSeek OpenAI 兼容 自定义 服务商',
+                  child: tile(
+                    key: const Key('settings-local-assistant'),
+                    icon: Icons.auto_awesome_outlined,
+                    title: '日记陪伴',
+                    status: '模型、回复语气与人设',
+                    onTap: onOpenLocalAssistant!,
+                  ),
+                ),
+              if (onOpenTranscription != null)
+                _SearchableSetting(
+                  keywords: '录音转文字 语音 识别 转写 声音 离线 自动 转录 重试 搜索 模型 下载',
+                  child: tile(
+                    key: const Key('settings-transcription'),
+                    icon: Icons.transcribe_outlined,
+                    title: '录音转文字',
+                    status: '离线识别与自动转写',
+                    onTap: onOpenTranscription!,
+                  ),
+                ),
+              if (onOpenChatAppearance != null)
+                _SearchableSetting(
+                  keywords:
+                      '对话外观 聊天 样式 布局 气泡 头像 陪伴 ${settings.chatStyle.label}',
+                  child: tile(
+                    key: const Key('settings-chat-appearance'),
+                    icon: Icons.chat_bubble_outline_rounded,
+                    title: '对话外观',
+                    status: settings.chatStyle.label,
+                    onTap: onOpenChatAppearance!,
+                  ),
+                ),
+              _SearchableSetting(
+                keywords:
+                    '默认编辑方式 编辑器 输入 写日记 富文本 Markdown ${settings.defaultEditorType.label}',
+                child: tile(
+                  key: const Key('settings-default-editor'),
+                  title: '默认编辑方式',
+                  status: settings.defaultEditorType.label,
+                  onTap: () =>
+                      _showEditorChoice(context, settings.defaultEditorType),
+                ),
+              ),
+              _SearchableSetting(
+                keywords: '默认首页 首页 启动 对话 时间线 ${settings.defaultHomeMode.label}',
+                child: tile(
+                  key: const Key('settings-default-home'),
+                  title: '默认首页',
+                  status: settings.defaultHomeMode.label,
+                  onTap: () => _showDefaultHomeModeChoice(
+                    context,
+                    settings.defaultHomeMode,
+                  ),
+                ),
+              ),
+              _SearchableSetting(
+                keywords: '显示字数 字数 长度 统计 详情',
+                child: _SwitchTile(
+                  key: const Key('settings-word-count'),
+                  flat: true,
+                  title: '显示字数',
+                  value: settings.showWordCount,
+                  onChanged: (value) =>
+                      unawaited(controller.setShowWordCount(value)),
+                ),
+              ),
+              if (onOpenChatAppearance == null)
+                _SearchableSetting(
+                  keywords: '对话显示头像 聊天 头像 陪伴',
+                  child: _SwitchTile(
+                    key: const Key('settings-show-chat-avatar'),
+                    flat: true,
+                    title: '对话显示头像',
+                    value: settings.showChatAvatar,
+                    onChanged: (value) =>
+                        unawaited(controller.setShowChatAvatar(value)),
+                  ),
+                ),
+            ],
+          ),
+          _SettingsGroup(
+            id: 'appearance',
+            title: '外观与阅读',
+            label: '外观',
+            icon: Icons.palette_outlined,
+            items: [
+              _SearchableSetting(
+                keywords:
+                    '主题模式 明亮 黑暗 深色 浅色 夜间 跟随系统 ${settings.themeMode.label}',
+                child: tile(
+                  key: const Key('settings-theme-mode'),
+                  title: '主题模式',
+                  status: settings.themeMode.label,
+                  onTap: () => _showThemeChoice(context, settings.themeMode),
+                ),
+              ),
+              _SearchableSetting(
+                keywords: '主题配色 预设 颜色 风格 ${settings.themePreset.label}',
+                child: tile(
+                  key: const Key('settings-theme-preset'),
+                  title: '主题配色',
+                  status: settings.themePreset.label,
+                  onTap: () =>
+                      _showThemePresetChoice(context, settings.themePreset),
+                ),
+              ),
+              _SearchableSetting(
+                keywords: '自定义主题色 自定义主色 主色 颜色 配色',
+                child: _SettingsTile(
+                  key: const Key('settings-custom-theme-color'),
+                  flat: true,
+                  leading: _ThemeColorDot(
+                    color: Color(
+                      settings.customThemeColor ?? colors.terracotta.toARGB32(),
+                    ),
+                  ),
+                  title: const Text('自定义主题色'),
+                  subtitle: Text(
+                    settings.customThemeColor == null
+                        ? '使用预设主色'
+                        : _themeColorHex(settings.customThemeColor!),
+                  ),
+                  trailing: Icon(Icons.chevron_right, color: colors.mutedInk),
+                  onTap: () => _showCustomThemeColorPicker(
+                    context,
+                    currentColor: settings.customThemeColor,
+                    fallbackColor: colors.terracotta,
+                  ),
+                ),
+              ),
+              _SearchableSetting(
+                keywords:
+                    '阅读字号 字体 大小 缩放 文字 ${(settings.fontScale * 100).round()}%',
+                child: tile(
+                  key: const Key('settings-font-scale'),
+                  icon: Icons.text_fields_rounded,
+                  title: '阅读字号',
+                  status: '${(settings.fontScale * 100).round()}%',
+                  onTap: () =>
+                      _showFontScalePicker(context, settings.fontScale),
+                ),
+              ),
+              _SearchableSetting(
+                keywords:
+                    '聊天背景 对话 壁纸 图片 裁剪 背景 ${settings.chatBackground.hasImage ? '已设置图片' : '默认'}',
+                child: tile(
+                  key: const Key('settings-chat-background'),
+                  icon: Icons.wallpaper_outlined,
+                  title: '聊天背景',
+                  status: settings.chatBackground.hasImage ? '已设置图片' : '使用主题底色',
+                  onTap: () => _showChatBackgroundEditor(
+                    context,
+                    settings.chatBackground,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          _SettingsGroup(
+            id: 'security',
+            title: '提醒与安全',
+            label: '安全',
+            icon: Icons.shield_outlined,
+            items: [
+              _SearchableSetting(
+                keywords: '每日提醒 每天 通知 记录提醒 ${settings.dailyReminderTime.label}',
+                child: _SwitchTile(
+                  key: const Key('settings-daily-reminder'),
+                  flat: true,
+                  title: '每日提醒',
+                  subtitle: settings.dailyReminder
+                      ? '每天 ${settings.dailyReminderTime.label}'
+                      : '已关闭',
+                  value: settings.dailyReminder,
+                  onChanged: (value) =>
+                      unawaited(_setDailyReminder(context, value)),
+                ),
+              ),
+              if (settings.dailyReminder)
+                _SearchableSetting(
+                  keywords:
+                      '提醒时间 每日提醒 定时 每日 每天 通知 ${settings.dailyReminderTime.label}',
+                  child: tile(
+                    key: const Key('settings-daily-reminder-time'),
+                    icon: Icons.schedule_rounded,
+                    title: '提醒时间',
+                    status: '每天 ${settings.dailyReminderTime.label}',
+                    onTap: () => _showDailyReminderTimePicker(
+                      context,
+                      settings.dailyReminderTime,
+                    ),
+                  ),
+                ),
+              _SearchableSetting(
+                keywords: '应用锁 锁 密码 PIN 指纹 面容 生物识别 安全 隐私 保护',
+                child: AppLockSettings(controller: controller),
+              ),
+            ],
+          ),
+          if (showDataControls ||
+              onOpenBackup != null ||
+              onOpenCategories != null)
+            _SettingsGroup(
+              id: 'data',
+              title: '数据与服务',
+              label: '数据',
+              icon: Icons.storage_outlined,
+              items: [
+                if (showDataControls)
+                  _SearchableSetting(
+                    keywords:
+                        '同步 云端 服务器 连接 数据 服务 token ${settings.syncEndpoint.isEmpty ? '本地模式 尚未连接' : '已配置'}',
+                    child: tile(
+                      key: const Key('settings-sync'),
+                      icon: Icons.cloud_sync_outlined,
+                      title: '同步',
+                      status: settings.syncEndpoint.isEmpty
+                          ? '本地模式 · 尚未连接服务器'
+                          : '已配置同步连接',
+                      onTap: () => _openConnectionSettings(context),
+                    ),
+                  ),
+                if (onOpenBackup != null)
+                  _SearchableSetting(
+                    keywords: '备份与恢复 备份 恢复 导入 导出 迁移 JSON 数据',
+                    child: tile(
+                      key: const Key('settings-backup'),
+                      icon: Icons.import_export_outlined,
+                      title: '备份与恢复',
+                      onTap: onOpenBackup!,
+                    ),
+                  ),
+                if (onOpenCategories != null)
+                  _SearchableSetting(
+                    keywords: '分类与标签 分类 标签 整理 主题 管理',
+                    child: tile(
+                      key: const Key('settings-categories'),
+                      icon: Icons.sell_outlined,
+                      title: '分类与标签',
+                      onTap: onOpenCategories!,
+                    ),
+                  ),
+              ],
+            ),
+          _SettingsGroup(
+            id: 'location',
+            title: '地图与位置',
+            label: '地图',
+            icon: Icons.location_on_outlined,
+            items: [
+              _SearchableSetting(
+                keywords:
+                    '高德 Android Key 高德密钥 地图 地点 位置 定位 ${settings.amapAndroidKey.isEmpty ? '未配置' : '已配置'}',
+                child: tile(
+                  key: const Key('settings-amap-key'),
+                  icon: Icons.location_on_outlined,
+                  title: '高德 Android Key',
+                  status: settings.amapAndroidKey.isEmpty
+                      ? '尚未配置'
+                      : '已配置 · 仅保存在此设备',
+                  onTap: () =>
+                      _showAmapKeyEditor(context, settings.amapAndroidKey),
+                ),
+              ),
+              _SearchableSetting(
+                keywords: '高德地图隐私授权 地图 位置 同意 隐私 授权 撤回',
+                child: tile(
+                  key: const Key('settings-amap-privacy'),
+                  icon: Icons.privacy_tip_outlined,
+                  title: '高德地图隐私授权',
+                  status: '管理或撤回授权',
+                  onTap: () => _revokeAmapConsent(context),
+                ),
+              ),
+            ],
+          ),
+          if (onOpenAbout != null)
+            _SettingsGroup(
+              id: 'about',
+              title: '关于',
+              label: '关于',
+              icon: Icons.info_outline_rounded,
+              items: [
+                _SearchableSetting(
+                  keywords: '关于此刻 版本 更新 隐私说明 许可证 开源 帮助',
+                  child: tile(
+                    key: const Key('settings-about'),
+                    icon: Icons.info_outline_rounded,
+                    title: '关于此刻',
+                    status: '版本、更新与隐私说明',
+                    onTap: onOpenAbout!,
+                  ),
+                ),
+              ],
+            ),
+        ];
         return Scaffold(
           backgroundColor: colors.paper,
           appBar: AppBar(
@@ -51,265 +378,9 @@ class SettingsPage extends StatelessWidget {
             centerTitle: true,
             title: const Text('设置'),
           ),
-          body: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 35),
-            children: [
-              Text(
-                showDataControls
-                    ? '在这里调整阅读、记录和同步习惯。所有偏好都会保存在这台设备上。'
-                    : '在这里调整阅读、记录和应用习惯。所有偏好都会保存在这台设备上。',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.copyWith(color: colors.mutedInk),
-              ),
-              const SizedBox(height: 18),
-              _Section(
-                title: '外观',
-                children: [
-                  _SettingsTile(
-                    title: const Text('主题模式'),
-                    subtitle: Text(settings.themeMode.label),
-                    trailing: Icon(Icons.chevron_right, color: colors.mutedInk),
-                    onTap: () => _showThemeChoice(context, settings.themeMode),
-                  ),
-                  _SettingsTile(
-                    title: const Text('主题配色'),
-                    subtitle: Text(
-                      '${settings.themePreset.label} · ${settings.themePreset.description}',
-                    ),
-                    trailing: Icon(Icons.chevron_right, color: colors.mutedInk),
-                    onTap: () =>
-                        _showThemePresetChoice(context, settings.themePreset),
-                  ),
-                  _SettingsTile(
-                    leading: _ThemeColorDot(
-                      color: Color(
-                        settings.customThemeColor ??
-                            colors.terracotta.toARGB32(),
-                      ),
-                    ),
-                    title: const Text('自定义主题色'),
-                    subtitle: Text(
-                      settings.customThemeColor == null
-                          ? '使用当前预设的主色'
-                          : '${_themeColorHex(settings.customThemeColor!)} · 已覆盖主色',
-                    ),
-                    trailing: Icon(Icons.chevron_right, color: colors.mutedInk),
-                    onTap: () => _showCustomThemeColorPicker(
-                      context,
-                      currentColor: settings.customThemeColor,
-                      fallbackColor: colors.terracotta,
-                    ),
-                  ),
-                  _SettingsTile(
-                    leading: Icon(
-                      Icons.text_fields_rounded,
-                      color: colors.terracotta,
-                    ),
-                    title: const Text('阅读字号'),
-                    subtitle: Text('${(settings.fontScale * 100).round()}%'),
-                    trailing: Icon(Icons.chevron_right, color: colors.mutedInk),
-                    onTap: () =>
-                        _showFontScalePicker(context, settings.fontScale),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              _Section(
-                title: '记录与对话',
-                children: [
-                  _SettingsTile(
-                    key: const Key('settings-chat-background'),
-                    leading: Icon(
-                      Icons.wallpaper_outlined,
-                      color: colors.terracotta,
-                    ),
-                    title: const Text('聊天背景'),
-                    subtitle: Text(
-                      settings.chatBackground.hasImage
-                          ? '已设置图片 · 可继续裁剪和调整'
-                          : '使用默认暖纸底色',
-                    ),
-                    trailing: Icon(Icons.chevron_right, color: colors.mutedInk),
-                    onTap: () => _showChatBackgroundEditor(
-                      context,
-                      settings.chatBackground,
-                    ),
-                  ),
-                  _SwitchTile(
-                    key: const Key('settings-show-chat-avatar'),
-                    title: '对话显示头像',
-                    subtitle: '在每条对话消息旁显示你的头像',
-                    value: settings.showChatAvatar,
-                    onChanged: (value) =>
-                        unawaited(controller.setShowChatAvatar(value)),
-                  ),
-                  _SettingsTile(
-                    title: const Text('默认首页'),
-                    subtitle: Text(settings.defaultHomeMode.label),
-                    trailing: Icon(Icons.chevron_right, color: colors.mutedInk),
-                    onTap: () => _showDefaultHomeModeChoice(
-                      context,
-                      settings.defaultHomeMode,
-                    ),
-                  ),
-                  _SwitchTile(
-                    title: '显示字数',
-                    subtitle: '在详情页显示这篇日记的长度',
-                    value: settings.showWordCount,
-                    onChanged: (value) =>
-                        unawaited(controller.setShowWordCount(value)),
-                  ),
-                  _SettingsTile(
-                    title: const Text('默认编辑方式'),
-                    subtitle: Text(settings.defaultEditorType.label),
-                    trailing: Icon(Icons.chevron_right, color: colors.mutedInk),
-                    onTap: () =>
-                        _showEditorChoice(context, settings.defaultEditorType),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              _Section(
-                title: '地图与位置',
-                children: [
-                  _SettingsTile(
-                    key: const Key('settings-amap-key'),
-                    leading: Icon(
-                      Icons.location_on_outlined,
-                      color: colors.terracotta,
-                    ),
-                    title: const Text('高德 Android Key'),
-                    subtitle: Text(
-                      settings.amapAndroidKey.isEmpty
-                          ? '用于选择地点和发送位置'
-                          : '已配置 · 仅保存在此设备',
-                    ),
-                    trailing: Icon(Icons.chevron_right, color: colors.mutedInk),
-                    onTap: () =>
-                        _showAmapKeyEditor(context, settings.amapAndroidKey),
-                  ),
-                  _SettingsTile(
-                    leading: Icon(
-                      Icons.privacy_tip_outlined,
-                      color: colors.terracotta,
-                    ),
-                    title: const Text('高德地图隐私授权'),
-                    subtitle: const Text('同意后不再重复询问，可在此撤回'),
-                    trailing: Icon(Icons.chevron_right, color: colors.mutedInk),
-                    onTap: () => _revokeAmapConsent(context),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text('应用锁', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 10),
-              AppLockSettings(controller: controller),
-              const SizedBox(height: 12),
-              _Section(
-                title: '提醒',
-                children: [
-                  _SwitchTile(
-                    key: const Key('settings-daily-reminder'),
-                    title: '每日提醒',
-                    subtitle: settings.dailyReminder
-                        ? '每天 ${settings.dailyReminderTime.label} · 可随时关闭'
-                        : '默认关闭，只在你开启后请求系统通知权限',
-                    value: settings.dailyReminder,
-                    onChanged: (value) =>
-                        unawaited(_setDailyReminder(context, value)),
-                  ),
-                  if (settings.dailyReminder)
-                    _SettingsTile(
-                      key: const Key('settings-daily-reminder-time'),
-                      leading: Icon(
-                        Icons.schedule_rounded,
-                        color: colors.terracotta,
-                      ),
-                      title: const Text('提醒时间'),
-                      subtitle: Text('每天 ${settings.dailyReminderTime.label}'),
-                      trailing: Icon(
-                        Icons.chevron_right,
-                        color: colors.mutedInk,
-                      ),
-                      onTap: () => _showDailyReminderTimePicker(
-                        context,
-                        settings.dailyReminderTime,
-                      ),
-                    ),
-                ],
-              ),
-              if (showDataControls) ...[
-                const SizedBox(height: 12),
-                _Section(
-                  title: '数据',
-                  children: [
-                    _SettingsTile(
-                      key: const Key('settings-sync'),
-                      leading: Icon(
-                        Icons.cloud_sync_outlined,
-                        color: colors.sage,
-                      ),
-                      title: const Text('同步'),
-                      subtitle: Text(
-                        settings.syncEndpoint.isEmpty
-                            ? '本地模式 · 尚未连接服务器'
-                            : '已配置同步连接',
-                      ),
-                      trailing: Icon(
-                        Icons.chevron_right,
-                        color: colors.mutedInk,
-                      ),
-                      onTap: () => _openConnectionSettings(context),
-                    ),
-                  ],
-                ),
-              ],
-              const SizedBox(height: 12),
-              if (onOpenCategories != null ||
-                  onOpenBackup != null ||
-                  onOpenAbout != null) ...[
-                const SizedBox(height: 12),
-                _Section(
-                  title: '管理与关于',
-                  children: [
-                    if (onOpenCategories != null)
-                      _SettingsTile(
-                        leading: const Icon(Icons.sell_outlined),
-                        title: const Text('分类与标签'),
-                        subtitle: const Text('整理你常写下的主题'),
-                        trailing: Icon(
-                          Icons.chevron_right,
-                          color: colors.mutedInk,
-                        ),
-                        onTap: onOpenCategories,
-                      ),
-                    if (onOpenBackup != null)
-                      _SettingsTile(
-                        leading: const Icon(Icons.import_export_outlined),
-                        title: const Text('备份与恢复'),
-                        subtitle: const Text('用 JSON 保存或迁移你的日记'),
-                        trailing: Icon(
-                          Icons.chevron_right,
-                          color: colors.mutedInk,
-                        ),
-                        onTap: onOpenBackup,
-                      ),
-                    if (onOpenAbout != null)
-                      _SettingsTile(
-                        leading: const Icon(Icons.auto_awesome_outlined),
-                        title: const Text('关于此刻'),
-                        subtitle: const Text('版本、设计理念与隐私说明'),
-                        trailing: Icon(
-                          Icons.chevron_right,
-                          color: colors.mutedInk,
-                        ),
-                        onTap: onOpenAbout,
-                      ),
-                  ],
-                ),
-              ],
-            ],
+          body: _SettingsWorkspace(
+            groups: groups,
+            keyboardVisible: MediaQuery.viewInsetsOf(context).bottom > 0,
           ),
         );
       },
@@ -944,22 +1015,301 @@ class _Section extends StatelessWidget {
   final List<Widget> children;
 
   @override
+  Widget build(BuildContext context) => _SettingsSection(
+    sectionId: 'connection-$title',
+    title: title,
+    flatRows: false,
+    children: children,
+  );
+}
+
+class _SearchableSetting {
+  const _SearchableSetting({required this.keywords, required this.child});
+
+  final String keywords;
+  final Widget child;
+}
+
+class _SettingsGroup {
+  const _SettingsGroup({
+    required this.id,
+    required this.title,
+    required this.label,
+    required this.icon,
+    required this.items,
+  });
+
+  final String id;
+  final String title;
+  final String label;
+  final IconData icon;
+  final List<_SearchableSetting> items;
+}
+
+class _SettingsWorkspace extends StatefulWidget {
+  const _SettingsWorkspace({
+    required this.groups,
+    required this.keyboardVisible,
+  });
+
+  final List<_SettingsGroup> groups;
+  final bool keyboardVisible;
+
+  @override
+  State<_SettingsWorkspace> createState() => _SettingsWorkspaceState();
+}
+
+class _SettingsWorkspaceState extends State<_SettingsWorkspace> {
+  final _search = TextEditingController();
+  final _scroll = ScrollController();
+  final _groupKeys = <String, GlobalKey>{};
+  String _query = '';
+  String? _selectedGroup;
+
+  @override
+  void dispose() {
+    _search.dispose();
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  bool _matches(String text) {
+    final normalized = text.toLowerCase();
+    return _query
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .every(normalized.contains);
+  }
+
+  void _setQuery(String value) {
+    setState(() {
+      _query = value.trim();
+      _selectedGroup = null;
+    });
+    if (_scroll.hasClients) _scroll.jumpTo(0);
+  }
+
+  void _clearSearch() {
+    _search.clear();
+    _setQuery('');
+  }
+
+  void _jumpToGroup(_SettingsGroup group) {
+    FocusManager.instance.primaryFocus?.unfocus();
+    _search.clear();
+    setState(() {
+      _query = '';
+      _selectedGroup = group.id;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final sectionContext = _groupKeys[group.id]?.currentContext;
+      if (sectionContext == null) return;
+      unawaited(
+        Scrollable.ensureVisible(
+          sectionContext,
+          alignment: 0,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+        ),
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.of(context);
+    final keyboardVisible = widget.keyboardVisible;
+    final sections = <Widget>[];
+    for (final group in widget.groups) {
+      final wholeGroup = _query.isEmpty || _matches(group.title);
+      final items = group.items
+          .where((item) => wholeGroup || _matches(item.keywords))
+          .toList(growable: false);
+      if (items.isEmpty) continue;
+      sections.add(
+        _SettingsSection(
+          key: _groupKeys.putIfAbsent(group.id, GlobalKey.new),
+          sectionId: group.id,
+          title: group.title,
+          children: [
+            for (final item in items)
+              KeyedSubtree(
+                key: ValueKey(item.keywords.split(' ').first),
+                child: item.child,
+              ),
+          ],
+        ),
+      );
+    }
+    return SafeArea(
+      top: false,
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      key: const Key('settings-search'),
+                      controller: _search,
+                      onChanged: _setQuery,
+                      textInputAction: TextInputAction.search,
+                      onSubmitted: (_) =>
+                          FocusManager.instance.primaryFocus?.unfocus(),
+                      decoration: InputDecoration(
+                        hintText: '搜索设置，例如模型、字体、同步',
+                        hintStyle: Theme.of(context).textTheme.bodyMedium
+                            ?.copyWith(color: colors.mutedInk),
+                        prefixIcon: const Icon(Icons.search_rounded),
+                        suffixIcon: _query.isEmpty
+                            ? null
+                            : IconButton(
+                                key: const Key('settings-search-clear'),
+                                tooltip: '清除搜索',
+                                onPressed: _clearSearch,
+                                icon: const Icon(Icons.close_rounded),
+                              ),
+                        filled: true,
+                        fillColor: colors.surface,
+                        isDense: true,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                    if (!keyboardVisible) ...[
+                      const SizedBox(height: 10),
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final columns = constraints.maxWidth >= 600 ? 6 : 3;
+                          final chipWidth =
+                              (constraints.maxWidth - (columns - 1) * 6) /
+                              columns;
+                          return Wrap(
+                            spacing: 6,
+                            runSpacing: 0,
+                            children: [
+                              for (final group in widget.groups)
+                                SizedBox(
+                                  width: chipWidth,
+                                  child: InputChip(
+                                    key: ValueKey('settings-group-${group.id}'),
+                                    avatar: Icon(group.icon, size: 16),
+                                    label: Text(group.label),
+                                    tooltip: group.title,
+                                    selected: _selectedGroup == group.id,
+                                    showCheckmark: false,
+                                    visualDensity: const VisualDensity(
+                                      vertical: -1,
+                                    ),
+                                    materialTapTargetSize:
+                                        MaterialTapTargetSize.padded,
+                                    onPressed: () => _jumpToGroup(group),
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ListView(
+                  key: const Key('settings-list'),
+                  controller: _scroll,
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
+                  children: [
+                    if (sections.isEmpty)
+                      Padding(
+                        key: const Key('settings-search-empty'),
+                        padding: const EdgeInsets.symmetric(vertical: 36),
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.search_off_rounded,
+                              color: colors.mutedInk,
+                              size: 32,
+                            ),
+                            const SizedBox(height: 12),
+                            const Text('没有找到相关设置'),
+                            const SizedBox(height: 10),
+                            TextButton(
+                              key: const Key('settings-search-clear-empty'),
+                              onPressed: _clearSearch,
+                              child: const Text('清除搜索'),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      Column(children: sections),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SettingsSection extends StatelessWidget {
+  const _SettingsSection({
+    required this.sectionId,
+    required this.title,
+    required this.children,
+    this.flatRows = true,
+    super.key,
+  });
+
+  final String sectionId;
+  final String title;
+  final List<Widget> children;
+  final bool flatRows;
+
+  @override
   Widget build(BuildContext context) {
     final colors = DiaryThemeColors.of(context);
     return Card(
+      margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(17, 15, 17, 9),
+        padding: const EdgeInsets.fromLTRB(8, 12, 8, 6),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              title,
-              style: Theme.of(
-                context,
-              ).textTheme.labelSmall?.copyWith(color: colors.terracotta),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Text(
+                title,
+                key: ValueKey('settings-section-$sectionId'),
+                style: Theme.of(
+                  context,
+                ).textTheme.labelLarge?.copyWith(color: colors.terracotta),
+              ),
             ),
             const SizedBox(height: 6),
-            ...children,
+            for (var index = 0; index < children.length; index++) ...[
+              children[index],
+              if (flatRows && index < children.length - 1)
+                Divider(
+                  height: 1,
+                  indent: 12,
+                  endIndent: 12,
+                  color: colors.line.withValues(alpha: .6),
+                ),
+            ],
           ],
         ),
       ),
@@ -972,18 +1322,21 @@ class _SwitchTile extends StatelessWidget {
     super.key,
     required this.title,
     this.subtitle,
+    this.flat = false,
     required this.value,
     required this.onChanged,
   });
 
   final String title;
   final String? subtitle;
+  final bool flat;
   final bool value;
   final ValueChanged<bool> onChanged;
 
   @override
   Widget build(BuildContext context) {
     return _SettingsTile(
+      flat: flat,
       title: Text(title),
       subtitle: subtitle == null ? null : Text(subtitle!),
       onTap: () => onChanged(!value),
@@ -999,6 +1352,7 @@ class _SettingsTile extends StatelessWidget {
     this.leading,
     this.trailing,
     this.onTap,
+    this.flat = false,
     super.key,
   });
 
@@ -1007,21 +1361,22 @@ class _SettingsTile extends StatelessWidget {
   final Widget? leading;
   final Widget? trailing;
   final VoidCallback? onTap;
+  final bool flat;
 
   @override
   Widget build(BuildContext context) {
     final colors = DiaryThemeColors.of(context);
-    final radius = BorderRadius.circular(14);
+    final radius = flat ? BorderRadius.zero : BorderRadius.circular(14);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
+      padding: EdgeInsets.symmetric(vertical: flat ? 0 : 2),
       child: Material(
-        color: colors.paper,
+        color: flat ? Colors.transparent : colors.paper,
         borderRadius: radius,
         clipBehavior: Clip.antiAlias,
         child: ListTile(
           contentPadding: const EdgeInsets.symmetric(
-            horizontal: 14,
-            vertical: 5,
+            horizontal: 12,
+            vertical: 0,
           ),
           shape: RoundedRectangleBorder(borderRadius: radius),
           tileColor: Colors.transparent,
@@ -1032,7 +1387,12 @@ class _SettingsTile extends StatelessWidget {
           subtitle: subtitle,
           leading: leading,
           trailing: trailing,
-          onTap: onTap,
+          onTap: onTap == null
+              ? null
+              : () {
+                  FocusManager.instance.primaryFocus?.unfocus();
+                  onTap!();
+                },
         ),
       ),
     );

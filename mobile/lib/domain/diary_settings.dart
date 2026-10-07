@@ -17,7 +17,17 @@ enum QuickCaptureSide { left, right }
 
 enum DiaryHomeMode { timeline, chat }
 
+enum DiaryChatStyle { diary, messenger, soft }
+
 const diaryDefaultChatTitle = '我的日记';
+const diaryDefaultCompanionName = '陪伴';
+
+String normalizeDiaryCompanionName(String value) {
+  final name = value.trim();
+  return name.isEmpty
+      ? diaryDefaultCompanionName
+      : String.fromCharCodes(name.runes.take(20));
+}
 
 class DiaryReminderTime {
   const DiaryReminderTime({this.hour = 21, this.minute = 30})
@@ -101,6 +111,29 @@ extension DiaryHomeModeCodec on DiaryHomeMode {
     return DiaryHomeMode.values.firstWhere(
       (mode) => mode.wireValue == value,
       orElse: () => DiaryHomeMode.timeline,
+    );
+  }
+}
+
+extension DiaryChatStyleCodec on DiaryChatStyle {
+  String get wireValue => name;
+
+  String get label => switch (this) {
+    DiaryChatStyle.diary => '日记卡片',
+    DiaryChatStyle.messenger => '经典聊天',
+    DiaryChatStyle.soft => '圆润陪伴',
+  };
+
+  String get description => switch (this) {
+    DiaryChatStyle.diary => '留白与纸感，记录和回应各有空间',
+    DiaryChatStyle.messenger => '熟悉的左右气泡，像聊天一样记录',
+    DiaryChatStyle.soft => '柔和圆角，让每一句回应更亲近',
+  };
+
+  static DiaryChatStyle fromWireValue(String? value) {
+    return DiaryChatStyle.values.firstWhere(
+      (style) => style.wireValue == value,
+      orElse: () => DiaryChatStyle.diary,
     );
   }
 }
@@ -210,6 +243,9 @@ class DiarySettings {
     this.showProfileSignature = true,
     this.profileAvatarPath,
     this.showChatAvatar = true,
+    this.chatStyle = DiaryChatStyle.diary,
+    this.companionAvatarPath,
+    this.companionName = diaryDefaultCompanionName,
   });
 
   final DiaryThemeMode themeMode;
@@ -233,6 +269,9 @@ class DiarySettings {
   final bool showProfileSignature;
   final String? profileAvatarPath;
   final bool showChatAvatar;
+  final DiaryChatStyle chatStyle;
+  final String? companionAvatarPath;
+  final String companionName;
 
   DiarySettings copyWith({
     DiaryThemeMode? themeMode,
@@ -258,6 +297,10 @@ class DiarySettings {
     String? profileAvatarPath,
     bool clearProfileAvatarPath = false,
     bool? showChatAvatar,
+    DiaryChatStyle? chatStyle,
+    String? companionAvatarPath,
+    bool clearCompanionAvatarPath = false,
+    String? companionName,
   }) {
     return DiarySettings(
       themeMode: themeMode ?? this.themeMode,
@@ -285,6 +328,11 @@ class DiarySettings {
           ? null
           : profileAvatarPath ?? this.profileAvatarPath,
       showChatAvatar: showChatAvatar ?? this.showChatAvatar,
+      chatStyle: chatStyle ?? this.chatStyle,
+      companionAvatarPath: clearCompanionAvatarPath
+          ? null
+          : companionAvatarPath ?? this.companionAvatarPath,
+      companionName: companionName ?? this.companionName,
     );
   }
 }

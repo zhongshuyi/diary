@@ -18,8 +18,14 @@
 
 ## 安装包中的声明
 
+手机端本地助手新增 `llamadart 0.10.0`（MIT）及其打包的 llama.cpp 原生 CPU 运行时（MIT，随运行时的第三方组件仍遵循各自声明）。可下载的 Qwen3-0.6B、Qwen3-1.7B 与 Qwen3-4B-Instruct-2507 权重采用 Apache-2.0，独立于项目 MIT；模型不嵌入 APK。来源和使用边界见[本地助手说明](docs/local-assistant.md)。导入其他模型时需遵循其来源许可。
+
+离线录音转写使用 `sherpa_onnx 1.13.8` 的 Dart API 和关闭 TTS 的原生识别运行时。Android arm64 库由固定版本源码构建，Windows x64 使用上游 `no-tts` 分发包；这两个平台不打包 eSpeak NG 或 Piper。Sherpa、kaldi-native-fbank、OpenFst、simple-sentencepiece 采用 Apache-2.0，ONNX Runtime 及其内置组件保留原始声明；未修改的 Eigen 3.4.0 文件遵循 MPL-2.0，来源链接和完整条款随应用提供。可下载的 SenseVoiceSmall int8 权重遵循 FunASR 模型许可证，模型不嵌入安装包。完整声明见 [offline-speech.txt](mobile/assets/licenses/offline-speech.txt)，构建及模型说明见[录音转写说明](docs/speech-transcription.md)。
+
 Windows 分发需要保留 Electron 的 `LICENSE.electron.txt`、`LICENSES.chromium.html`，以及打包依赖的许可文件。字体即使被构建工具复制到 `dist/assets/`，也应同时保留 OFL 与原始版权声明。`third_party/` 提供上述特殊组件的完整声明副本；桌面打包配置已将根 LICENSE、这份索引和声明副本加入 `resources/`，下一次构建后仍需实际核验。
 
-Flutter 构建会收集 Dart 包的许可证；当前手机端没有独立的“开源许可证”页面。原生高德 SDK 的条款还需要单独提供，不能假设 Dart 包的自动收集覆盖了原生 SDK。
+Flutter 构建会收集 Dart 包的许可证。本地助手的原生许可及其内置组件声明随 APK 的 `assets/licenses/local-llm.txt` 分发，并注册到 Flutter 许可证列表，可从“关于 → 开源许可证”查看。原生高德 SDK 的条款还需要单独提供，不能假设 Dart 包的自动收集覆盖了原生 SDK。
+
+录音转写的原生组件、依赖和模型条款随应用的 `assets/licenses/offline-speech.txt` 分发，并注册到同一个许可证列表。模型下载目录另外保存完整 `MODEL_LICENSE.txt`。
 
 增加仓库声明不会自动修改已发布安装包。下一次发布时，应把根 LICENSE、这份索引及所需声明副本随安装包分发，并检查打包后的内容；具体流程见[发布指南](docs/releasing.md)。依赖新增或升级时重新核对锁定版本的许可，不能仅按组件名称推断。

@@ -52,8 +52,9 @@ class FakeClient extends http.BaseClient {
       return _streamed(response, 200, {'content-type': 'application/json'});
     }
     if (request.method == 'HEAD') return _streamed('', 200);
-    if (request.method == 'GET')
+    if (request.method == 'GET') {
       return _streamed('asset-bytes', 200, {'content-type': 'text/plain'});
+    }
     if (request.method == 'PUT') {
       return _streamed(
         jsonEncode({

@@ -90,6 +90,7 @@ class PortableBackupExporter {
           content: content,
           imagePaths: images,
           audioPaths: audio,
+          audioTranscripts: entry.audioTranscripts,
           videoPaths: video,
           attachmentIds: entryAssetIds.toList(growable: false),
         ),

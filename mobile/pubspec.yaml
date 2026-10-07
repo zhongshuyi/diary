@@ -35,6 +35,7 @@ dependencies:
   path_provider: ^2.1.5
   shared_preferences: ^2.5.5
   crypto: ^3.0.6
+  image: ^4.10.1
   archive: ^4.0.7
   local_auth: ^2.3.0
   local_auth_android: ^1.0.56
@@ -60,6 +61,41 @@ dependencies:
   flutter_timezone: ^5.1.0
   timezone: ^0.11.1
   flutter_secure_storage: 9.2.4
+  llamadart: 0.10.0
+  sherpa_onnx: 1.13.8
+
+# Keep official Dart APIs while packaging only TTS-disabled native runtimes.
+dependency_overrides:
+  sherpa_onnx_android_arm64:
+    path: native/offline_speech_android_arm64
+  sherpa_onnx_android_armeabi:
+    path: native/offline_speech_android_armeabi
+  sherpa_onnx_android_x86:
+    path: native/offline_speech_android_x86
+  sherpa_onnx_android_x86_64:
+    path: native/offline_speech_android_x86_64
+  sherpa_onnx_windows:
+    path: native/offline_speech_windows
+  sherpa_onnx_linux:
+    path: native/offline_speech_linux
+  sherpa_onnx_macos:
+    path: native/offline_speech_macos
+  sherpa_onnx_ios:
+    path: native/offline_speech_ios
+  sherpa_onnx_web:
+    path: native/offline_speech_web
+
+# Only ship the GGUF CPU runtime for the offline text assistant.
+hooks:
+  user_defines:
+    llamadart:
+      llamadart_native_runtimes: [llama_cpp]
+      llamadart_native_backends:
+        platforms:
+          android-arm64:
+            backends: [cpu]
+          android-x64:
+            backends: [cpu]
 
 dev_dependencies:
   flutter_test:
@@ -86,6 +122,9 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+  assets:
+    - assets/licenses/local-llm.txt
+    - assets/licenses/offline-speech.txt
 
   # To add assets to your application, add an assets section, like this:
   # assets:

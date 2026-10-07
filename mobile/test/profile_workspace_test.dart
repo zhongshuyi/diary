@@ -6,7 +6,7 @@ import 'package:diary/pages/profile/profile_page.dart';
 
 void main() {
   testWidgets(
-    'profile groups diary work before data and application preferences',
+    'profile brings frequent features above data without nested preferences',
     (tester) async {
       await tester.pumpWidget(
         MaterialApp(
@@ -22,24 +22,61 @@ void main() {
             onOpenMedia: () {},
             onOpenInsights: () {},
             onOpenFavorites: () {},
+            favoriteCount: 3,
+            onOpenLocalAssistant: () {},
+            onOpenTranscription: () {},
+            onOpenChatAppearance: () {},
           ),
         ),
       );
 
-      expect(find.text('回看'), findsOneWidget);
-      expect(find.text('整理'), findsOneWidget);
-      expect(find.text('数据'), findsOneWidget);
-      expect(find.text('应用'), findsOneWidget);
+      expect(find.text('记录与陪伴'), findsOneWidget);
+      expect(find.text('数据与整理'), findsOneWidget);
+      expect(find.text('偏好设置'), findsNothing);
+      expect(find.text('应用'), findsNothing);
+      expect(find.text('关于'), findsNothing);
       expect(find.text('同步'), findsOneWidget);
       expect(find.text('备份与恢复'), findsOneWidget);
+      expect(find.text('3 篇'), findsOneWidget);
+      expect(find.byKey(const Key('profile-settings-button')), findsOneWidget);
 
-      final revisit = tester.getTopLeft(find.text('回看')).dy;
-      final organize = tester.getTopLeft(find.text('整理')).dy;
-      final data = tester.getTopLeft(find.text('数据')).dy;
-      final app = tester.getTopLeft(find.text('应用')).dy;
-      expect(revisit, lessThan(organize));
-      expect(organize, lessThan(data));
-      expect(data, lessThan(app));
+      final shortcuts = tester
+          .getTopLeft(find.byKey(const Key('profile-shortcuts')))
+          .dy;
+      final companion = tester.getTopLeft(find.text('记录与陪伴')).dy;
+      final data = tester.getTopLeft(find.text('数据与整理')).dy;
+      expect(shortcuts, lessThan(companion));
+      expect(companion, lessThan(data));
+      expect(
+        tester.getTopLeft(find.text('收藏夹')).dy,
+        lessThan(tester.getTopLeft(find.text('媒体库')).dy),
+      );
+      expect(
+        tester.getTopLeft(find.text('媒体库')).dy,
+        lessThan(tester.getTopLeft(find.text('洞察')).dy),
+      );
+      expect(
+        tester.getTopLeft(find.text('收藏夹')).dx,
+        tester.getTopLeft(find.text('媒体库')).dx,
+      );
+      expect(
+        tester.getTopLeft(find.text('媒体库')).dx,
+        tester.getTopLeft(find.text('洞察')).dx,
+      );
+      expect(
+        tester.getTopLeft(find.text('收藏夹')).dx,
+        lessThan(
+          tester.getCenter(find.byKey(const Key('profile-shortcuts'))).dx,
+        ),
+      );
+      expect(
+        tester.getTopLeft(find.text('3 篇')).dx,
+        greaterThan(tester.getTopLeft(find.text('收藏夹')).dx),
+      );
+      expect(
+        tester.getCenter(find.text('3 篇')).dy,
+        closeTo(tester.getCenter(find.text('收藏夹')).dy, 1),
+      );
     },
   );
 

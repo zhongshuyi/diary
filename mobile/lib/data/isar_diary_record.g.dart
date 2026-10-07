@@ -27,114 +27,124 @@ const DiaryRecordSchema = CollectionSchema(
       name: r'audioPaths',
       type: IsarType.stringList,
     ),
-    r'category': PropertySchema(
+    r'audioTranscriptText': PropertySchema(
       id: 2,
+      name: r'audioTranscriptText',
+      type: IsarType.string,
+    ),
+    r'audioTranscripts': PropertySchema(
+      id: 3,
+      name: r'audioTranscripts',
+      type: IsarType.stringList,
+    ),
+    r'category': PropertySchema(
+      id: 4,
       name: r'category',
       type: IsarType.string,
     ),
     r'colorValue': PropertySchema(
-      id: 3,
+      id: 5,
       name: r'colorValue',
       type: IsarType.long,
     ),
     r'conflictOf': PropertySchema(
-      id: 4,
+      id: 6,
       name: r'conflictOf',
       type: IsarType.string,
     ),
     r'conflictStatus': PropertySchema(
-      id: 5,
+      id: 7,
       name: r'conflictStatus',
       type: IsarType.string,
     ),
-    r'content': PropertySchema(id: 6, name: r'content', type: IsarType.string),
+    r'content': PropertySchema(id: 8, name: r'content', type: IsarType.string),
     r'contentText': PropertySchema(
-      id: 7,
+      id: 9,
       name: r'contentText',
       type: IsarType.string,
     ),
     r'createdAt': PropertySchema(
-      id: 8,
+      id: 10,
       name: r'createdAt',
       type: IsarType.dateTime,
     ),
     r'deletedAt': PropertySchema(
-      id: 9,
+      id: 11,
       name: r'deletedAt',
       type: IsarType.dateTime,
     ),
     r'deviceId': PropertySchema(
-      id: 10,
+      id: 12,
       name: r'deviceId',
       type: IsarType.string,
     ),
     r'editorType': PropertySchema(
-      id: 11,
+      id: 13,
       name: r'editorType',
       type: IsarType.long,
     ),
     r'imagePaths': PropertySchema(
-      id: 12,
+      id: 14,
       name: r'imagePaths',
       type: IsarType.stringList,
     ),
     r'isConflict': PropertySchema(
-      id: 13,
+      id: 15,
       name: r'isConflict',
       type: IsarType.bool,
     ),
     r'isFavorite': PropertySchema(
-      id: 14,
+      id: 16,
       name: r'isFavorite',
       type: IsarType.bool,
     ),
     r'isInTrash': PropertySchema(
-      id: 15,
+      id: 17,
       name: r'isInTrash',
       type: IsarType.bool,
     ),
     r'latitude': PropertySchema(
-      id: 16,
+      id: 18,
       name: r'latitude',
       type: IsarType.double,
     ),
     r'longitude': PropertySchema(
-      id: 17,
+      id: 19,
       name: r'longitude',
       type: IsarType.double,
     ),
-    r'mood': PropertySchema(id: 18, name: r'mood', type: IsarType.double),
+    r'mood': PropertySchema(id: 20, name: r'mood', type: IsarType.double),
     r'moodLabel': PropertySchema(
-      id: 19,
+      id: 21,
       name: r'moodLabel',
       type: IsarType.string,
     ),
     r'occurredAt': PropertySchema(
-      id: 20,
+      id: 22,
       name: r'occurredAt',
       type: IsarType.dateTime,
     ),
     r'positions': PropertySchema(
-      id: 21,
+      id: 23,
       name: r'positions',
       type: IsarType.stringList,
     ),
-    r'revision': PropertySchema(id: 22, name: r'revision', type: IsarType.long),
-    r'tags': PropertySchema(id: 23, name: r'tags', type: IsarType.stringList),
-    r'title': PropertySchema(id: 24, name: r'title', type: IsarType.string),
+    r'revision': PropertySchema(id: 24, name: r'revision', type: IsarType.long),
+    r'tags': PropertySchema(id: 25, name: r'tags', type: IsarType.stringList),
+    r'title': PropertySchema(id: 26, name: r'title', type: IsarType.string),
     r'updatedAt': PropertySchema(
-      id: 25,
+      id: 27,
       name: r'updatedAt',
       type: IsarType.dateTime,
     ),
-    r'uuid': PropertySchema(id: 26, name: r'uuid', type: IsarType.string),
+    r'uuid': PropertySchema(id: 28, name: r'uuid', type: IsarType.string),
     r'videoPaths': PropertySchema(
-      id: 27,
+      id: 29,
       name: r'videoPaths',
       type: IsarType.stringList,
     ),
     r'weather': PropertySchema(
-      id: 28,
+      id: 30,
       name: r'weather',
       type: IsarType.stringList,
     ),
@@ -263,6 +273,19 @@ const DiaryRecordSchema = CollectionSchema(
         ),
       ],
     ),
+    r'audioTranscriptText': IndexSchema(
+      id: -8017832040657393408,
+      name: r'audioTranscriptText',
+      unique: false,
+      replace: false,
+      properties: [
+        IndexPropertySchema(
+          name: r'audioTranscriptText',
+          type: IndexType.value,
+          caseSensitive: true,
+        ),
+      ],
+    ),
     r'isInTrash': IndexSchema(
       id: -4420884820235290327,
       name: r'isInTrash',
@@ -303,6 +326,14 @@ int _diaryRecordEstimateSize(
   {
     for (var i = 0; i < object.audioPaths.length; i++) {
       final value = object.audioPaths[i];
+      bytesCount += value.length * 3;
+    }
+  }
+  bytesCount += 3 + object.audioTranscriptText.length * 3;
+  bytesCount += 3 + object.audioTranscripts.length * 3;
+  {
+    for (var i = 0; i < object.audioTranscripts.length; i++) {
+      final value = object.audioTranscripts[i];
       bytesCount += value.length * 3;
     }
   }
@@ -371,33 +402,35 @@ void _diaryRecordSerialize(
 ) {
   writer.writeStringList(offsets[0], object.attachmentIds);
   writer.writeStringList(offsets[1], object.audioPaths);
-  writer.writeString(offsets[2], object.category);
-  writer.writeLong(offsets[3], object.colorValue);
-  writer.writeString(offsets[4], object.conflictOf);
-  writer.writeString(offsets[5], object.conflictStatus);
-  writer.writeString(offsets[6], object.content);
-  writer.writeString(offsets[7], object.contentText);
-  writer.writeDateTime(offsets[8], object.createdAt);
-  writer.writeDateTime(offsets[9], object.deletedAt);
-  writer.writeString(offsets[10], object.deviceId);
-  writer.writeLong(offsets[11], object.editorType);
-  writer.writeStringList(offsets[12], object.imagePaths);
-  writer.writeBool(offsets[13], object.isConflict);
-  writer.writeBool(offsets[14], object.isFavorite);
-  writer.writeBool(offsets[15], object.isInTrash);
-  writer.writeDouble(offsets[16], object.latitude);
-  writer.writeDouble(offsets[17], object.longitude);
-  writer.writeDouble(offsets[18], object.mood);
-  writer.writeString(offsets[19], object.moodLabel);
-  writer.writeDateTime(offsets[20], object.occurredAt);
-  writer.writeStringList(offsets[21], object.positions);
-  writer.writeLong(offsets[22], object.revision);
-  writer.writeStringList(offsets[23], object.tags);
-  writer.writeString(offsets[24], object.title);
-  writer.writeDateTime(offsets[25], object.updatedAt);
-  writer.writeString(offsets[26], object.uuid);
-  writer.writeStringList(offsets[27], object.videoPaths);
-  writer.writeStringList(offsets[28], object.weather);
+  writer.writeString(offsets[2], object.audioTranscriptText);
+  writer.writeStringList(offsets[3], object.audioTranscripts);
+  writer.writeString(offsets[4], object.category);
+  writer.writeLong(offsets[5], object.colorValue);
+  writer.writeString(offsets[6], object.conflictOf);
+  writer.writeString(offsets[7], object.conflictStatus);
+  writer.writeString(offsets[8], object.content);
+  writer.writeString(offsets[9], object.contentText);
+  writer.writeDateTime(offsets[10], object.createdAt);
+  writer.writeDateTime(offsets[11], object.deletedAt);
+  writer.writeString(offsets[12], object.deviceId);
+  writer.writeLong(offsets[13], object.editorType);
+  writer.writeStringList(offsets[14], object.imagePaths);
+  writer.writeBool(offsets[15], object.isConflict);
+  writer.writeBool(offsets[16], object.isFavorite);
+  writer.writeBool(offsets[17], object.isInTrash);
+  writer.writeDouble(offsets[18], object.latitude);
+  writer.writeDouble(offsets[19], object.longitude);
+  writer.writeDouble(offsets[20], object.mood);
+  writer.writeString(offsets[21], object.moodLabel);
+  writer.writeDateTime(offsets[22], object.occurredAt);
+  writer.writeStringList(offsets[23], object.positions);
+  writer.writeLong(offsets[24], object.revision);
+  writer.writeStringList(offsets[25], object.tags);
+  writer.writeString(offsets[26], object.title);
+  writer.writeDateTime(offsets[27], object.updatedAt);
+  writer.writeString(offsets[28], object.uuid);
+  writer.writeStringList(offsets[29], object.videoPaths);
+  writer.writeStringList(offsets[30], object.weather);
 }
 
 DiaryRecord _diaryRecordDeserialize(
@@ -409,34 +442,36 @@ DiaryRecord _diaryRecordDeserialize(
   final object = DiaryRecord();
   object.attachmentIds = reader.readStringList(offsets[0]) ?? [];
   object.audioPaths = reader.readStringList(offsets[1]) ?? [];
-  object.category = reader.readString(offsets[2]);
-  object.colorValue = reader.readLong(offsets[3]);
-  object.conflictOf = reader.readStringOrNull(offsets[4]);
-  object.conflictStatus = reader.readString(offsets[5]);
-  object.content = reader.readString(offsets[6]);
-  object.contentText = reader.readString(offsets[7]);
-  object.createdAt = reader.readDateTime(offsets[8]);
-  object.deletedAt = reader.readDateTimeOrNull(offsets[9]);
-  object.deviceId = reader.readString(offsets[10]);
-  object.editorType = reader.readLong(offsets[11]);
+  object.audioTranscriptText = reader.readString(offsets[2]);
+  object.audioTranscripts = reader.readStringList(offsets[3]) ?? [];
+  object.category = reader.readString(offsets[4]);
+  object.colorValue = reader.readLong(offsets[5]);
+  object.conflictOf = reader.readStringOrNull(offsets[6]);
+  object.conflictStatus = reader.readString(offsets[7]);
+  object.content = reader.readString(offsets[8]);
+  object.contentText = reader.readString(offsets[9]);
+  object.createdAt = reader.readDateTime(offsets[10]);
+  object.deletedAt = reader.readDateTimeOrNull(offsets[11]);
+  object.deviceId = reader.readString(offsets[12]);
+  object.editorType = reader.readLong(offsets[13]);
   object.id = id;
-  object.imagePaths = reader.readStringList(offsets[12]) ?? [];
-  object.isConflict = reader.readBool(offsets[13]);
-  object.isFavorite = reader.readBool(offsets[14]);
-  object.isInTrash = reader.readBool(offsets[15]);
-  object.latitude = reader.readDoubleOrNull(offsets[16]);
-  object.longitude = reader.readDoubleOrNull(offsets[17]);
-  object.mood = reader.readDouble(offsets[18]);
-  object.moodLabel = reader.readStringOrNull(offsets[19]);
-  object.occurredAt = reader.readDateTimeOrNull(offsets[20]);
-  object.positions = reader.readStringList(offsets[21]) ?? [];
-  object.revision = reader.readLong(offsets[22]);
-  object.tags = reader.readStringList(offsets[23]) ?? [];
-  object.title = reader.readString(offsets[24]);
-  object.updatedAt = reader.readDateTime(offsets[25]);
-  object.uuid = reader.readString(offsets[26]);
-  object.videoPaths = reader.readStringList(offsets[27]) ?? [];
-  object.weather = reader.readStringList(offsets[28]) ?? [];
+  object.imagePaths = reader.readStringList(offsets[14]) ?? [];
+  object.isConflict = reader.readBool(offsets[15]);
+  object.isFavorite = reader.readBool(offsets[16]);
+  object.isInTrash = reader.readBool(offsets[17]);
+  object.latitude = reader.readDoubleOrNull(offsets[18]);
+  object.longitude = reader.readDoubleOrNull(offsets[19]);
+  object.mood = reader.readDouble(offsets[20]);
+  object.moodLabel = reader.readStringOrNull(offsets[21]);
+  object.occurredAt = reader.readDateTimeOrNull(offsets[22]);
+  object.positions = reader.readStringList(offsets[23]) ?? [];
+  object.revision = reader.readLong(offsets[24]);
+  object.tags = reader.readStringList(offsets[25]) ?? [];
+  object.title = reader.readString(offsets[26]);
+  object.updatedAt = reader.readDateTime(offsets[27]);
+  object.uuid = reader.readString(offsets[28]);
+  object.videoPaths = reader.readStringList(offsets[29]) ?? [];
+  object.weather = reader.readStringList(offsets[30]) ?? [];
   return object;
 }
 
@@ -454,56 +489,60 @@ P _diaryRecordDeserializeProp<P>(
     case 2:
       return (reader.readString(offset)) as P;
     case 3:
-      return (reader.readLong(offset)) as P;
+      return (reader.readStringList(offset) ?? []) as P;
     case 4:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 5:
-      return (reader.readString(offset)) as P;
+      return (reader.readLong(offset)) as P;
     case 6:
-      return (reader.readString(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 7:
       return (reader.readString(offset)) as P;
     case 8:
-      return (reader.readDateTime(offset)) as P;
-    case 9:
-      return (reader.readDateTimeOrNull(offset)) as P;
-    case 10:
       return (reader.readString(offset)) as P;
+    case 9:
+      return (reader.readString(offset)) as P;
+    case 10:
+      return (reader.readDateTime(offset)) as P;
     case 11:
-      return (reader.readLong(offset)) as P;
+      return (reader.readDateTimeOrNull(offset)) as P;
     case 12:
-      return (reader.readStringList(offset) ?? []) as P;
+      return (reader.readString(offset)) as P;
     case 13:
-      return (reader.readBool(offset)) as P;
+      return (reader.readLong(offset)) as P;
     case 14:
-      return (reader.readBool(offset)) as P;
+      return (reader.readStringList(offset) ?? []) as P;
     case 15:
       return (reader.readBool(offset)) as P;
     case 16:
-      return (reader.readDoubleOrNull(offset)) as P;
+      return (reader.readBool(offset)) as P;
     case 17:
-      return (reader.readDoubleOrNull(offset)) as P;
+      return (reader.readBool(offset)) as P;
     case 18:
-      return (reader.readDouble(offset)) as P;
+      return (reader.readDoubleOrNull(offset)) as P;
     case 19:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readDoubleOrNull(offset)) as P;
     case 20:
-      return (reader.readDateTimeOrNull(offset)) as P;
+      return (reader.readDouble(offset)) as P;
     case 21:
-      return (reader.readStringList(offset) ?? []) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 22:
-      return (reader.readLong(offset)) as P;
+      return (reader.readDateTimeOrNull(offset)) as P;
     case 23:
       return (reader.readStringList(offset) ?? []) as P;
     case 24:
-      return (reader.readString(offset)) as P;
+      return (reader.readLong(offset)) as P;
     case 25:
-      return (reader.readDateTime(offset)) as P;
+      return (reader.readStringList(offset) ?? []) as P;
     case 26:
       return (reader.readString(offset)) as P;
     case 27:
-      return (reader.readStringList(offset) ?? []) as P;
+      return (reader.readDateTime(offset)) as P;
     case 28:
+      return (reader.readString(offset)) as P;
+    case 29:
+      return (reader.readStringList(offset) ?? []) as P;
+    case 30:
       return (reader.readStringList(offset) ?? []) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -643,6 +682,14 @@ extension DiaryRecordQueryWhereSort
     return QueryBuilder.apply(this, (query) {
       return query.addWhereClause(
         const IndexWhereClause.any(indexName: r'editorType'),
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterWhere> anyAudioTranscriptText() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(
+        const IndexWhereClause.any(indexName: r'audioTranscriptText'),
       );
     });
   }
@@ -1698,6 +1745,175 @@ extension DiaryRecordQueryWhere
     });
   }
 
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterWhereClause>
+  audioTranscriptTextEqualTo(String audioTranscriptText) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(
+        IndexWhereClause.equalTo(
+          indexName: r'audioTranscriptText',
+          value: [audioTranscriptText],
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterWhereClause>
+  audioTranscriptTextNotEqualTo(String audioTranscriptText) {
+    return QueryBuilder.apply(this, (query) {
+      if (query.whereSort == Sort.asc) {
+        return query
+            .addWhereClause(
+              IndexWhereClause.between(
+                indexName: r'audioTranscriptText',
+                lower: [],
+                upper: [audioTranscriptText],
+                includeUpper: false,
+              ),
+            )
+            .addWhereClause(
+              IndexWhereClause.between(
+                indexName: r'audioTranscriptText',
+                lower: [audioTranscriptText],
+                includeLower: false,
+                upper: [],
+              ),
+            );
+      } else {
+        return query
+            .addWhereClause(
+              IndexWhereClause.between(
+                indexName: r'audioTranscriptText',
+                lower: [audioTranscriptText],
+                includeLower: false,
+                upper: [],
+              ),
+            )
+            .addWhereClause(
+              IndexWhereClause.between(
+                indexName: r'audioTranscriptText',
+                lower: [],
+                upper: [audioTranscriptText],
+                includeUpper: false,
+              ),
+            );
+      }
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterWhereClause>
+  audioTranscriptTextGreaterThan(
+    String audioTranscriptText, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(
+        IndexWhereClause.between(
+          indexName: r'audioTranscriptText',
+          lower: [audioTranscriptText],
+          includeLower: include,
+          upper: [],
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterWhereClause>
+  audioTranscriptTextLessThan(
+    String audioTranscriptText, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(
+        IndexWhereClause.between(
+          indexName: r'audioTranscriptText',
+          lower: [],
+          upper: [audioTranscriptText],
+          includeUpper: include,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterWhereClause>
+  audioTranscriptTextBetween(
+    String lowerAudioTranscriptText,
+    String upperAudioTranscriptText, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(
+        IndexWhereClause.between(
+          indexName: r'audioTranscriptText',
+          lower: [lowerAudioTranscriptText],
+          includeLower: includeLower,
+          upper: [upperAudioTranscriptText],
+          includeUpper: includeUpper,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterWhereClause>
+  audioTranscriptTextStartsWith(String AudioTranscriptTextPrefix) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(
+        IndexWhereClause.between(
+          indexName: r'audioTranscriptText',
+          lower: [AudioTranscriptTextPrefix],
+          upper: ['$AudioTranscriptTextPrefix\u{FFFFF}'],
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterWhereClause>
+  audioTranscriptTextIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(
+        IndexWhereClause.equalTo(
+          indexName: r'audioTranscriptText',
+          value: [''],
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterWhereClause>
+  audioTranscriptTextIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      if (query.whereSort == Sort.asc) {
+        return query
+            .addWhereClause(
+              IndexWhereClause.lessThan(
+                indexName: r'audioTranscriptText',
+                upper: [''],
+              ),
+            )
+            .addWhereClause(
+              IndexWhereClause.greaterThan(
+                indexName: r'audioTranscriptText',
+                lower: [''],
+              ),
+            );
+      } else {
+        return query
+            .addWhereClause(
+              IndexWhereClause.greaterThan(
+                indexName: r'audioTranscriptText',
+                lower: [''],
+              ),
+            )
+            .addWhereClause(
+              IndexWhereClause.lessThan(
+                indexName: r'audioTranscriptText',
+                upper: [''],
+              ),
+            );
+      }
+    });
+  }
+
   QueryBuilder<DiaryRecord, DiaryRecord, QAfterWhereClause> isInTrashEqualTo(
     bool isInTrash,
   ) {
@@ -2135,6 +2351,350 @@ extension DiaryRecordQueryFilter
     return QueryBuilder.apply(this, (query) {
       return query.listLength(
         r'audioPaths',
+        lower,
+        includeLower,
+        upper,
+        includeUpper,
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterFilterCondition>
+  audioTranscriptTextEqualTo(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.equalTo(
+          property: r'audioTranscriptText',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterFilterCondition>
+  audioTranscriptTextGreaterThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.greaterThan(
+          include: include,
+          property: r'audioTranscriptText',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterFilterCondition>
+  audioTranscriptTextLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.lessThan(
+          include: include,
+          property: r'audioTranscriptText',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterFilterCondition>
+  audioTranscriptTextBetween(
+    String lower,
+    String upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.between(
+          property: r'audioTranscriptText',
+          lower: lower,
+          includeLower: includeLower,
+          upper: upper,
+          includeUpper: includeUpper,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterFilterCondition>
+  audioTranscriptTextStartsWith(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.startsWith(
+          property: r'audioTranscriptText',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterFilterCondition>
+  audioTranscriptTextEndsWith(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.endsWith(
+          property: r'audioTranscriptText',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterFilterCondition>
+  audioTranscriptTextContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.contains(
+          property: r'audioTranscriptText',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterFilterCondition>
+  audioTranscriptTextMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.matches(
+          property: r'audioTranscriptText',
+          wildcard: pattern,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterFilterCondition>
+  audioTranscriptTextIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.equalTo(property: r'audioTranscriptText', value: ''),
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterFilterCondition>
+  audioTranscriptTextIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.greaterThan(
+          property: r'audioTranscriptText',
+          value: '',
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterFilterCondition>
+  audioTranscriptsElementEqualTo(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.equalTo(
+          property: r'audioTranscripts',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterFilterCondition>
+  audioTranscriptsElementGreaterThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.greaterThan(
+          include: include,
+          property: r'audioTranscripts',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterFilterCondition>
+  audioTranscriptsElementLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.lessThan(
+          include: include,
+          property: r'audioTranscripts',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterFilterCondition>
+  audioTranscriptsElementBetween(
+    String lower,
+    String upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.between(
+          property: r'audioTranscripts',
+          lower: lower,
+          includeLower: includeLower,
+          upper: upper,
+          includeUpper: includeUpper,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterFilterCondition>
+  audioTranscriptsElementStartsWith(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.startsWith(
+          property: r'audioTranscripts',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterFilterCondition>
+  audioTranscriptsElementEndsWith(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.endsWith(
+          property: r'audioTranscripts',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterFilterCondition>
+  audioTranscriptsElementContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.contains(
+          property: r'audioTranscripts',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterFilterCondition>
+  audioTranscriptsElementMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.matches(
+          property: r'audioTranscripts',
+          wildcard: pattern,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterFilterCondition>
+  audioTranscriptsElementIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.equalTo(property: r'audioTranscripts', value: ''),
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterFilterCondition>
+  audioTranscriptsElementIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.greaterThan(property: r'audioTranscripts', value: ''),
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterFilterCondition>
+  audioTranscriptsLengthEqualTo(int length) {
+    return QueryBuilder.apply(this, (query) {
+      return query.listLength(r'audioTranscripts', length, true, length, true);
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterFilterCondition>
+  audioTranscriptsIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.listLength(r'audioTranscripts', 0, true, 0, true);
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterFilterCondition>
+  audioTranscriptsIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.listLength(r'audioTranscripts', 0, false, 999999, true);
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterFilterCondition>
+  audioTranscriptsLengthLessThan(int length, {bool include = false}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.listLength(r'audioTranscripts', 0, true, length, include);
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterFilterCondition>
+  audioTranscriptsLengthGreaterThan(int length, {bool include = false}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.listLength(
+        r'audioTranscripts',
+        length,
+        include,
+        999999,
+        true,
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterFilterCondition>
+  audioTranscriptsLengthBetween(
+    int lower,
+    int upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.listLength(
+        r'audioTranscripts',
         lower,
         includeLower,
         upper,
@@ -5219,6 +5779,20 @@ extension DiaryRecordQueryLinks
 
 extension DiaryRecordQuerySortBy
     on QueryBuilder<DiaryRecord, DiaryRecord, QSortBy> {
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterSortBy>
+  sortByAudioTranscriptText() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'audioTranscriptText', Sort.asc);
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterSortBy>
+  sortByAudioTranscriptTextDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'audioTranscriptText', Sort.desc);
+    });
+  }
+
   QueryBuilder<DiaryRecord, DiaryRecord, QAfterSortBy> sortByCategory() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'category', Sort.asc);
@@ -5487,6 +6061,20 @@ extension DiaryRecordQuerySortBy
 
 extension DiaryRecordQuerySortThenBy
     on QueryBuilder<DiaryRecord, DiaryRecord, QSortThenBy> {
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterSortBy>
+  thenByAudioTranscriptText() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'audioTranscriptText', Sort.asc);
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QAfterSortBy>
+  thenByAudioTranscriptTextDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'audioTranscriptText', Sort.desc);
+    });
+  }
+
   QueryBuilder<DiaryRecord, DiaryRecord, QAfterSortBy> thenByCategory() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'category', Sort.asc);
@@ -5779,6 +6367,23 @@ extension DiaryRecordQueryWhereDistinct
     });
   }
 
+  QueryBuilder<DiaryRecord, DiaryRecord, QDistinct>
+  distinctByAudioTranscriptText({bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(
+        r'audioTranscriptText',
+        caseSensitive: caseSensitive,
+      );
+    });
+  }
+
+  QueryBuilder<DiaryRecord, DiaryRecord, QDistinct>
+  distinctByAudioTranscripts() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'audioTranscripts');
+    });
+  }
+
   QueryBuilder<DiaryRecord, DiaryRecord, QDistinct> distinctByCategory({
     bool caseSensitive = true,
   }) {
@@ -5982,6 +6587,20 @@ extension DiaryRecordQueryProperty
   audioPathsProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'audioPaths');
+    });
+  }
+
+  QueryBuilder<DiaryRecord, String, QQueryOperations>
+  audioTranscriptTextProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'audioTranscriptText');
+    });
+  }
+
+  QueryBuilder<DiaryRecord, List<String>, QQueryOperations>
+  audioTranscriptsProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'audioTranscripts');
     });
   }
 

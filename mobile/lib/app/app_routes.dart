@@ -12,4 +12,7 @@ abstract final class AppRoutes {
   static const categories = '/categories';
   static const backup = '/backup';
   static const about = '/about';
+  static const localAssistantSettings = '/local-assistant-settings';
+  static const chatAppearance = '/chat-appearance';
+  static const transcriptionSettings = '/transcription-settings';
 }

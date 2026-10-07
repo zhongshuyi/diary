@@ -76,6 +76,7 @@ class PortableBackupImporter {
             content: content,
             imagePaths: entry.imagePaths.map(resolve).toList(growable: false),
             audioPaths: entry.audioPaths.map(resolve).toList(growable: false),
+            audioTranscripts: entry.audioTranscripts,
             videoPaths: entry.videoPaths.map(resolve).toList(growable: false),
           );
         })

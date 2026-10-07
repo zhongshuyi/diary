@@ -17,6 +17,7 @@ class SettingsController extends ChangeNotifier {
   final DailyReminderScheduler _dailyReminderScheduler;
   DiarySettings _settings = const DiarySettings();
   bool _isLoading = true;
+  Future<void> _pendingSave = Future<void>.value();
 
   DiarySettings get settings => _settings;
   bool get isLoading => _isLoading;
@@ -27,6 +28,7 @@ class SettingsController extends ChangeNotifier {
       final loaded = await _store.load();
       _settings = loaded.copyWith(
         fontScale: loaded.fontScale.clamp(.85, 1.3).toDouble(),
+        companionName: normalizeDiaryCompanionName(loaded.companionName),
       );
       if (_settings.dailyReminder) {
         await _dailyReminderScheduler.schedule(
@@ -103,6 +105,22 @@ class SettingsController extends ChangeNotifier {
   Future<void> setShowChatAvatar(bool value) =>
       _update(_settings.copyWith(showChatAvatar: value));
 
+  Future<void> setChatStyle(DiaryChatStyle value) =>
+      _update(_settings.copyWith(chatStyle: value));
+
+  Future<void> setCompanionAvatarPath(String value) {
+    final path = value.trim();
+    if (path.isEmpty) return clearCompanionAvatarPath();
+    return _update(_settings.copyWith(companionAvatarPath: path));
+  }
+
+  Future<void> clearCompanionAvatarPath() =>
+      _update(_settings.copyWith(clearCompanionAvatarPath: true));
+
+  Future<void> setCompanionName(String value) => _update(
+    _settings.copyWith(companionName: normalizeDiaryCompanionName(value)),
+  );
+
   Future<DailyReminderScheduleResult> setDailyReminder(bool value) async {
     final result = value
         ? await _dailyReminderScheduler.schedule(
@@ -163,12 +181,17 @@ class SettingsController extends ChangeNotifier {
   Future<void> _update(DiarySettings next) async {
     _settings = next;
     notifyListeners();
-    try {
-      await _store.save(next);
-    } catch (_) {
-      // Keep the in-memory setting active even if the platform store is
-      // temporarily unavailable. The next change will retry persistence.
-    }
+    // Fast layout/avatar choices must not let an older preferences write
+    // finish after a newer one and restore stale fields.
+    _pendingSave = _pendingSave.then((_) async {
+      try {
+        await _store.save(next);
+      } catch (_) {
+        // Keep the in-memory setting active even if the platform store is
+        // temporarily unavailable. The next change will retry persistence.
+      }
+    });
+    await _pendingSave;
   }
 }
 

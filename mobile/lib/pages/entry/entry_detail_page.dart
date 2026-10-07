@@ -2,11 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
 import 'package:diary/app/app_theme.dart';
+import 'package:diary/application/local_assistant_controller.dart';
+import 'package:diary/application/transcription_controller.dart';
+import 'package:diary/widgets/audio_transcript.dart';
 import 'package:diary/domain/diary_entry.dart';
 import 'package:diary/widgets/diary_audio_player.dart';
 import 'package:diary/widgets/diary_image_viewer.dart';
 import 'package:diary/widgets/diary_video_player.dart';
 import 'package:diary/widgets/rich_text_viewer.dart';
+import 'package:diary/widgets/local_assistant_reply.dart';
 
 class EntryDetailPage extends StatefulWidget {
   const EntryDetailPage({
@@ -16,6 +20,10 @@ class EntryDetailPage extends StatefulWidget {
     required this.onDelete,
     required this.onToggleFavorite,
     this.showWordCount = true,
+    this.localAssistantController,
+    this.transcriptionController,
+    this.getCurrentEntry,
+    this.onOpenTranscriptionSettings,
     super.key,
   });
 
@@ -25,6 +33,10 @@ class EntryDetailPage extends StatefulWidget {
   final VoidCallback onDelete;
   final VoidCallback onToggleFavorite;
   final bool showWordCount;
+  final LocalAssistantController? localAssistantController;
+  final TranscriptionController? transcriptionController;
+  final DiaryEntry? Function()? getCurrentEntry;
+  final VoidCallback? onOpenTranscriptionSettings;
 
   @override
   State<EntryDetailPage> createState() => _EntryDetailPageState();
@@ -41,6 +53,7 @@ class _EntryDetailPageState extends State<EntryDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    _entry = widget.getCurrentEntry?.call() ?? _entry;
     final colors = DiaryThemeColors.of(context);
     final embeddedImages = _entry.editorType == DiaryEditorType.richText
         ? richTextImagePaths(_entry.content)
@@ -101,6 +114,11 @@ class _EntryDetailPageState extends State<EntryDetailPage> {
                   const SizedBox(height: 10),
                   _Content(entry: _entry),
                 ],
+                if (widget.localAssistantController != null)
+                  LocalAssistantReply(
+                    controller: widget.localAssistantController!,
+                    entryId: _entry.id,
+                  ),
                 if (standaloneImages.isNotEmpty) ...[
                   const SizedBox(height: 26),
                   _DetailSectionTitle(
@@ -135,6 +153,25 @@ class _EntryDetailPageState extends State<EntryDetailPage> {
                           ? '语音片段'
                           : '语音片段 ${index + 1}',
                     ),
+                    if (widget.transcriptionController != null)
+                      AudioTranscript(
+                        entryId: _entry.id,
+                        audioPath: _entry.audioPaths[index],
+                        text: _entry.transcriptForAudioPath(
+                          _entry.audioPaths[index],
+                        ),
+                        controller: widget.transcriptionController!,
+                        onOpenSettings: widget.onOpenTranscriptionSettings,
+                      )
+                    else if (_entry.transcriptForAudioPath(
+                          _entry.audioPaths[index],
+                        ) !=
+                        null)
+                      SelectableText(
+                        _entry.transcriptForAudioPath(
+                          _entry.audioPaths[index],
+                        )!,
+                      ),
                     if (index < _entry.audioPaths.length - 1)
                       const SizedBox(height: 10),
                   ],

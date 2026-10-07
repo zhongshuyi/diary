@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -11,6 +13,173 @@ import 'package:diary/domain/diary_settings.dart';
 import 'package:diary/pages/settings/settings_page.dart';
 
 void main() {
+  test(
+    'legacy chat settings preserve profile data with appearance defaults',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        'diary.settings.chat_title': '旧日记',
+        'diary.settings.profile_avatar_path': 'self.jpg',
+        'diary.settings.show_chat_avatar': false,
+      });
+
+      final settings = await SharedPreferencesDiarySettingsStore().load();
+
+      expect(settings.chatStyle, DiaryChatStyle.diary);
+      expect(settings.companionName, diaryDefaultCompanionName);
+      expect(settings.companionAvatarPath, isNull);
+      expect(settings.profileAvatarPath, 'self.jpg');
+      expect(settings.chatTitle, '旧日记');
+      expect(settings.showChatAvatar, isFalse);
+    },
+  );
+
+  test(
+    'unknown appearance values fall back and trim companion fields',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        'diary.settings.chat_style': 'future-style',
+        'diary.settings.companion_name': '  ',
+        'diary.settings.companion_avatar_path': '  friend.jpg  ',
+      });
+
+      final settings = await SharedPreferencesDiarySettingsStore().load();
+
+      expect(settings.chatStyle, DiaryChatStyle.diary);
+      expect(settings.companionName, diaryDefaultCompanionName);
+      expect(settings.companionAvatarPath, 'friend.jpg');
+    },
+  );
+
+  test(
+    'all chat layouts and separate avatar paths survive preferences reload',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final store = SharedPreferencesDiarySettingsStore();
+      for (final style in DiaryChatStyle.values) {
+        await store.save(
+          DiarySettings(
+            chatStyle: style,
+            profileAvatarPath: 'self.jpg',
+            companionAvatarPath: 'friend.jpg',
+            companionName: '  小树  ',
+            showChatAvatar: false,
+          ),
+        );
+        final restored = await store.load();
+        expect(restored.chatStyle, style);
+        expect(restored.profileAvatarPath, 'self.jpg');
+        expect(restored.companionAvatarPath, 'friend.jpg');
+        expect(restored.companionName, '小树');
+        expect(restored.showChatAvatar, isFalse);
+      }
+      await store.save(
+        (await store.load()).copyWith(clearCompanionAvatarPath: true),
+      );
+      expect((await store.load()).companionAvatarPath, isNull);
+      expect((await store.load()).profileAvatarPath, 'self.jpg');
+    },
+  );
+
+  test('copyWith keeps both participants independent', () {
+    const original = DiarySettings(
+      chatStyle: DiaryChatStyle.soft,
+      companionName: '小树',
+      profileAvatarPath: 'self.jpg',
+      companionAvatarPath: 'friend.jpg',
+      chatTitle: '我的名字',
+      showChatAvatar: false,
+    );
+    final ownCleared = original.copyWith(clearProfileAvatarPath: true);
+    final companionCleared = original.copyWith(clearCompanionAvatarPath: true);
+
+    expect(ownCleared.profileAvatarPath, isNull);
+    expect(ownCleared.companionAvatarPath, 'friend.jpg');
+    expect(companionCleared.companionAvatarPath, isNull);
+    expect(companionCleared.profileAvatarPath, 'self.jpg');
+    expect(companionCleared.companionName, '小树');
+    expect(companionCleared.chatTitle, '我的名字');
+    expect(companionCleared.chatStyle, DiaryChatStyle.soft);
+    expect(companionCleared.showChatAvatar, isFalse);
+    expect(original.copyWith().companionAvatarPath, 'friend.jpg');
+  });
+
+  test(
+    'appearance controller normalizes names without changing profile fields',
+    () async {
+      final store = _MemorySettingsStore(
+        const DiarySettings(chatTitle: '自己', profileAvatarPath: 'self.jpg'),
+      );
+      final controller = SettingsController(store: store);
+      await controller.initialize();
+      await controller.setChatStyle(DiaryChatStyle.messenger);
+      await controller.setCompanionAvatarPath('  friend.jpg  ');
+      await controller.setCompanionName('  小树  ');
+      expect(store.value.companionName, '小树');
+      expect(store.value.companionAvatarPath, 'friend.jpg');
+      await controller.setCompanionName('🌱' * 25);
+      expect(store.value.companionName.runes, hasLength(20));
+      await controller.setCompanionName('  ');
+      expect(store.value.companionName, diaryDefaultCompanionName);
+      await controller.setCompanionAvatarPath(' ');
+      expect(store.value.companionAvatarPath, isNull);
+      expect(store.value.profileAvatarPath, 'self.jpg');
+      expect(store.value.chatTitle, '自己');
+      expect(store.value.chatStyle, DiaryChatStyle.messenger);
+    },
+  );
+
+  test(
+    'rapid appearance changes serialize complete preference snapshots',
+    () async {
+      final store = _BlockedSettingsStore();
+      final controller = SettingsController(store: store);
+      await controller.initialize();
+      final styleSave = controller.setChatStyle(DiaryChatStyle.soft);
+      await Future<void>.delayed(Duration.zero);
+      final avatarSave = controller.setCompanionAvatarPath('friend.jpg');
+      expect(controller.settings.chatStyle, DiaryChatStyle.soft);
+      expect(controller.settings.companionAvatarPath, 'friend.jpg');
+      expect(store.started, 1);
+
+      store.firstWrite.complete();
+      await Future.wait([styleSave, avatarSave]);
+
+      expect(store.started, 2);
+      expect(store.value.chatStyle, DiaryChatStyle.soft);
+      expect(store.value.companionAvatarPath, 'friend.jpg');
+    },
+  );
+
+  testWidgets('settings opens appearance with the current layout label', (
+    tester,
+  ) async {
+    final controller = SettingsController(
+      store: _MemorySettingsStore(
+        const DiarySettings(chatStyle: DiaryChatStyle.soft),
+      ),
+    );
+    await controller.initialize();
+    var opened = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: DiaryTheme.light,
+        home: SettingsPage(
+          controller: controller,
+          onOpenChatAppearance: () => opened++,
+        ),
+      ),
+    );
+    final tile = find.byKey(const Key('settings-chat-appearance'));
+    await tester.ensureVisible(tile);
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(of: tile, matching: find.text('圆润陪伴')),
+      findsOneWidget,
+    );
+    await tester.tap(tile);
+    expect(opened, 1);
+  });
+
   test(
     'settings controller persists user preferences through its store',
     () async {
@@ -211,24 +380,28 @@ void main() {
     expect(restored.dailyReminderTime.label, '06:45');
   });
 
-  testWidgets('mobile preferences do not repeat data and sync controls', (
-    tester,
-  ) async {
-    final controller = SettingsController(store: _MemorySettingsStore());
-    await controller.initialize();
+  testWidgets(
+    'settings can hide sync controls while keeping the preference index',
+    (tester) async {
+      final controller = SettingsController(store: _MemorySettingsStore());
+      await controller.initialize();
 
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: DiaryTheme.light,
-        home: SettingsPage(controller: controller, showDataControls: false),
-      ),
-    );
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: DiaryTheme.light,
+          home: SettingsPage(controller: controller, showDataControls: false),
+        ),
+      );
 
-    expect(find.text('同步与更新'), findsNothing);
-    expect(find.text('清理临时缓存'), findsNothing);
-    expect(find.text('偏好设置'), findsNothing);
-    expect(find.textContaining('阅读、记录和应用习惯'), findsOneWidget);
-  });
+      expect(find.text('同步与更新'), findsNothing);
+      expect(find.text('清理临时缓存'), findsNothing);
+      expect(find.text('偏好设置'), findsNothing);
+      expect(find.byKey(const Key('settings-sync')), findsNothing);
+      expect(find.byKey(const Key('settings-search')), findsOneWidget);
+      expect(find.text('记录与陪伴'), findsOneWidget);
+      expect(find.text('外观与阅读'), findsOneWidget);
+    },
+  );
 
   testWidgets('settings exposes the chat avatar visibility control', (
     tester,
@@ -243,7 +416,14 @@ void main() {
     );
 
     expect(find.byKey(const Key('settings-show-chat-avatar')), findsOneWidget);
-    expect(find.text('在每条对话消息旁显示你的头像'), findsOneWidget);
+    expect(find.text('对话显示头像'), findsOneWidget);
+    final avatarSwitch = tester.widget<Switch>(
+      find.descendant(
+        of: find.byKey(const Key('settings-show-chat-avatar')),
+        matching: find.byType(Switch),
+      ),
+    );
+    expect(avatarSwitch.value, controller.settings.showChatAvatar);
   });
 
   testWidgets('settings lets the user save an Android map key', (tester) async {
@@ -253,14 +433,10 @@ void main() {
       MaterialApp(home: SettingsPage(controller: controller)),
     );
 
-    await tester.scrollUntilVisible(
-      find.byKey(const Key('settings-amap-key')),
-      220,
-    );
-    await tester.pumpAndSettle();
+    await _filterSettings(tester, '高德密钥');
     expect(find.text('地图与位置'), findsOneWidget);
     expect(find.byKey(const Key('settings-quick-capture-side')), findsNothing);
-    await tester.tap(find.byKey(const Key('settings-amap-key')));
+    await tester.tap(find.byKey(const Key('settings-amap-key')).hitTestable());
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const Key('amap-key-field')), 'my-key');
     await tester.tap(find.text('保存'));
@@ -524,7 +700,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('自定义主题色'));
+    await _filterSettings(tester, '自定义主题色');
+    await tester.tap(
+      find.byKey(const Key('settings-custom-theme-color')).hitTestable(),
+    );
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('custom-theme-hue-slider')), findsOneWidget);
     await tester.tap(find.byKey(const Key('custom-theme-save-button')));
@@ -551,9 +730,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.drag(find.byType(Scrollable).first, const Offset(0, -700));
-    await tester.pumpAndSettle();
-    final dailyReminder = find.text('每日提醒');
+    await _filterSettings(tester, '每日提醒');
+    final dailyReminder = find.byKey(const Key('settings-daily-reminder'));
     await tester.tap(dailyReminder);
     await tester.pumpAndSettle();
 
@@ -561,7 +739,15 @@ void main() {
       find.byKey(const Key('settings-daily-reminder-time')),
       findsOneWidget,
     );
-    expect(find.text('每天 21:30'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('settings-daily-reminder-time')),
+        matching: find.text('每天 21:30'),
+      ),
+      findsOneWidget,
+    );
+    expect(store.value.dailyReminder, isTrue);
+    expect(store.value.dailyReminderTime.label, '21:30');
   });
 
   testWidgets(
@@ -578,7 +764,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('主题配色').first);
+      await _filterSettings(tester, '主题配色');
+      await tester.tap(
+        find.byKey(const Key('settings-theme-preset')).hitTestable(),
+      );
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('theme-preset-grid')), findsOneWidget);
@@ -600,7 +789,9 @@ void main() {
 
       expect(store.value.themePreset.wireValue, 'carbon');
 
-      await tester.tap(find.text('主题配色').first);
+      await tester.tap(
+        find.byKey(const Key('settings-theme-preset')).hitTestable(),
+      );
       await tester.pumpAndSettle();
 
       final themeGrid = find.byKey(const Key('theme-preset-grid'));
@@ -677,7 +868,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('主题配色').first);
+    await _filterSettings(tester, '主题配色');
+    await tester.tap(
+      find.byKey(const Key('settings-theme-preset')).hitTestable(),
+    );
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
@@ -698,19 +892,12 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('外观'), findsOneWidget);
-    expect(find.text('记录与对话'), findsOneWidget);
+    expect(find.text('外观与阅读'), findsOneWidget);
+    expect(find.text('记录与陪伴'), findsOneWidget);
     expect(find.text('服务器地址'), findsNothing);
 
-    await tester.scrollUntilVisible(
-      find.byKey(const Key('settings-sync')),
-      240,
-      scrollable: find.byType(Scrollable).first,
-    );
-    final syncSetting = find.byKey(const Key('settings-sync'));
-    await tester.ensureVisible(syncSetting);
-    await tester.drag(find.byType(Scrollable).first, const Offset(0, -120));
-    await tester.pumpAndSettle();
+    await _filterSettings(tester, '同步');
+    final syncSetting = find.byKey(const Key('settings-sync')).hitTestable();
     await tester.tap(syncSetting);
     await tester.pumpAndSettle();
 
@@ -730,9 +917,10 @@ void main() {
         home: SettingsPage(controller: controller),
       ),
     );
-    final avatarToggle = find.byKey(const Key('settings-show-chat-avatar'));
-    await tester.drag(find.byType(ListView).first, const Offset(0, -420));
-    await tester.pumpAndSettle();
+    await _filterSettings(tester, '头像');
+    final avatarToggle = find
+        .byKey(const Key('settings-show-chat-avatar'))
+        .hitTestable();
     await tester.tap(avatarToggle);
     await tester.pump();
 
@@ -757,7 +945,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const Key('settings-chat-background')));
+    await _filterSettings(tester, '聊天背景');
+    await tester.tap(
+      find.byKey(const Key('settings-chat-background')).hitTestable(),
+    );
     await tester.pumpAndSettle();
     expect(
       find.byKey(const Key('chat-background-crop-canvas')),
@@ -776,6 +967,11 @@ void main() {
   });
 }
 
+Future<void> _filterSettings(WidgetTester tester, String query) async {
+  await tester.enterText(find.byKey(const Key('settings-search')), query);
+  await tester.pumpAndSettle();
+}
+
 class _MemorySettingsStore implements DiarySettingsStore {
   _MemorySettingsStore([DiarySettings? initial])
     : value = initial ?? const DiarySettings();
@@ -787,6 +983,18 @@ class _MemorySettingsStore implements DiarySettingsStore {
 
   @override
   Future<void> save(DiarySettings settings) async => value = settings;
+}
+
+class _BlockedSettingsStore extends _MemorySettingsStore {
+  final firstWrite = Completer<void>();
+  int started = 0;
+
+  @override
+  Future<void> save(DiarySettings settings) async {
+    started++;
+    if (started == 1) await firstWrite.future;
+    await super.save(settings);
+  }
 }
 
 class _FakeDailyReminderScheduler implements DailyReminderScheduler {

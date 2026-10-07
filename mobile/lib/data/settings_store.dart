@@ -39,6 +39,9 @@ class SharedPreferencesDiarySettingsStore implements DiarySettingsStore {
       'diary.settings.show_profile_signature';
   static const _profileAvatarPathKey = 'diary.settings.profile_avatar_path';
   static const _showChatAvatarKey = 'diary.settings.show_chat_avatar';
+  static const _chatStyleKey = 'diary.settings.chat_style';
+  static const _companionAvatarPathKey = 'diary.settings.companion_avatar_path';
+  static const _companionNameKey = 'diary.settings.companion_name';
 
   @override
   Future<DiarySettings> load() async {
@@ -106,6 +109,15 @@ class SharedPreferencesDiarySettingsStore implements DiarySettingsStore {
         preferences.getString(_profileAvatarPathKey),
       ),
       showChatAvatar: preferences.getBool(_showChatAvatarKey) ?? true,
+      chatStyle: DiaryChatStyleCodec.fromWireValue(
+        preferences.getString(_chatStyleKey),
+      ),
+      companionAvatarPath: _optionalPath(
+        preferences.getString(_companionAvatarPathKey),
+      ),
+      companionName: normalizeDiaryCompanionName(
+        preferences.getString(_companionNameKey) ?? diaryDefaultCompanionName,
+      ),
     );
   }
 
@@ -194,6 +206,17 @@ class SharedPreferencesDiarySettingsStore implements DiarySettingsStore {
       await preferences.setString(_profileAvatarPathKey, profileAvatarPath);
     }
     await preferences.setBool(_showChatAvatarKey, settings.showChatAvatar);
+    await preferences.setString(_chatStyleKey, settings.chatStyle.wireValue);
+    final companionAvatarPath = _optionalPath(settings.companionAvatarPath);
+    if (companionAvatarPath == null) {
+      await preferences.remove(_companionAvatarPathKey);
+    } else {
+      await preferences.setString(_companionAvatarPathKey, companionAvatarPath);
+    }
+    await preferences.setString(
+      _companionNameKey,
+      normalizeDiaryCompanionName(settings.companionName),
+    );
   }
 }
 

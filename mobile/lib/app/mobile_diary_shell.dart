@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:diary/app/diary_shell.dart';
+import 'package:diary/application/local_assistant_controller.dart';
+import 'package:diary/application/transcription_controller.dart';
 import 'package:diary/app/app_theme.dart';
 import 'package:diary/app/diary_motion.dart';
 import 'package:diary/domain/diary_entry.dart';
@@ -38,6 +40,9 @@ class MobileDiaryShell extends StatefulWidget {
     this.amapAndroidKey = '',
     this.entriesLoading = false,
     this.chatBackground = const DiaryChatBackground(),
+    this.chatStyle = DiaryChatStyle.diary,
+    this.companionAvatarPath,
+    this.companionName = diaryDefaultCompanionName,
     this.conflictCount = 0,
     this.syncState = const SyncState(),
     this.onSyncNow,
@@ -47,6 +52,8 @@ class MobileDiaryShell extends StatefulWidget {
     this.onClearAvatar,
     this.onSaveProfile,
     this.showChatAvatar = true,
+    this.localAssistantController,
+    this.transcriptionController,
     super.key,
   });
 
@@ -62,6 +69,9 @@ class MobileDiaryShell extends StatefulWidget {
   final String amapAndroidKey;
   final bool entriesLoading;
   final DiaryChatBackground chatBackground;
+  final DiaryChatStyle chatStyle;
+  final String? companionAvatarPath;
+  final String companionName;
   final int conflictCount;
   final SyncState syncState;
   final Future<void> Function()? onSyncNow;
@@ -76,6 +86,8 @@ class MobileDiaryShell extends StatefulWidget {
   )?
   onSaveProfile;
   final bool showChatAvatar;
+  final LocalAssistantController? localAssistantController;
+  final TranscriptionController? transcriptionController;
 
   @override
   State<MobileDiaryShell> createState() => _MobileDiaryShellState();
@@ -215,6 +227,12 @@ class _MobileDiaryShellState extends State<MobileDiaryShell> {
         entriesLoading: widget.entriesLoading,
         title: widget.chatTitle,
         chatBackground: widget.chatBackground,
+        chatStyle: widget.chatStyle,
+        companionAvatarPath: widget.companionAvatarPath,
+        companionName: widget.companionName,
+        onOpenChatAppearance: widget.actions.openChatAppearance == null
+            ? null
+            : () => unawaited(widget.actions.openChatAppearance!()),
         showChatAvatar: widget.showChatAvatar,
         profileAvatarPath: widget.profileAvatarPath,
         onSend: widget.actions.saveChatMessage,
@@ -231,6 +249,14 @@ class _MobileDiaryShellState extends State<MobileDiaryShell> {
         onExternalActivityStart: widget.actions.beginExternalActivity,
         onExternalActivityEnd: widget.actions.endExternalActivity,
         onNavigate: _navigateFromChat,
+        localAssistantController: widget.localAssistantController,
+        transcriptionController: widget.transcriptionController,
+        onOpenTranscriptionSettings: widget.actions.openTranscription == null
+            ? null
+            : () => unawaited(widget.actions.openTranscription!()),
+        onOpenLocalAssistant: widget.actions.openLocalAssistant == null
+            ? null
+            : () => unawaited(widget.actions.openLocalAssistant!()),
       ),
       CalendarPage(
         entries: widget.entries,
@@ -248,6 +274,15 @@ class _MobileDiaryShellState extends State<MobileDiaryShell> {
         onOpenCategories: widget.actions.openCategories,
         onOpenBackup: widget.actions.openBackup,
         onOpenAbout: widget.actions.openAbout,
+        onOpenLocalAssistant: widget.actions.openLocalAssistant == null
+            ? null
+            : () => unawaited(widget.actions.openLocalAssistant!()),
+        onOpenTranscription: widget.actions.openTranscription == null
+            ? null
+            : () => unawaited(widget.actions.openTranscription!()),
+        onOpenChatAppearance: widget.actions.openChatAppearance == null
+            ? null
+            : () => unawaited(widget.actions.openChatAppearance!()),
         conflictCount: widget.conflictCount,
         onOpenConflicts: widget.actions.openConflicts,
         syncState: widget.syncState,

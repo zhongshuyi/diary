@@ -173,6 +173,7 @@ class AttachmentTransfer {
       content: content,
       imagePaths: images,
       audioPaths: await hydrate(entry.audioPaths),
+      audioTranscripts: entry.audioTranscripts,
       videoPaths: await hydrate(entry.videoPaths),
     );
   }
@@ -227,6 +228,7 @@ class AttachmentTransfer {
       }.toList(growable: false),
       imagePaths: images,
       audioPaths: portable(entry.audioPaths),
+      audioTranscripts: entry.audioTranscripts,
       videoPaths: portable(entry.videoPaths),
     );
   }

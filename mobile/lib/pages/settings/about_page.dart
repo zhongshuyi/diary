@@ -204,6 +204,15 @@ class _AboutPageState extends State<AboutPage> {
                   title: Text('隐私'),
                   subtitle: Text('位置仅在你主动选择时获取；地图与地点信息由高德提供'),
                 ),
+                ListTile(
+                  title: const Text('开源许可证'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => showLicensePage(
+                    context: context,
+                    applicationName: '此刻',
+                    applicationVersion: _currentVersion,
+                  ),
+                ),
               ],
             ),
           ),

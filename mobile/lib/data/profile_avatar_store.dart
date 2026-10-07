@@ -4,10 +4,16 @@ import 'dart:typed_data';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+enum ProfileAvatarRole { profile, companion }
+
 class ProfileAvatarStore {
-  ProfileAvatarStore({this.rootDirectory});
+  ProfileAvatarStore({
+    this.rootDirectory,
+    this.role = ProfileAvatarRole.profile,
+  });
 
   final Directory? rootDirectory;
+  final ProfileAvatarRole role;
 
   Future<String> importFile(String sourcePath) async {
     final source = File(sourcePath);
@@ -53,7 +59,9 @@ class ProfileAvatarStore {
           p.join(
             (await getApplicationSupportDirectory()).path,
             'diary',
-            'profile-avatar',
+            role == ProfileAvatarRole.profile
+                ? 'profile-avatar'
+                : 'companion-avatar',
           ),
         );
   }

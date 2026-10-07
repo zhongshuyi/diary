@@ -30,6 +30,13 @@ android {
         jvmTarget = JavaVersion.VERSION_17.toString()
     }
 
+    // llama.cpp discovers its CPU backend libraries beside the extracted runtime.
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.ling.diary"

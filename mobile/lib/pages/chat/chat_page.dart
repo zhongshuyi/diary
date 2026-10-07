@@ -8,19 +8,23 @@ import 'package:image_picker/image_picker.dart';
 
 import 'package:diary/app/app_theme.dart';
 import 'package:diary/app/diary_motion.dart';
+import 'package:diary/application/local_assistant_controller.dart';
+import 'package:diary/application/transcription_controller.dart';
+import 'package:diary/widgets/audio_transcript.dart';
 import 'package:diary/data/diary_repository.dart';
 import 'package:diary/domain/diary_entry.dart';
 import 'package:diary/domain/diary_place.dart';
 import 'package:diary/domain/diary_settings.dart';
 import 'package:diary/data/amap_location_bridge.dart';
 import 'package:diary/widgets/diary_audio_player.dart';
-import 'package:diary/widgets/diary_avatar.dart';
+import 'package:diary/widgets/diary_chat_appearance.dart';
 import 'package:diary/widgets/diary_chat_background.dart';
 import 'package:diary/widgets/diary_image_viewer.dart';
 import 'package:diary/widgets/diary_video_player.dart';
 import 'package:diary/widgets/hold_to_record_button.dart';
 import 'package:diary/widgets/in_app_photo_picker.dart';
 import 'package:diary/widgets/local_media_preview.dart';
+import 'package:diary/widgets/local_assistant_reply.dart';
 import 'package:diary/widgets/selected_photo_strip.dart';
 import 'package:diary/widgets/rich_text_viewer.dart';
 
@@ -141,6 +145,14 @@ class ChatPage extends StatefulWidget {
     this.onLoadDraft,
     this.onSaveDraft,
     this.onClearDraft,
+    this.onOpenLocalAssistant,
+    this.localAssistantController,
+    this.transcriptionController,
+    this.onOpenTranscriptionSettings,
+    this.chatStyle = DiaryChatStyle.diary,
+    this.companionAvatarPath,
+    this.companionName = diaryDefaultCompanionName,
+    this.onOpenChatAppearance,
     super.key,
   });
 
@@ -168,6 +180,14 @@ class ChatPage extends StatefulWidget {
   final Future<DraftPayload?> Function(String id)? onLoadDraft;
   final Future<void> Function(DraftPayload draft)? onSaveDraft;
   final Future<void> Function(String id)? onClearDraft;
+  final VoidCallback? onOpenLocalAssistant;
+  final LocalAssistantController? localAssistantController;
+  final TranscriptionController? transcriptionController;
+  final VoidCallback? onOpenTranscriptionSettings;
+  final DiaryChatStyle chatStyle;
+  final String? companionAvatarPath;
+  final String companionName;
+  final VoidCallback? onOpenChatAppearance;
 
   @override
   State<ChatPage> createState() => _ChatPageState();
@@ -373,17 +393,22 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final colors = DiaryThemeColors.of(context);
+    final appearance = DiaryChatAppearance.of(context, widget.chatStyle);
     final entries = _sortedEntries();
     return ColoredBox(
-      color: colors.paper,
+      color: appearance.backgroundColor,
       child: Column(
         children: [
-          _ChatHeader(title: widget.title, onNavigate: widget.onNavigate),
+          _ChatHeader(
+            title: widget.title,
+            onNavigate: widget.onNavigate,
+            onOpenLocalAssistant: widget.onOpenLocalAssistant,
+            onOpenChatAppearance: widget.onOpenChatAppearance,
+          ),
           Expanded(
             child: DiaryChatBackgroundLayer(
               background: widget.chatBackground,
-              fallbackColor: colors.paper,
+              fallbackColor: appearance.backgroundColor,
               imageKey: widget.chatBackground.hasImage
                   ? ValueKey(
                       'chat-background-image-${widget.chatBackground.imagePath}',
@@ -415,6 +440,16 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                           onAvatarTap: _openProfile,
                           showChatAvatar: widget.showChatAvatar,
                           profileAvatarPath: widget.profileAvatarPath,
+                          localAssistantController:
+                              widget.localAssistantController,
+                          transcriptionController:
+                              widget.transcriptionController,
+                          onOpenTranscriptionSettings:
+                              widget.onOpenTranscriptionSettings,
+                          chatStyle: widget.chatStyle,
+                          companionAvatarPath: widget.companionAvatarPath,
+                          companionName: widget.companionName,
+                          onCompanionAvatarTap: widget.onOpenChatAppearance,
                         );
                       },
                     ),
@@ -446,10 +481,17 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
 }
 
 class _ChatHeader extends StatelessWidget {
-  const _ChatHeader({required this.title, required this.onNavigate});
+  const _ChatHeader({
+    required this.title,
+    required this.onNavigate,
+    this.onOpenLocalAssistant,
+    this.onOpenChatAppearance,
+  });
 
   final String title;
   final ValueChanged<ChatPageDestination> onNavigate;
+  final VoidCallback? onOpenLocalAssistant;
+  final VoidCallback? onOpenChatAppearance;
 
   Future<void> _showNavigationMenu(BuildContext context) async {
     final button = context.findRenderObject() as RenderBox;
@@ -486,6 +528,24 @@ class _ChatHeader extends StatelessWidget {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        if (onOpenChatAppearance != null)
+                          _ChatMenuItem(
+                            icon: Icons.palette_outlined,
+                            label: '对话外观',
+                            onTap: () {
+                              Navigator.pop(menuContext);
+                              onOpenChatAppearance!();
+                            },
+                          ),
+                        if (onOpenLocalAssistant != null)
+                          _ChatMenuItem(
+                            icon: Icons.auto_awesome_outlined,
+                            label: '日记陪伴',
+                            onTap: () {
+                              Navigator.pop(menuContext);
+                              onOpenLocalAssistant!();
+                            },
+                          ),
                         _ChatMenuItem(
                           icon: Icons.view_agenda_outlined,
                           label: '时间线',
@@ -678,6 +738,13 @@ class _ChatEntryItem extends StatelessWidget {
     required this.onAvatarTap,
     required this.showChatAvatar,
     required this.profileAvatarPath,
+    this.localAssistantController,
+    this.transcriptionController,
+    this.onOpenTranscriptionSettings,
+    required this.chatStyle,
+    required this.companionAvatarPath,
+    required this.companionName,
+    this.onCompanionAvatarTap,
     super.key,
   });
 
@@ -690,6 +757,13 @@ class _ChatEntryItem extends StatelessWidget {
   final VoidCallback onAvatarTap;
   final bool showChatAvatar;
   final String? profileAvatarPath;
+  final LocalAssistantController? localAssistantController;
+  final TranscriptionController? transcriptionController;
+  final VoidCallback? onOpenTranscriptionSettings;
+  final DiaryChatStyle chatStyle;
+  final String? companionAvatarPath;
+  final String companionName;
+  final VoidCallback? onCompanionAvatarTap;
 
   @override
   Widget build(BuildContext context) {
@@ -710,13 +784,26 @@ class _ChatEntryItem extends StatelessWidget {
           ),
           _ChatEntryBubble(
             entry: entry,
+            transcriptionController: transcriptionController,
+            onOpenTranscriptionSettings: onOpenTranscriptionSettings,
             onOpen: () => onOpenEntry(entry),
             onOpenLocation: () => onOpenLocation(entry),
             onLongPress: () => unawaited(onLongPress(entry)),
             onAvatarTap: onAvatarTap,
             showChatAvatar: showChatAvatar,
             profileAvatarPath: profileAvatarPath,
+            chatStyle: chatStyle,
           ),
+          if (localAssistantController != null)
+            LocalAssistantReply(
+              entryId: entry.id,
+              controller: localAssistantController!,
+              chatStyle: chatStyle,
+              showAvatar: showChatAvatar,
+              companionAvatarPath: companionAvatarPath,
+              companionName: companionName,
+              onAvatarTap: onCompanionAvatarTap,
+            ),
         ],
       ),
     );
@@ -823,6 +910,9 @@ class _ChatEntryBubble extends StatefulWidget {
     required this.onAvatarTap,
     required this.showChatAvatar,
     required this.profileAvatarPath,
+    required this.chatStyle,
+    this.transcriptionController,
+    this.onOpenTranscriptionSettings,
   });
 
   final DiaryEntry entry;
@@ -832,6 +922,9 @@ class _ChatEntryBubble extends StatefulWidget {
   final VoidCallback onAvatarTap;
   final bool showChatAvatar;
   final String? profileAvatarPath;
+  final DiaryChatStyle chatStyle;
+  final TranscriptionController? transcriptionController;
+  final VoidCallback? onOpenTranscriptionSettings;
 
   @override
   State<_ChatEntryBubble> createState() => _ChatEntryBubbleState();
@@ -861,23 +954,30 @@ class _ChatEntryBubbleState extends State<_ChatEntryBubble> {
     final showChatAvatar = widget.showChatAvatar;
     final profileAvatarPath = widget.profileAvatarPath;
     final colors = DiaryThemeColors.of(context);
+    final chatStyle = widget.chatStyle;
+    final appearance = DiaryChatAppearance.of(context, chatStyle);
     if (entry.isStandaloneLocation) {
       return Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
+          crossAxisAlignment: chatStyle == DiaryChatStyle.diary
+              ? CrossAxisAlignment.end
+              : CrossAxisAlignment.start,
           children: [
             Expanded(
               child: Align(
                 alignment: Alignment.centerRight,
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 520),
-                  child: FractionallySizedBox(
-                    widthFactor: .86,
-                    alignment: Alignment.centerRight,
+                  child: _ChatMessageWidth(
+                    style: chatStyle,
+                    fraction: .86,
+                    forceWidth: true,
                     child: Material(
-                      color: colors.surface,
-                      borderRadius: BorderRadius.circular(18),
+                      color: chatStyle == DiaryChatStyle.diary
+                          ? colors.surface
+                          : appearance.outgoingColor,
+                      shape: appearance.bubbleShape(outgoing: true),
                       clipBehavior: Clip.antiAlias,
                       child: InkWell(
                         key: Key('chat-location-${entry.id}'),
@@ -989,6 +1089,7 @@ class _ChatEntryBubbleState extends State<_ChatEntryBubble> {
                 key: ValueKey('chat-profile-avatar-${entry.id}'),
                 imagePath: profileAvatarPath,
                 onTap: onAvatarTap,
+                chatStyle: chatStyle,
               ),
             ],
           ],
@@ -1030,9 +1131,14 @@ class _ChatEntryBubbleState extends State<_ChatEntryBubble> {
         entry.audioPaths.isNotEmpty;
     if (isMoodOnly) {
       return _ChatMoodEvent(
+        entryId: entry.id,
         mood: mood,
         onOpen: onOpen,
         onLongPress: onLongPress,
+        chatStyle: chatStyle,
+        showChatAvatar: showChatAvatar,
+        profileAvatarPath: profileAvatarPath,
+        onAvatarTap: onAvatarTap,
       );
     }
     if (isImageOnly) {
@@ -1042,27 +1148,26 @@ class _ChatEntryBubbleState extends State<_ChatEntryBubble> {
         onAvatarTap: onAvatarTap,
         showChatAvatar: showChatAvatar,
         profileAvatarPath: profileAvatarPath,
+        chatStyle: chatStyle,
       );
     }
 
-    final textBubbleColor = Color.lerp(
-      colors.terracottaSoft,
-      colors.terracotta,
-      .12,
-    )!;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+        crossAxisAlignment: chatStyle == DiaryChatStyle.diary
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
         children: [
           Expanded(
             child: Align(
               alignment: Alignment.centerRight,
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 520),
-                child: FractionallySizedBox(
-                  widthFactor: isVoiceOnly ? .62 : .86,
-                  alignment: Alignment.centerRight,
+                child: _ChatMessageWidth(
+                  style: chatStyle,
+                  fraction: isVoiceOnly ? .62 : .86,
+                  forceWidth: isVoiceOnly,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
@@ -1070,15 +1175,19 @@ class _ChatEntryBubbleState extends State<_ChatEntryBubble> {
                         Material(
                           key: Key('chat-bubble-${entry.id}'),
                           color: isVoiceOnly
-                              ? colors.terracotta
-                              : textBubbleColor,
-                          borderRadius: BorderRadius.circular(18),
+                              ? appearance.outgoingVoiceColor
+                              : appearance.outgoingColor,
+                          shape: appearance.bubbleShape(outgoing: true),
                           child: InkWell(
-                            borderRadius: BorderRadius.circular(18),
+                            customBorder: appearance.bubbleShape(
+                              outgoing: true,
+                            ),
                             onTap: onOpen,
                             onLongPress: onLongPress,
                             child: Padding(
-                              padding: const EdgeInsets.all(12),
+                              padding: EdgeInsets.all(
+                                chatStyle == DiaryChatStyle.messenger ? 10 : 12,
+                              ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
@@ -1102,7 +1211,7 @@ class _ChatEntryBubbleState extends State<_ChatEntryBubble> {
                                           .textTheme
                                           .bodyLarge
                                           ?.copyWith(
-                                            color: colors.ink,
+                                            color: appearance.outgoingTextColor,
                                             fontWeight: FontWeight.w500,
                                             height: 1.45,
                                           ),
@@ -1129,6 +1238,41 @@ class _ChatEntryBubbleState extends State<_ChatEntryBubble> {
                                       loadMetadata: false,
                                       loadWaveform: false,
                                     ),
+                                    if (widget.transcriptionController != null)
+                                      AudioTranscript(
+                                        entryId: entry.id,
+                                        audioPath: entry.audioPaths[index],
+                                        text: entry.transcriptForAudioPath(
+                                          entry.audioPaths[index],
+                                        ),
+                                        controller:
+                                            widget.transcriptionController!,
+                                        foreground: isVoiceOnly
+                                            ? appearance.outgoingVoiceColor
+                                                          .computeLuminance() <
+                                                      .179
+                                                  ? Colors.white
+                                                  : Colors.black
+                                            : appearance.outgoingTextColor,
+                                        mutedColor: isVoiceOnly
+                                            ? appearance.outgoingVoiceColor
+                                                          .computeLuminance() <
+                                                      .179
+                                                  ? Colors.white
+                                                  : Colors.black
+                                            : appearance.outgoingTextColor,
+                                        onOpenSettings:
+                                            widget.onOpenTranscriptionSettings,
+                                      )
+                                    else if (entry.transcriptForAudioPath(
+                                          entry.audioPaths[index],
+                                        ) !=
+                                        null)
+                                      SelectableText(
+                                        entry.transcriptForAudioPath(
+                                          entry.audioPaths[index],
+                                        )!,
+                                      ),
                                     if (index < entry.audioPaths.length - 1)
                                       const SizedBox(height: 8),
                                   ],
@@ -1167,6 +1311,7 @@ class _ChatEntryBubbleState extends State<_ChatEntryBubble> {
               key: ValueKey('chat-profile-avatar-${entry.id}'),
               imagePath: profileAvatarPath,
               onTap: onAvatarTap,
+              chatStyle: chatStyle,
             ),
           ],
         ],
@@ -1226,6 +1371,34 @@ class _LocationPreviewPainter extends CustomPainter {
       oldDelegate.line != line;
 }
 
+/// Keeps the same renderer slot when appearance changes. Diary retains its
+/// existing fixed width; other styles let short text bubbles fit their content.
+class _ChatMessageWidth extends StatelessWidget {
+  const _ChatMessageWidth({
+    required this.style,
+    required this.fraction,
+    required this.child,
+    this.forceWidth = false,
+  });
+  final DiaryChatStyle style;
+  final double fraction;
+  final bool forceWidth;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final width = constraints.maxWidth * fraction;
+      return ConstrainedBox(
+        constraints: style == DiaryChatStyle.diary || forceWidth
+            ? BoxConstraints.tightFor(width: width)
+            : BoxConstraints(maxWidth: width),
+        child: child,
+      );
+    },
+  );
+}
+
 class _ChatImageMessage extends StatelessWidget {
   const _ChatImageMessage({
     required this.entry,
@@ -1233,6 +1406,7 @@ class _ChatImageMessage extends StatelessWidget {
     required this.onAvatarTap,
     required this.showChatAvatar,
     required this.profileAvatarPath,
+    required this.chatStyle,
   });
 
   final DiaryEntry entry;
@@ -1240,27 +1414,43 @@ class _ChatImageMessage extends StatelessWidget {
   final VoidCallback onAvatarTap;
   final bool showChatAvatar;
   final String? profileAvatarPath;
+  final DiaryChatStyle chatStyle;
 
   @override
   Widget build(BuildContext context) {
+    final appearance = DiaryChatAppearance.of(context, chatStyle);
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+        crossAxisAlignment: chatStyle == DiaryChatStyle.diary
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
         children: [
           Expanded(
             child: Align(
               alignment: Alignment.centerRight,
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 520),
-                child: FractionallySizedBox(
-                  widthFactor: .78,
-                  alignment: Alignment.centerRight,
-                  child: GestureDetector(
-                    key: ValueKey('chat-image-message-${entry.id}'),
-                    behavior: HitTestBehavior.translucent,
-                    onLongPress: onLongPress,
-                    child: _ChatImageGrid(entry: entry),
+                child: _ChatMessageWidth(
+                  style: chatStyle,
+                  fraction: .78,
+                  forceWidth: true,
+                  child: Material(
+                    color: chatStyle == DiaryChatStyle.diary
+                        ? Colors.transparent
+                        : appearance.outgoingColor,
+                    shape: appearance.bubbleShape(outgoing: true),
+                    child: Padding(
+                      padding: EdgeInsets.all(
+                        chatStyle == DiaryChatStyle.diary ? 0 : 5,
+                      ),
+                      child: GestureDetector(
+                        key: ValueKey('chat-image-message-${entry.id}'),
+                        behavior: HitTestBehavior.translucent,
+                        onLongPress: onLongPress,
+                        child: _ChatImageGrid(entry: entry),
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -1272,6 +1462,7 @@ class _ChatImageMessage extends StatelessWidget {
               key: ValueKey('chat-profile-avatar-${entry.id}'),
               imagePath: profileAvatarPath,
               onTap: onAvatarTap,
+              chatStyle: chatStyle,
             ),
           ],
         ],
@@ -1285,26 +1476,21 @@ class _ChatProfileAvatar extends StatelessWidget {
     super.key,
     required this.imagePath,
     required this.onTap,
+    required this.chatStyle,
   });
 
   final String? imagePath;
   final VoidCallback onTap;
+  final DiaryChatStyle chatStyle;
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: '打开我的页面',
-      child: Material(
-        type: MaterialType.transparency,
-        shape: const CircleBorder(),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: onTap,
-          child: DiaryAvatar(imagePath: imagePath, size: 40),
-        ),
-      ),
+    return DiaryChatParticipantAvatar(
+      style: chatStyle,
+      imagePath: imagePath,
+      size: 40,
+      onTap: onTap,
+      semanticLabel: '打开我的页面',
     );
   }
 }
@@ -1312,50 +1498,88 @@ class _ChatProfileAvatar extends StatelessWidget {
 class _ChatMoodEvent extends StatelessWidget {
   const _ChatMoodEvent({
     required this.mood,
+    required this.entryId,
     required this.onOpen,
     required this.onLongPress,
+    required this.chatStyle,
+    required this.showChatAvatar,
+    required this.profileAvatarPath,
+    required this.onAvatarTap,
   });
 
   final _ChatMood mood;
+  final String entryId;
   final VoidCallback onOpen;
   final VoidCallback onLongPress;
+  final DiaryChatStyle chatStyle;
+  final bool showChatAvatar;
+  final String? profileAvatarPath;
+  final VoidCallback onAvatarTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = DiaryThemeColors.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Center(
-        child: Semantics(
-          label: '心情：${mood.label}',
-          button: true,
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: onOpen,
-              onLongPress: onLongPress,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(mood.icon, size: 18, color: colors.terracotta),
-                    const SizedBox(width: 5),
-                    Text(
-                      '此刻 · ${mood.label}',
-                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: colors.ink,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
+    final appearance = DiaryChatAppearance.of(context, chatStyle);
+    final event = Semantics(
+      label: '心情：${mood.label}',
+      button: true,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onOpen,
+          onLongPress: onLongPress,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(mood.icon, size: 18, color: colors.terracotta),
+                const SizedBox(width: 5),
+                Text(
+                  '此刻 · ${mood.label}',
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: colors.ink,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
         ),
       ),
+    );
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: chatStyle == DiaryChatStyle.diary
+          ? Center(child: event)
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: Material(
+                      color: appearance.outgoingColor,
+                      shape: appearance.bubbleShape(outgoing: true),
+                      child: Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: event,
+                      ),
+                    ),
+                  ),
+                ),
+                if (showChatAvatar) ...[
+                  const SizedBox(width: 8),
+                  _ChatProfileAvatar(
+                    key: ValueKey('chat-profile-avatar-$entryId'),
+                    imagePath: profileAvatarPath,
+                    onTap: onAvatarTap,
+                    chatStyle: chatStyle,
+                  ),
+                ],
+              ],
+            ),
     );
   }
 }

@@ -33,6 +33,13 @@ class IsarDiaryRepository extends DiaryRepository {
   }
 
   @override
+  Future<DiaryEntry?> saveAudioTranscript(
+    String entryId,
+    String audioPath,
+    String text,
+  ) => _delegate.saveAudioTranscript(entryId, audioPath, text);
+
+  @override
   Future<void> save(DiaryEntry entry, {bool enqueueMutation = true}) =>
       _delegate.save(entry, enqueueMutation: enqueueMutation);
 

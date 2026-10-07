@@ -262,8 +262,7 @@ void main() {
 
     await tester.tap(find.text('我的'));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('偏好设置'));
-    await tester.tap(find.text('偏好设置'));
+    await tester.tap(find.byKey(const Key('profile-settings-button')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('settings-quick-capture-side')), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
@@ -306,8 +305,7 @@ void main() {
     await tester.tap(find.byKey(const Key('chat-title-profile-button')));
     await tester.pumpAndSettle();
     expect(find.text('记录每一个值得记住的晚上'), findsOneWidget);
-    await tester.ensureVisible(find.text('偏好设置'));
-    await tester.tap(find.text('偏好设置'));
+    await tester.tap(find.byKey(const Key('profile-settings-button')));
     await tester.pumpAndSettle();
     expect(find.text('对话顶部名称'), findsNothing);
     expect(tester.takeException(), isNull);
@@ -1052,12 +1050,9 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('设置'), findsOneWidget);
-        await tester.scrollUntilVisible(
-          find.text('管理与关于'),
-          300,
-          scrollable: find.byType(Scrollable).first,
-        );
-        expect(find.text('管理与关于'), findsOneWidget);
+        await tester.enterText(find.byKey(const Key('settings-search')), '关于');
+        await tester.pumpAndSettle();
+        expect(find.text('关于此刻'), findsOneWidget);
         expect(find.byTooltip('返回'), findsOneWidget);
 
         await tester.tap(find.byTooltip('返回'));

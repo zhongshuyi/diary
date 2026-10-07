@@ -1,0 +1,19 @@
+name: sherpa_onnx_web
+description: Disabled speech backend without WebAssembly or TTS assets.
+version: 1.13.8
+publish_to: none
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.10.0"
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_web_plugins:
+    sdk: flutter
+flutter:
+  plugin:
+    platforms:
+      web:
+        pluginClass: SherpaOnnxWeb
+        fileName: sherpa_onnx_web.dart
+

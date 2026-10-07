@@ -17,6 +17,8 @@
     <application
         android:label="此刻"
         android:name="${applicationName}"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher">
         <service android:name="com.amap.api.location.APSService" />
         <activity android:name=".AmapPlaceActivity" android:exported="false"

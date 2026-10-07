@@ -132,18 +132,22 @@ abstract class DiaryRepository {
     final filtered =
         all.where((entry) {
           if (!query.includeConflicts && entry.isConflict) return false;
-          if (query.category != null && entry.category != query.category)
+          if (query.category != null && entry.category != query.category) {
             return false;
+          }
           if (query.favoriteOnly && !entry.isFavorite) return false;
-          if (query.tags.isNotEmpty && !query.tags.every(entry.tags.contains))
+          if (query.tags.isNotEmpty && !query.tags.every(entry.tags.contains)) {
             return false;
+          }
           if (normalized.isNotEmpty && !entry.matches(normalized)) return false;
           if (query.dateFrom != null &&
-              entry.effectiveOccurredAt.isBefore(query.dateFrom!))
+              entry.effectiveOccurredAt.isBefore(query.dateFrom!)) {
             return false;
+          }
           if (query.dateTo != null &&
-              entry.effectiveOccurredAt.isAfter(query.dateTo!))
+              entry.effectiveOccurredAt.isAfter(query.dateTo!)) {
             return false;
+          }
           return true;
         }).toList()..sort(
           (a, b) => b.effectiveOccurredAt.compareTo(a.effectiveOccurredAt),
@@ -162,6 +166,23 @@ abstract class DiaryRepository {
     DiaryEntry entry, {
     bool enqueueMutation = true,
   });
+
+  /// Merges a derived result into the current record without rewriting its body
+  /// or changing its timeline position. Persistent adapters override atomically.
+  Future<DiaryEntry?> saveAudioTranscript(
+    String entryId,
+    String audioPath,
+    String text,
+  ) async {
+    final entries = await load(includeTrash: true);
+    for (final current in entries) {
+      if (current.id != entryId) continue;
+      final next = _withAudioTranscript(current, audioPath, text);
+      if (next == null || identical(next, current)) return next;
+      return saveAndGet(next);
+    }
+    return null;
+  }
 
   Future<void> moveToTrash(String id);
 
@@ -183,19 +204,24 @@ abstract class DiaryRepository {
   Future<void> batchSetFavorite(Iterable<String> ids, bool value) async {
     final selected = ids.toSet();
     for (final entry in await load(includeTrash: true)) {
-      if (selected.contains(entry.id))
+      if (selected.contains(entry.id)) {
         await save(
           entry.copyWith(isFavorite: value, updatedAt: DateTime.now()),
         );
+      }
     }
   }
 
   Future<void> batchMoveToTrash(Iterable<String> ids) async {
-    for (final id in ids.toSet()) await moveToTrash(id);
+    for (final id in ids.toSet()) {
+      await moveToTrash(id);
+    }
   }
 
   Future<void> batchRestore(Iterable<String> ids) async {
-    for (final id in ids.toSet()) await restore(id);
+    for (final id in ids.toSet()) {
+      await restore(id);
+    }
   }
 
   Future<void> batchUpdateOrganization(
@@ -253,8 +279,9 @@ abstract class DiaryRepository {
   Future<int> countPendingMutations() async =>
       (await listPendingMutations()).length;
   Future<void> applySyncResult(SyncResult result) async {
-    for (final entry in result.changes)
+    for (final entry in result.changes) {
       await save(entry, enqueueMutation: false);
+    }
   }
 
   Future<SyncState> getSyncState() async => const SyncState();
@@ -285,6 +312,22 @@ class MemoryDiaryRepository extends DiaryRepository {
     : _entries = List<DiaryEntry>.of(initialEntries);
 
   List<DiaryEntry> _entries;
+
+  @override
+  Future<DiaryEntry?> saveAudioTranscript(
+    String entryId,
+    String audioPath,
+    String text,
+  ) async {
+    final index = _entries.indexWhere((entry) => entry.id == entryId);
+    if (index < 0) return null;
+    final current = _entries[index];
+    final next = _withAudioTranscript(current, audioPath, text);
+    if (next == null || identical(next, current)) return next;
+    _entries[index] = next;
+    _enqueue(next);
+    return next;
+  }
 
   @override
   Future<List<DiaryEntry>> listAttachmentBackfillEntries({
@@ -342,23 +385,29 @@ class MemoryDiaryRepository extends DiaryRepository {
           if (!query.includeConflicts && entry.isConflict) return false;
           if (query.category != null &&
               query.category!.isNotEmpty &&
-              entry.category != query.category)
+              entry.category != query.category) {
             return false;
+          }
           if (query.favoriteOnly && !entry.isFavorite) return false;
           if (query.dateFrom != null &&
-              entry.effectiveOccurredAt.isBefore(query.dateFrom!))
+              entry.effectiveOccurredAt.isBefore(query.dateFrom!)) {
             return false;
+          }
           if (query.dateTo != null &&
-              entry.effectiveOccurredAt.isAfter(query.dateTo!))
+              entry.effectiveOccurredAt.isAfter(query.dateTo!)) {
             return false;
-          if (query.mood != null && !query.mood!.contains(entry.mood))
+          }
+          if (query.mood != null && !query.mood!.contains(entry.mood)) {
             return false;
-          if (query.tags.isNotEmpty && !query.tags.every(entry.tags.contains))
+          }
+          if (query.tags.isNotEmpty && !query.tags.every(entry.tags.contains)) {
             return false;
+          }
           if (normalized.isNotEmpty && !entry.matches(normalized)) return false;
           if (query.attachmentKind != null &&
-              !_hasAttachmentKind(entry, query.attachmentKind!))
+              !_hasAttachmentKind(entry, query.attachmentKind!)) {
             return false;
+          }
           return true;
         }).toList()..sort(
           (a, b) => b.effectiveOccurredAt.compareTo(a.effectiveOccurredAt),
@@ -393,7 +442,7 @@ class MemoryDiaryRepository extends DiaryRepository {
   DiaryEntry _saveStored(DiaryEntry entry, {required bool enqueueMutation}) {
     final index = _entries.indexWhere((item) => item.id == entry.id);
     final previous = index == -1 ? null : _entries[index];
-    final next = entry.copyWith(
+    final next = mergeCurrentAudioTranscripts(entry, previous).copyWith(
       occurredAt: entry.occurredAt ?? entry.createdAt,
       revision: previous != null && entry.revision <= previous.revision
           ? previous.revision + 1
@@ -411,15 +460,17 @@ class MemoryDiaryRepository extends DiaryRepository {
   @override
   Future<void> moveToTrash(String id) async {
     final entry = _findEntry(id);
-    if (entry != null)
+    if (entry != null) {
       await save(entry.copyWith(isInTrash: true, updatedAt: DateTime.now()));
+    }
   }
 
   @override
   Future<void> restore(String id) async {
     final entry = _findEntry(id);
-    if (entry != null)
+    if (entry != null) {
       await save(entry.copyWith(isInTrash: false, updatedAt: DateTime.now()));
+    }
   }
 
   @override
@@ -439,21 +490,26 @@ class MemoryDiaryRepository extends DiaryRepository {
   Future<void> batchSetFavorite(Iterable<String> ids, bool value) async {
     final selected = ids.toSet();
     for (final entry in List<DiaryEntry>.of(_entries)) {
-      if (selected.contains(entry.id))
+      if (selected.contains(entry.id)) {
         await save(
           entry.copyWith(isFavorite: value, updatedAt: DateTime.now()),
         );
+      }
     }
   }
 
   @override
   Future<void> batchMoveToTrash(Iterable<String> ids) async {
-    for (final id in ids.toSet()) await moveToTrash(id);
+    for (final id in ids.toSet()) {
+      await moveToTrash(id);
+    }
   }
 
   @override
   Future<void> batchRestore(Iterable<String> ids) async {
-    for (final id in ids.toSet()) await restore(id);
+    for (final id in ids.toSet()) {
+      await restore(id);
+    }
   }
 
   @override
@@ -536,19 +592,30 @@ class MemoryDiaryRepository extends DiaryRepository {
 
   @override
   Future<void> applySyncResult(SyncResult result) async {
-    for (final entry in result.changes) {
+    void applyEntry(DiaryEntry entry) {
+      final index = _entries.indexWhere((item) => item.id == entry.id);
       if (entry.isDeleted) {
         _entries = _entries.where((item) => item.id != entry.id).toList();
+      } else if (index == -1) {
+        _entries.add(entry);
       } else {
-        await save(entry, enqueueMutation: false);
+        _entries[index] = mergeCurrentAudioTranscripts(entry, _entries[index]);
       }
+    }
+
+    for (final entry in result.changes) {
+      applyEntry(entry);
     }
     _outbox.removeWhere(
       (item) => result.acknowledgedMutationIds.contains(item.mutationId),
     );
     for (final conflict in result.conflicts) {
-      _conflicts[conflict.conflictId] = conflict;
-      await save(conflict.entry, enqueueMutation: false);
+      final merged = mergeCurrentConflictAudioTranscripts(
+        conflict,
+        _findEntry(conflict.entry.id) ?? _findEntry(conflict.entryId),
+      );
+      _conflicts[merged.conflictId] = merged;
+      applyEntry(merged.entry);
     }
     final current = await getSyncState();
     await setSyncState(
@@ -640,14 +707,6 @@ class MemoryDiaryRepository extends DiaryRepository {
     }
     return null;
   }
-
-  Future<void> _update(
-    String id,
-    DiaryEntry Function(DiaryEntry) update,
-  ) async {
-    final index = _entries.indexWhere((entry) => entry.id == id);
-    if (index != -1) _entries[index] = update(_entries[index]);
-  }
 }
 
 DateTime _latest(DateTime? left, DateTime right) =>
@@ -674,6 +733,56 @@ bool _sameAttachmentPaths(List<String> left, List<String> right) {
     if (left[index] != right[index]) return false;
   }
   return true;
+}
+
+/// An editor or older sync peer can send a snapshot without derived text.
+/// Keep text for retained recordings unless incoming text exists.
+DiaryEntry mergeCurrentAudioTranscripts(DiaryEntry entry, DiaryEntry? current) {
+  if (current == null || current.audioTranscripts.isEmpty) return entry;
+  var changed = false;
+  final results = entry.audioPaths
+      .take(DiaryEntry.maxAudioTranscripts)
+      .map((path) {
+        final incoming = entry.transcriptForAudioPath(path);
+        if (incoming != null) return incoming;
+        final existing = current.transcriptForAudioPath(path);
+        if (existing != null) changed = true;
+        return existing ?? '';
+      })
+      .toList(growable: false);
+  return changed ? entry.copyWith(audioTranscripts: results) : entry;
+}
+
+Conflict mergeCurrentConflictAudioTranscripts(
+  Conflict conflict,
+  DiaryEntry? current,
+) => Conflict(
+  conflictId: conflict.conflictId,
+  entryId: conflict.entryId,
+  entry: mergeCurrentAudioTranscripts(conflict.entry, current),
+  serverEntry: mergeCurrentAudioTranscripts(conflict.serverEntry, current),
+  sourceDeviceId: conflict.sourceDeviceId,
+  sourceMutationId: conflict.sourceMutationId,
+  createdAt: conflict.createdAt,
+  status: conflict.status,
+);
+
+DiaryEntry? _withAudioTranscript(
+  DiaryEntry current,
+  String audioPath,
+  String text,
+) {
+  if (current.isDeleted ||
+      current.isInTrash ||
+      !current.audioPaths.contains(audioPath)) {
+    return null;
+  }
+  if (text.trim().isEmpty) {
+    throw const FormatException('没有可保存的录音转写内容');
+  }
+  final next = current.withAudioTranscript(audioPath, text);
+  if (next == current) return current;
+  return next.copyWith(revision: current.revision + 1);
 }
 
 Map<String, dynamic> _outboxToJson(OutboxMutation item) => {
@@ -726,6 +835,24 @@ bool _hasAttachmentKind(DiaryEntry entry, AttachmentKind kind) {
 
 class SharedPreferencesDiaryRepository extends DiaryRepository {
   SharedPreferencesDiaryRepository({this.initialEntries = const []});
+
+  @override
+  Future<DiaryEntry?> saveAudioTranscript(
+    String entryId,
+    String audioPath,
+    String text,
+  ) => _withEntryWrite(() async {
+    final entries = List<DiaryEntry>.of(await _loadStored(includeTrash: true));
+    final index = entries.indexWhere((entry) => entry.id == entryId);
+    if (index < 0) return null;
+    final current = entries[index];
+    final next = _withAudioTranscript(current, audioPath, text);
+    if (next == null || identical(next, current)) return next;
+    entries[index] = next;
+    await _replaceAllStored(entries);
+    await _enqueue(next);
+    return next;
+  });
 
   static const _storageKey = 'diary.entries.v1';
   static const _outboxKey = 'diary.outbox.v2';
@@ -841,7 +968,7 @@ class SharedPreferencesDiaryRepository extends DiaryRepository {
     final entries = List<DiaryEntry>.of(await _loadStored(includeTrash: true));
     final index = entries.indexWhere((item) => item.id == entry.id);
     final previous = index == -1 ? null : entries[index];
-    final next = entry.copyWith(
+    final next = mergeCurrentAudioTranscripts(entry, previous).copyWith(
       occurredAt: entry.occurredAt ?? entry.createdAt,
       revision: previous != null && entry.revision <= previous.revision
           ? previous.revision + 1
@@ -959,10 +1086,36 @@ class SharedPreferencesDiaryRepository extends DiaryRepository {
       if (index == -1) {
         entries.add(entry);
       } else {
-        entries[index] = entry;
+        entries[index] = mergeCurrentAudioTranscripts(entry, entries[index]);
       }
       changed = true;
     }
+    final mergedConflicts = result.conflicts
+        .map((conflict) {
+          final index = entries.indexWhere(
+            (item) => item.id == conflict.entry.id,
+          );
+          final sourceIndex = entries.indexWhere(
+            (item) => item.id == conflict.entryId,
+          );
+          final current = index != -1
+              ? entries[index]
+              : sourceIndex != -1
+              ? entries[sourceIndex]
+              : null;
+          final merged = mergeCurrentConflictAudioTranscripts(
+            conflict,
+            current,
+          );
+          if (index == -1) {
+            entries.add(merged.entry);
+          } else {
+            entries[index] = merged.entry;
+          }
+          changed = true;
+          return merged;
+        })
+        .toList(growable: false);
     if (changed) await _replaceAllStored(entries);
     final preferences = await _prefs;
     final pending = _decodeOutbox(preferences.getString(_outboxKey))
@@ -977,9 +1130,9 @@ class SharedPreferencesDiaryRepository extends DiaryRepository {
       _conflicts
         ..clear()
         ..addEntries(
-          result.conflicts.map((item) => MapEntry(item.conflictId, item)),
+          mergedConflicts.map((item) => MapEntry(item.conflictId, item)),
         );
-      final conflicts = result.conflicts
+      final conflicts = mergedConflicts
           .map(_conflictToJson)
           .toList(growable: false);
       await preferences.setString('diary.conflicts.v2', jsonEncode(conflicts));

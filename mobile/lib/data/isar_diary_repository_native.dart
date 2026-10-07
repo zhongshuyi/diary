@@ -55,6 +55,31 @@ class IsarDiaryRepository extends DiaryRepository {
   final Isar _isar;
 
   @override
+  Future<DiaryEntry?> saveAudioTranscript(
+    String entryId,
+    String audioPath,
+    String text,
+  ) => _isar.writeTxn(() async {
+    final record = await _isar.diaryRecords.getByUuid(entryId);
+    if (record == null) return null;
+    final current = record.toEntity();
+    if (current.isInTrash ||
+        current.isDeleted ||
+        !current.audioPaths.contains(audioPath)) {
+      return null;
+    }
+    if (text.trim().isEmpty) {
+      throw const FormatException('没有可保存的录音转写内容');
+    }
+    final withTranscript = current.withAudioTranscript(audioPath, text);
+    if (withTranscript == current) return current;
+    final next = withTranscript.copyWith(revision: current.revision + 1);
+    await _isar.diaryRecords.put(DiaryRecord.fromEntity(next)..id = record.id);
+    await _replaceOutboxEntry(next);
+    return next;
+  });
+
+  @override
   Future<List<DiaryEntry>> listAttachmentBackfillEntries({
     String? afterId,
     int limit = 10,
@@ -121,6 +146,8 @@ class IsarDiaryRepository extends DiaryRepository {
         .or()
         .contentTextContains(normalized, caseSensitive: false)
         .or()
+        .audioTranscriptTextContains(normalized, caseSensitive: false)
+        .or()
         .categoryContains(normalized, caseSensitive: false)
         .or()
         .tagsElementContains(normalized, caseSensitive: false)
@@ -155,14 +182,11 @@ class IsarDiaryRepository extends DiaryRepository {
   Future<DiaryRecord> _saveStored(
     DiaryEntry entry, {
     required bool enqueueMutation,
-  }) async {
-    final existing = await _isar.diaryRecords
-        .filter()
-        .uuidEqualTo(entry.id)
-        .findFirst();
+  }) => _isar.writeTxn(() async {
+    final existing = await _isar.diaryRecords.getByUuid(entry.id);
     final current = existing?.toEntity();
     final now = DateTime.now();
-    final next = entry.copyWith(
+    final next = mergeCurrentAudioTranscripts(entry, current).copyWith(
       occurredAt: entry.occurredAt ?? entry.createdAt,
       revision: current != null && entry.revision <= current.revision
           ? current.revision + 1
@@ -172,31 +196,30 @@ class IsarDiaryRepository extends DiaryRepository {
     );
     final record = DiaryRecord.fromEntity(next)
       ..id = existing?.id ?? Isar.autoIncrement;
-    await _isar.writeTxn(() async {
-      await _isar.diaryRecords.put(record);
-      if (enqueueMutation) {
-        final mutationId = '${next.deviceId}:${next.id}:${next.revision}';
-        final existingOutbox = await _isar.outboxRecords
-            .filter()
-            .entityIdEqualTo(next.id)
-            .findAll();
-        for (final item in existingOutbox)
-          await _isar.outboxRecords.delete(item.id);
-        await _isar.outboxRecords.put(
-          OutboxRecord.fromEntity(
-            OutboxMutation(
-              mutationId: mutationId,
-              entityType: 'entry',
-              entityId: next.id,
-              payload: {'mutationId': mutationId, 'entry': next.toJson()},
-              createdAt: now,
-            ),
-          ),
-        );
+    await _isar.diaryRecords.put(record);
+    if (enqueueMutation) {
+      final mutationId = '${next.deviceId}:${next.id}:${next.revision}';
+      final existingOutbox = await _isar.outboxRecords
+          .filter()
+          .entityIdEqualTo(next.id)
+          .findAll();
+      for (final item in existingOutbox) {
+        await _isar.outboxRecords.delete(item.id);
       }
-    });
+      await _isar.outboxRecords.put(
+        OutboxRecord.fromEntity(
+          OutboxMutation(
+            mutationId: mutationId,
+            entityType: 'entry',
+            entityId: next.id,
+            payload: {'mutationId': mutationId, 'entry': next.toJson()},
+            createdAt: now,
+          ),
+        ),
+      );
+    }
     return record;
-  }
+  });
 
   @override
   Future<void> moveToTrash(String id) async {
@@ -264,19 +287,24 @@ class IsarDiaryRepository extends DiaryRepository {
     final filtered =
         all.where((entry) {
           if (!query.includeConflicts && entry.isConflict) return false;
-          if (query.category != null && entry.category != query.category)
+          if (query.category != null && entry.category != query.category) {
             return false;
+          }
           if (query.favoriteOnly && !entry.isFavorite) return false;
-          if (query.tags.isNotEmpty && !query.tags.every(entry.tags.contains))
+          if (query.tags.isNotEmpty && !query.tags.every(entry.tags.contains)) {
             return false;
-          if (query.query.trim().isNotEmpty && !entry.matches(query.query))
+          }
+          if (query.query.trim().isNotEmpty && !entry.matches(query.query)) {
             return false;
+          }
           if (query.dateFrom != null &&
-              entry.effectiveOccurredAt.isBefore(query.dateFrom!))
+              entry.effectiveOccurredAt.isBefore(query.dateFrom!)) {
             return false;
+          }
           if (query.dateTo != null &&
-              entry.effectiveOccurredAt.isAfter(query.dateTo!))
+              entry.effectiveOccurredAt.isAfter(query.dateTo!)) {
             return false;
+          }
           return true;
         }).toList()..sort(
           (a, b) => b.effectiveOccurredAt.compareTo(a.effectiveOccurredAt),
@@ -308,8 +336,9 @@ class IsarDiaryRepository extends DiaryRepository {
         .filter()
         .draftIdEqualTo(id)
         .findFirst();
-    if (record != null)
+    if (record != null) {
       await _isar.writeTxn(() async => _isar.draftRecords.delete(record.id));
+    }
   }
 
   @override
@@ -338,8 +367,9 @@ class IsarDiaryRepository extends DiaryRepository {
           continue;
         }
         await _isar.diaryRecords.put(
-          DiaryRecord.fromEntity(change)
-            ..id = current?.id ?? Isar.autoIncrement,
+          DiaryRecord.fromEntity(
+            mergeCurrentAudioTranscripts(change, current?.toEntity()),
+          )..id = current?.id ?? Isar.autoIncrement,
         );
       }
       for (final conflict in result.conflicts) {
@@ -347,11 +377,21 @@ class IsarDiaryRepository extends DiaryRepository {
             .filter()
             .uuidEqualTo(conflict.entry.id)
             .findFirst();
+        final source =
+            current ??
+            await _isar.diaryRecords
+                .filter()
+                .uuidEqualTo(conflict.entryId)
+                .findFirst();
+        final merged = mergeCurrentConflictAudioTranscripts(
+          conflict,
+          source?.toEntity(),
+        );
         await _isar.diaryRecords.put(
-          DiaryRecord.fromEntity(conflict.entry)
+          DiaryRecord.fromEntity(merged.entry)
             ..id = current?.id ?? Isar.autoIncrement,
         );
-        await _isar.conflictRecords.put(ConflictRecord.fromEntity(conflict));
+        await _isar.conflictRecords.put(ConflictRecord.fromEntity(merged));
       }
       for (final mutationId in result.acknowledgedMutationIds) {
         final row = await _isar.outboxRecords

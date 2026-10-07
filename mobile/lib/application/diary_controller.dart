@@ -22,6 +22,7 @@ class DiaryController extends ChangeNotifier {
   Object? _error;
   // Rejects a load that began before a newer load or local save.
   int _entryVersion = 0;
+  bool _disposed = false;
 
   List<DiaryEntry> get entries => _entries;
   List<DiaryEntry> get trash => _trash;
@@ -76,6 +77,37 @@ class DiaryController extends ChangeNotifier {
 
   /// Chat sends share the same incremental path as regular saves.
   Future<void> saveNewChatEntry(DiaryEntry entry) => save(entry);
+
+  Future<DiaryEntry?> saveAudioTranscript(
+    String entryId,
+    String audioPath,
+    String text,
+  ) async {
+    if (_disposed) return null;
+    final stored = await _repository.saveAudioTranscript(
+      entryId,
+      audioPath,
+      text,
+    );
+    if (_disposed || stored == null) return null;
+    final index = _entries.indexWhere((entry) => entry.id == entryId);
+    if (index < 0) return null;
+    final current = _entries[index];
+    if (current.isInTrash ||
+        current.isDeleted ||
+        !current.audioPaths.contains(audioPath)) {
+      return null;
+    }
+    if (current.revision > stored.revision) return current;
+    _entryVersion++;
+    _isLoading = false;
+    _error = null;
+    final entries = List<DiaryEntry>.of(_entries);
+    entries[index] = stored;
+    _entries = List.unmodifiable(entries);
+    notifyListeners();
+    return stored;
+  }
 
   List<DiaryEntry> _replaceEntry(
     List<DiaryEntry> source,
@@ -178,5 +210,12 @@ class DiaryController extends ChangeNotifier {
   Future<void> batchRestore(Iterable<String> ids) async {
     await _repository.batchRestore(ids);
     await refresh();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _entryVersion++;
+    super.dispose();
   }
 }

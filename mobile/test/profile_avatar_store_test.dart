@@ -46,4 +46,40 @@ void main() {
     expect(path, endsWith('.png'));
     expect(await File(path).readAsBytes(), [1, 2, 3]);
   });
+
+  test(
+    'replacing and clearing companion avatars keeps the own avatar',
+    () async {
+      final sandbox = await Directory.systemTemp.createTemp(
+        'diary-avatar-test-',
+      );
+      addTearDown(() => sandbox.delete(recursive: true));
+      final own = ProfileAvatarStore(
+        rootDirectory: Directory('${sandbox.path}/profile-avatar'),
+      );
+      final companion = ProfileAvatarStore(
+        rootDirectory: Directory('${sandbox.path}/companion-avatar'),
+        role: ProfileAvatarRole.companion,
+      );
+      final ownPath = await own.savePng(Uint8List.fromList([1, 2, 3]));
+      final firstCompanionPath = await companion.savePng(
+        Uint8List.fromList([4, 5, 6]),
+      );
+      final secondCompanionPath = await companion.savePng(
+        Uint8List.fromList([7, 8, 9]),
+      );
+      expect(await File(firstCompanionPath).exists(), isFalse);
+      expect(await File(ownPath).readAsBytes(), [1, 2, 3]);
+
+      await companion.clear();
+      expect(await File(secondCompanionPath).exists(), isFalse);
+      expect(await File(ownPath).readAsBytes(), [1, 2, 3]);
+
+      final restoredCompanionPath = await companion.savePng(
+        Uint8List.fromList([4, 5, 6]),
+      );
+      await own.clear();
+      expect(await File(restoredCompanionPath).readAsBytes(), [4, 5, 6]);
+    },
+  );
 }
