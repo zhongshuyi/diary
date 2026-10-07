@@ -46,3 +46,9 @@ Dependabot 将 5 条标为 `runtime`、14 条标为 `development`。其中 Elect
 修复应先提交独立、可审查的依赖变更，运行现有测试与构建，再完成 Windows 窗口、输入、编辑、同步、数据保留和覆盖安装验收。不要自动合并 Dependabot PR，也不要仅为降低告警数量关闭未解决项。
 
 锁文件更新不会修复已经下载的安装包。完成验证后使用新的桌面版本和 tag 重新构建、核对 SHA-256 并发布；保留已发布版本的原资产。此快照不会自动随 GitHub 公告或依赖版本变化更新。
+
+## 首次 CodeQL 扫描
+
+2026-10-07 对提交 `8b4c224` 的 JavaScript / TypeScript 扫描成功完成，并产生 [CodeQL 告警 #1](https://github.com/zhongshuyi/diary/security/code-scanning/1)：`js/clear-text-storage-of-sensitive-data`，级别 high，位置为 `desktop/src/renderer/main.jsx:145`。它提示经纬度随日记写入明文 `localStorage`，不是依赖告警，也不是对数据已泄露的确认。
+
+此路径位于 `previewDb.saveEntry`；`db()` 在缺少 Electron preload 提供的 `diaryAPI.db` 时使用该预览数据库。打包桌面应用通常通过 IPC 使用 SQLite。预览分支仍可能承载实际输入，不能只因名称包含 preview 就忽略提示；演示使用虚构数据，并单独评估预览入口、敏感字段和持久化策略。当前未修改存储机制，也未关闭告警。本地数据未进行应用层加密的事实同时在[隐私说明](../PRIVACY.md)中记录。
