@@ -13,7 +13,7 @@
 
 Windows 预览版的包内版本为 `0.1.1`，预览状态通过 GitHub Release 的 prerelease 标记表达。两种 tag 可以指向同一提交，不要求两端版本号相同。未配置发布入口的平台不附带安装包，也不声明为已发布平台。
 
-版本号、tag 和安装包内容必须一致。已发布的 tag 与安装包不覆盖、不移动；修复后使用新版本和新 tag。仓库未指定 LICENSE，发布流程不自行添加授权条款。
+版本号、tag 和安装包内容必须一致。已发布的 tag 与安装包不覆盖、不移动；修复后使用新版本和新 tag。项目原创代码采用 [MIT](../LICENSE)，第三方材料按[独立声明](../THIRD_PARTY_NOTICES.md)保留授权。
 
 发布脚本使用 Node.js 24，从仓库根目录执行：
 
@@ -112,6 +112,8 @@ artifacts/releases/<tag>/
 ```
 
 `SHA256SUMS` 提供安装包 SHA-256。`release.json` 记录平台版本、Android build number（如适用）、安装包 SHA-256 和 `sourceCommit`，用于关联二进制与源码。这里不保存密码、令牌、签名私钥或个人部署信息。不要把整个项目目录、构建缓存、NSIS 调试文件或 `.local/` 当作 Release 附件上传。
+
+后续安装包还需随包保留根 LICENSE 与适用的第三方许可，Windows 保留 Electron / Chromium 声明，手机端包含 Flutter 收集的许可及原生 SDK 条款。打包后实际检查这些文件或展示入口；仅增加仓库文档不会更新旧安装包。缺少声明时先补齐打包规则，再创建新的版本和 tag。
 
 ## 通过 GitHub CLI 发布
 

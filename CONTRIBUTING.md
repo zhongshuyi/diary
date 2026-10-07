@@ -2,6 +2,8 @@
 
 感谢你帮助改进此刻。功能建议和问题反馈可以提交到 [Issues](https://github.com/zhongshuyi/diary/issues)，代码或文档修改可以提交 Pull Request。
 
+交流请遵循[社区行为规范](CODE_OF_CONDUCT.md)。项目原创代码采用 [MIT License](LICENSE)；提交修改时保留原有版权和许可声明，新增依赖或资源说明其来源及授权，并更新[第三方声明](THIRD_PARTY_NOTICES.md)。
+
 ## 反馈问题
 
 请说明使用的是 Android 手机端还是 Windows 桌面端，并提供应用版本、系统版本、复现步骤、预期行为和实际表现。键盘、动画或同步问题还应说明是否启用了同步，以及问题发生前的操作顺序。

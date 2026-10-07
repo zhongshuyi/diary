@@ -27,6 +27,10 @@ jobs:
           node-version: '24'
       - name: Test release tooling
         run: node --test scripts/release.test.mjs
+      - name: Test repository policy checks
+        run: node --test scripts/check-repository.test.mjs
+      - name: Check public repository files
+        run: node scripts/check-repository.mjs
       - name: Check platform versions
         run: node scripts/release.mjs check all
 

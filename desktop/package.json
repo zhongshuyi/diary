@@ -1,6 +1,7 @@
 {
   "name": "diary-desktop",
   "version": "0.1.1",
+  "license": "MIT",
   "private": true,
   "packageManager": "pnpm@11.17.0",
   "description": "A focused Electron desktop shell for the Diary app",
@@ -43,6 +44,21 @@
     "directories": {
       "output": "release"
     },
+    "extraResources": [
+      {
+        "from": "../LICENSE",
+        "to": "LICENSE"
+      },
+      {
+        "from": "../THIRD_PARTY_NOTICES.md",
+        "to": "THIRD_PARTY_NOTICES.md"
+      },
+      {
+        "from": "../third_party",
+        "to": "third_party",
+        "filter": ["*.txt"]
+      }
+    ],
     "files": [
       "dist/**/*",
       "src/main.cjs",

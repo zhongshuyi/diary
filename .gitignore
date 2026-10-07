@@ -3,6 +3,16 @@
 *.log
 artifacts/
 
+# Private configuration and signing files in every module
+.env
+.env.*
+!.env.example
+key.properties
+*.jks
+*.keystore
+*.p12
+*.pfx
+
 # Flutter mobile app
 mobile/.dart_tool/
 mobile/.flutter-plugins-dependencies
@@ -12,6 +22,7 @@ mobile/build/
 mobile/coverage/
 mobile/libisar.dll
 mobile/libisar.dylib
+mobile/libisar.so
 mobile/**/ephemeral/
 mobile/android/.gradle/
 mobile/android/build/

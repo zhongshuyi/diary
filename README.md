@@ -14,6 +14,7 @@
 此刻把快速记录和日后回看放在一起：手机上像发消息一样写下一个瞬间，电脑上用键盘和宽屏继续编辑、检索和整理。记录先保存到自己的设备，离线也能使用；需要在设备之间接续时，再连接自己的同步服务。
 
 [![CI](https://github.com/zhongshuyi/diary/actions/workflows/ci.yml/badge.svg)](https://github.com/zhongshuyi/diary/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ## 下载安装
 
@@ -130,5 +131,13 @@ npm start
 | [更新日志](CHANGELOG.md) | 两端版本与用户可见变化 |
 | [发布指南](docs/releasing.md) | 版本、tag、安装包校验与 GitHub Release |
 | [安全漏洞报告](SECURITY.md) | 私有报告入口与报告方式 |
+| [数据与隐私](PRIVACY.md) | 本地数据、联网、权限、备份与删除 |
+| [第三方声明](THIRD_PARTY_NOTICES.md) | 依赖、字体和 SDK 授权 |
+| [仓库维护](docs/maintenance.md) | 自动检查、依赖告警与后续建设 |
+| [依赖安全快照](docs/dependency-security.md) | 已发现的依赖告警、修复路径与验证范围 |
 
 欢迎通过 [Issues](https://github.com/zhongshuyi/diary/issues) 反馈问题或提出建议，也欢迎提交 Pull Request。提交前请阅读贡献指南；功能路线与待验收项另见[桌面实施方案](docs/desktop-implementation-plan.md)。
+
+## 许可证
+
+本项目原创代码和品牌图标采用 [MIT License](LICENSE)，版权署名为 `zhongshuyi`。第三方组件、字体和 SDK 继续适用各自条款，见[第三方声明](THIRD_PARTY_NOTICES.md)。参与讨论和贡献请遵循[社区行为规范](CODE_OF_CONDUCT.md)。
