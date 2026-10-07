@@ -322,19 +322,7 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     addTearDown(tester.view.resetViewInsets);
 
-    final entries = [
-      for (var index = 0; index < 40; index++)
-        DiaryEntry(
-          id: 'keyboard-message-$index',
-          createdAt: DateTime(2026, 9, 19, 8, index),
-          updatedAt: DateTime(2026, 9, 19, 8, index),
-          title: '消息 $index',
-          content: '消息 $index',
-          contentText: '消息 $index',
-          category: '生活',
-        ),
-    ];
-    await tester.pumpWidget(_ChatHarness(entries: entries));
+    await tester.pumpWidget(_ChatHarness(entries: _keyboardConversation()));
     await tester.pumpAndSettle();
 
     final list = find.byKey(const Key('chat-message-list'));
@@ -350,10 +338,96 @@ void main() {
     expect(position.pixels, greaterThan(120));
 
     await tester.tap(find.byKey(const Key('chat-message-field')));
-    tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+    for (var inset = 30; inset <= 300; inset += 30) {
+      tester.view.viewInsets = FakeViewPadding(bottom: inset.toDouble());
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(position.pixels, closeTo(position.minScrollExtent, 1));
+    }
+  });
+
+  testWidgets(
+    'keyboard frames preserve history and reopening returns to latest',
+    (tester) async {
+      tester.view.physicalSize = const Size(360, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetViewInsets);
+
+      await tester.pumpWidget(_ChatHarness(entries: _keyboardConversation()));
+      await tester.pumpAndSettle();
+      final list = find.byKey(const Key('chat-message-list'));
+      final scrollable = find.descendant(
+        of: list,
+        matching: find.byType(Scrollable),
+      );
+      final position = tester.state<ScrollableState>(scrollable).position;
+      final field = find.byKey(const Key('chat-message-field'));
+      await tester.tap(field);
+      tester.view.viewInsets = const FakeViewPadding(bottom: 30);
+      await tester.pumpAndSettle();
+
+      await tester.drag(list, const Offset(0, 200));
+      await tester.pumpAndSettle();
+      final readingOffset = position.pixels;
+      expect(readingOffset, greaterThan(120));
+      expect(tester.widget<TextField>(field).focusNode!.hasFocus, isTrue);
+
+      for (final inset in [60, 120, 180, 240, 300, 240, 180, 120, 60, 0]) {
+        tester.view.viewInsets = FakeViewPadding(bottom: inset.toDouble());
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(position.pixels, closeTo(readingOffset, 1));
+      }
+      expect(tester.widget<TextField>(field).focusNode!.hasFocus, isTrue);
+
+      tester.view.viewInsets = const FakeViewPadding(bottom: 30);
+      await tester.pumpAndSettle();
+      expect(position.pixels, closeTo(position.minScrollExtent, 1));
+      expect(tester.widget<TextField>(field).focusNode!.hasFocus, isTrue);
+    },
+  );
+
+  testWidgets('keyboard frames do not cancel a history drag', (tester) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetViewInsets);
+
+    await tester.pumpWidget(_ChatHarness(entries: _keyboardConversation()));
+    await tester.pumpAndSettle();
+    final list = find.byKey(const Key('chat-message-list'));
+    final scrollable = find.descendant(
+      of: list,
+      matching: find.byType(Scrollable),
+    );
+    final position = tester.state<ScrollableState>(scrollable).position;
+    await tester.tap(find.byKey(const Key('chat-message-field')));
+    tester.view.viewInsets = const FakeViewPadding(bottom: 30);
     await tester.pumpAndSettle();
 
-    expect(position.pixels, closeTo(0, 1));
+    final gesture = await tester.startGesture(tester.getCenter(list));
+    await gesture.moveBy(const Offset(0, 100));
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(position.isScrollingNotifier.value, isTrue);
+    var previousOffset = position.pixels;
+    expect(previousOffset, greaterThan(0));
+
+    for (var inset = 60; inset <= 300; inset += 30) {
+      tester.view.viewInsets = FakeViewPadding(bottom: inset.toDouble());
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(position.isScrollingNotifier.value, isTrue);
+      expect(position.pixels, closeTo(previousOffset, 1));
+      await gesture.moveBy(const Offset(0, 15));
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(position.pixels, greaterThan(previousOffset));
+      previousOffset = position.pixels;
+    }
+    await gesture.up();
+    await tester.pumpAndSettle();
   });
 
   testWidgets('composer controls keep equal size and stable spacing', (
@@ -984,15 +1058,15 @@ void main() {
       find.byKey(const ValueKey('chat-entry-animated-entry')),
       findsOneWidget,
     );
-    expect(
-      find.descendant(
-        of: find.byKey(const ValueKey('chat-entry-animated-entry')),
-        matching: find.byType(TweenAnimationBuilder<double>),
-      ),
-      findsOneWidget,
+    final entrance = find.descendant(
+      of: find.byKey(const ValueKey('chat-entry-animated-entry')),
+      matching: find.byType(FadeTransition),
     );
+    expect(entrance, findsOneWidget);
+    expect(tester.widget<FadeTransition>(entrance).opacity.value, lessThan(1));
     expect(find.text('这条消息有顺滑的入场效果。'), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 320));
+    expect(tester.widget<FadeTransition>(entrance).opacity.value, 1);
     expect(find.text('这条消息有顺滑的入场效果。'), findsOneWidget);
   });
 
@@ -1168,6 +1242,19 @@ void main() {
     expect(find.byTooltip('播放'), findsOneWidget);
   });
 }
+
+List<DiaryEntry> _keyboardConversation() => [
+  for (var index = 0; index < 40; index++)
+    DiaryEntry(
+      id: 'keyboard-message-$index',
+      createdAt: DateTime(2026, 9, 19, 8, index),
+      updatedAt: DateTime(2026, 9, 19, 8, index),
+      title: '消息 $index',
+      content: '消息 $index',
+      contentText: '消息 $index',
+      category: '生活',
+    ),
+];
 
 class _ChatHarness extends StatelessWidget {
   const _ChatHarness({

@@ -42,12 +42,17 @@ Future<String> _mapRichTextImages(
   Future<String> Function(String path) convert,
 ) async {
   if (content.trim().isEmpty) return content;
-  dynamic operations;
+  dynamic document;
   try {
-    operations = jsonDecode(content);
+    document = jsonDecode(content);
   } on FormatException {
     return content;
   }
+  final operations = document is List
+      ? document
+      : document is Map
+      ? document['ops']
+      : null;
   if (operations is! List) return content;
   for (final operation in operations) {
     if (operation is! Map || operation['insert'] is! Map) continue;
@@ -55,7 +60,34 @@ Future<String> _mapRichTextImages(
     final image = insert['image'];
     if (image is String) insert['image'] = await convert(image);
   }
-  return jsonEncode(operations);
+  return jsonEncode(document);
+}
+
+List<String> _richTextImagePaths(String content) {
+  try {
+    final document = jsonDecode(content);
+    final operations = document is List
+        ? document
+        : document is Map
+        ? document['ops']
+        : null;
+    if (operations is! List) return const [];
+    return [
+      for (final operation in operations)
+        if (operation is Map &&
+            operation['insert'] is Map &&
+            operation['insert']['image'] is String &&
+            !_isRemoteRichTextImage(operation['insert']['image'] as String))
+          operation['insert']['image'] as String,
+    ];
+  } on FormatException {
+    return const [];
+  }
+}
+
+bool _isRemoteRichTextImage(String path) {
+  final scheme = Uri.tryParse(path)?.scheme.toLowerCase();
+  return scheme == 'http' || scheme == 'https' || scheme == 'data';
 }
 
 class AttachmentTransfer {
@@ -103,10 +135,14 @@ class AttachmentTransfer {
 
   Future<DiaryEntry> hydrateEntry(DiaryEntry entry) async {
     final downloads = <String, Future<String>>{};
-    Future<List<String>> hydrate(List<String> paths) async => Future.wait(
-      paths.map((path) async {
+    Future<List<String>> hydrate(List<String> paths) async {
+      final result = <String>[];
+      for (final path in paths) {
         final reference = _parseReference(path);
-        if (reference == null) return path;
+        if (reference == null) {
+          result.add(path);
+          continue;
+        }
         final key = '${reference.sha256}${reference.extension}';
         final task = downloads.putIfAbsent(key, () async {
           final bytes = await client.downloadAsset(reference.sha256);
@@ -116,9 +152,11 @@ class AttachmentTransfer {
             bytes: bytes,
           );
         });
-        return task;
-      }),
-    );
+        result.add(await task);
+      }
+      return result;
+    }
+
     final images = await hydrate(entry.imagePaths);
     var content = entry.content;
     if (entry.editorType == DiaryEditorType.richText) {
@@ -148,7 +186,7 @@ class AttachmentTransfer {
     if (assets.isEmpty) return entry;
     final synced = await AttachmentSyncQueue(
       client: client,
-    ).uploadMissing(assets, store.readBytes);
+    ).uploadMissing(assets, store.readBytes, openRead: store.openRead);
     final failed = synced
         .where(
           (attachment) =>
@@ -211,11 +249,16 @@ class AttachmentTransfer {
         if (_parseReference(path) != null || attachments.containsKey(key)) {
           continue;
         }
-        attachments[key] = await store.importFile(path, kind: kind);
+        attachments[key] =
+            await store.findUnchangedImport(path, kind: kind) ??
+            await store.importFile(path, kind: kind);
       }
     }
 
     await collect(entry.imagePaths, AttachmentKind.image);
+    if (entry.editorType == DiaryEditorType.richText) {
+      await collect(_richTextImagePaths(entry.content), AttachmentKind.image);
+    }
     await collect(entry.audioPaths, AttachmentKind.audio);
     await collect(entry.videoPaths, AttachmentKind.video);
     return attachments;

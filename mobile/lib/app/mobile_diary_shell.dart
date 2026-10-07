@@ -439,9 +439,8 @@ class _AnimatedTabStackState extends State<_AnimatedTabStack>
 
   @override
   Widget build(BuildContext context) {
-    final animation = CurvedAnimation(
-      parent: _controller,
-      curve: DiaryMotion.curve(context, Curves.easeOutCubic),
+    final animation = _controller.drive(
+      CurveTween(curve: DiaryMotion.curve(context, Curves.easeOutCubic)),
     );
     return AnimatedBuilder(
       animation: animation,

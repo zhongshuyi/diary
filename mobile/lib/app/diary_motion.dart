@@ -10,13 +10,13 @@ abstract final class DiaryMotion {
   static const emphasized = Duration(milliseconds: 260);
 
   static Duration duration(BuildContext context, Duration value) {
-    return MediaQuery.maybeOf(context)?.disableAnimations == true
+    return MediaQuery.maybeDisableAnimationsOf(context) == true
         ? Duration.zero
         : value;
   }
 
   static Curve curve(BuildContext context, Curve value) {
-    return MediaQuery.maybeOf(context)?.disableAnimations == true
+    return MediaQuery.maybeDisableAnimationsOf(context) == true
         ? Curves.linear
         : value;
   }

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' show FlutterView;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -172,7 +173,7 @@ class ChatPage extends StatefulWidget {
   State<ChatPage> createState() => _ChatPageState();
 }
 
-class _ChatPageState extends State<ChatPage> {
+class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   static const _messagePageSize = 40;
   final _scrollController = ScrollController();
   final _composerFocusNode = FocusNode();
@@ -180,14 +181,43 @@ class _ChatPageState extends State<ChatPage> {
   bool _scrollToLatestScheduled = false;
   bool _loadOlderScheduled = false;
   int _visibleMessageCount = _messagePageSize;
-  double? _lastChatViewportDimension;
+  FlutterView? _view;
+  bool _keyboardVisible = false;
   List<DiaryEntry>? _sortedSource;
   List<DiaryEntry> _sortedCache = const [];
+  Map<Key, int> _messageIndexCache = const {};
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _scrollController.addListener(_onScroll);
+    _composerFocusNode.addListener(_onComposerFocusChanged);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final view = View.of(context);
+    if (!identical(_view, view)) {
+      _view = view;
+      _keyboardVisible = view.viewInsets.bottom > 0;
+    }
+  }
+
+  @override
+  void didChangeMetrics() {
+    // Observe the view without rebuilding the page for every keyboard frame.
+    // Only reopening the keyboard should move away from a history position.
+    final keyboardVisible = (_view?.viewInsets.bottom ?? 0) > 0;
+    if (keyboardVisible && !_keyboardVisible && _composerFocusNode.hasFocus) {
+      _scheduleScrollToLatest();
+    }
+    _keyboardVisible = keyboardVisible;
+  }
+
+  void _onComposerFocusChanged() {
+    if (_composerFocusNode.hasFocus) _scheduleScrollToLatest();
   }
 
   @override
@@ -227,6 +257,8 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _composerFocusNode.removeListener(_onComposerFocusChanged);
     _scrollController.dispose();
     _composerFocusNode.dispose();
     super.dispose();
@@ -234,7 +266,11 @@ class _ChatPageState extends State<ChatPage> {
 
   void _scrollToLatest() {
     if (!_scrollController.hasClients) return;
-    _scrollController.jumpTo(_scrollController.position.minScrollExtent);
+    final position = _scrollController.position;
+    // A reverse list stays anchored during keyboard resizing. Repeated jumps
+    // would cancel an active drag even when the offset is already at the end.
+    if (position.pixels == position.minScrollExtent) return;
+    _scrollController.jumpTo(position.minScrollExtent);
   }
 
   void _scheduleScrollToLatest() {
@@ -260,11 +296,24 @@ class _ChatPageState extends State<ChatPage> {
           (left, right) =>
               left.effectiveOccurredAt.compareTo(right.effectiveOccurredAt),
         );
+      _messageIndexCache = {
+        for (var index = 0; index < _sortedCache.length; index++)
+          ValueKey('chat-entry-${_sortedCache[index].id}'):
+              _sortedCache.length - index - 1,
+      };
     }
     return _sortedCache;
   }
 
+  int? _findMessageIndex(Key key) {
+    final index = _messageIndexCache[key];
+    return index != null && index < _visibleMessageCount ? index : null;
+  }
+
   Future<void> _showEntryActions(DiaryEntry entry) async {
+    // Clear the scope's previous focus before the route takes focus so closing
+    // the action sheet or confirmation cannot reopen the composer keyboard.
+    _composerFocusNode.unfocus();
     final action = await showModalBottomSheet<_ChatEntryAction>(
       context: context,
       builder: (context) => SafeArea(
@@ -342,47 +391,32 @@ class _ChatPageState extends State<ChatPage> {
                   : null,
               child: entries.isEmpty
                   ? const _EmptyChat()
-                  : NotificationListener<ScrollMetricsNotification>(
-                      onNotification: (notification) {
-                        if (notification.depth != 0) return false;
-                        final viewportDimension =
-                            notification.metrics.viewportDimension;
-                        final previousViewportDimension =
-                            _lastChatViewportDimension;
-                        final viewportChanged =
-                            previousViewportDimension != null &&
-                            previousViewportDimension != viewportDimension;
-                        _lastChatViewportDimension = viewportDimension;
-                        if (viewportChanged && _composerFocusNode.hasFocus) {
-                          _scheduleScrollToLatest();
-                        }
-                        return false;
+                  : ListView.builder(
+                      key: const Key('chat-message-list'),
+                      controller: _scrollController,
+                      reverse: true,
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
+                      itemCount: entries.length < _visibleMessageCount
+                          ? entries.length
+                          : _visibleMessageCount,
+                      findChildIndexCallback: _findMessageIndex,
+                      itemBuilder: (context, index) {
+                        final entry = entries[entries.length - index - 1];
+                        return _ChatEntryItem(
+                          key: ValueKey('chat-entry-${entry.id}'),
+                          entry: entry,
+                          enteringMessageIds: _enteringMessageIds,
+                          onMessageEntranceFinished: _finishMessageEntrance,
+                          onOpenEntry: widget.onOpenEntry,
+                          onOpenLocation:
+                              widget.onOpenLocation ??
+                              (entry) => unawaited(_openLocation(entry)),
+                          onLongPress: _showEntryActions,
+                          onAvatarTap: _openProfile,
+                          showChatAvatar: widget.showChatAvatar,
+                          profileAvatarPath: widget.profileAvatarPath,
+                        );
                       },
-                      child: ListView.builder(
-                        key: const Key('chat-message-list'),
-                        controller: _scrollController,
-                        reverse: true,
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
-                        itemCount: entries.length < _visibleMessageCount
-                            ? entries.length
-                            : _visibleMessageCount,
-                        itemBuilder: (context, index) {
-                          final entry = entries[entries.length - index - 1];
-                          return _ChatEntryItem(
-                            entry: entry,
-                            enteringMessageIds: _enteringMessageIds,
-                            onMessageEntranceFinished: _finishMessageEntrance,
-                            onOpenEntry: widget.onOpenEntry,
-                            onOpenLocation:
-                                widget.onOpenLocation ??
-                                (entry) => unawaited(_openLocation(entry)),
-                            onLongPress: _showEntryActions,
-                            onAvatarTap: _openProfile,
-                            showChatAvatar: widget.showChatAvatar,
-                            profileAvatarPath: widget.profileAvatarPath,
-                          );
-                        },
-                      ),
                     ),
             ),
           ),
@@ -644,6 +678,7 @@ class _ChatEntryItem extends StatelessWidget {
     required this.onAvatarTap,
     required this.showChatAvatar,
     required this.profileAvatarPath,
+    super.key,
   });
 
   final DiaryEntry entry;
@@ -658,40 +693,37 @@ class _ChatEntryItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return KeyedSubtree(
-      key: ValueKey('chat-entry-${entry.id}'),
-      child: _ChatMessageEntrance(
-        animate: enteringMessageIds.contains(entry.id),
-        onEnd: () => onMessageEntranceFinished(entry.id),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(top: 13, bottom: 8),
-              child: Text(
-                _chatTimestampLabel(entry.effectiveOccurredAt),
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: DiaryThemeColors.of(context).mutedInk,
-                ),
+    return _ChatMessageEntrance(
+      animate: enteringMessageIds.contains(entry.id),
+      onEnd: () => onMessageEntranceFinished(entry.id),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 13, bottom: 8),
+            child: Text(
+              _chatTimestampLabel(entry.effectiveOccurredAt),
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: DiaryThemeColors.of(context).mutedInk,
               ),
             ),
-            _ChatEntryBubble(
-              entry: entry,
-              onOpen: () => onOpenEntry(entry),
-              onOpenLocation: () => onOpenLocation(entry),
-              onLongPress: () => unawaited(onLongPress(entry)),
-              onAvatarTap: onAvatarTap,
-              showChatAvatar: showChatAvatar,
-              profileAvatarPath: profileAvatarPath,
-            ),
-          ],
-        ),
+          ),
+          _ChatEntryBubble(
+            entry: entry,
+            onOpen: () => onOpenEntry(entry),
+            onOpenLocation: () => onOpenLocation(entry),
+            onLongPress: () => unawaited(onLongPress(entry)),
+            onAvatarTap: onAvatarTap,
+            showChatAvatar: showChatAvatar,
+            profileAvatarPath: profileAvatarPath,
+          ),
+        ],
       ),
     );
   }
 }
 
-class _ChatMessageEntrance extends StatelessWidget {
+class _ChatMessageEntrance extends StatefulWidget {
   const _ChatMessageEntrance({
     required this.animate,
     required this.onEnd,
@@ -703,19 +735,78 @@ class _ChatMessageEntrance extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) {
-    if (!animate) return child;
+  State<_ChatMessageEntrance> createState() => _ChatMessageEntranceState();
+}
+
+class _ChatMessageEntranceState extends State<_ChatMessageEntrance>
+    with SingleTickerProviderStateMixin {
+  late final bool _animateOnMount = widget.animate;
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: _chatMessageEntranceDuration,
+    value: _animateOnMount ? 0 : 1,
+  );
+  late final CurvedAnimation _progress = CurvedAnimation(
+    parent: _controller,
+    curve: Curves.easeOutCubic,
+  );
+  late final Animation<double> _opacity = Tween(
+    begin: .4,
+    end: 1.0,
+  ).animate(_progress);
+  bool _started = false;
+  bool _finished = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addStatusListener(_onStatusChanged);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: 1),
-      duration: reduceMotion ? Duration.zero : _chatMessageEntranceDuration,
-      curve: Curves.easeOutCubic,
-      onEnd: onEnd,
-      child: RepaintBoundary(child: child),
-      builder: (context, value, child) => Opacity(
-        opacity: .4 + (.6 * value),
-        child: Transform.translate(
-          offset: Offset(0, (1 - value) * _chatMessageEntranceOffset),
+    if (_started && !reduceMotion) return;
+    _started = true;
+    if (!_animateOnMount || reduceMotion) {
+      _controller.value = 1;
+    } else {
+      _controller.forward();
+    }
+  }
+
+  void _onStatusChanged(AnimationStatus status) {
+    if (status == AnimationStatus.completed) _finish();
+  }
+
+  void _finish() {
+    if (!_animateOnMount || _finished) return;
+    _finished = true;
+    widget.onEnd();
+  }
+
+  @override
+  void dispose() {
+    // An entrance removed from the sliver cache must not replay on return.
+    _finish();
+    _controller.removeStatusListener(_onStatusChanged);
+    _progress.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Keep the child at the same element slot after the entrance completes.
+    // Dropping an animation wrapper would recreate rich text/media state.
+    return FadeTransition(
+      opacity: _opacity,
+      child: AnimatedBuilder(
+        animation: _progress,
+        child: RepaintBoundary(child: widget.child),
+        builder: (context, child) => Transform.translate(
+          offset: Offset(0, (1 - _progress.value) * _chatMessageEntranceOffset),
           child: child,
         ),
       ),
@@ -723,7 +814,7 @@ class _ChatMessageEntrance extends StatelessWidget {
   }
 }
 
-class _ChatEntryBubble extends StatelessWidget {
+class _ChatEntryBubble extends StatefulWidget {
   const _ChatEntryBubble({
     required this.entry,
     required this.onOpen,
@@ -743,7 +834,32 @@ class _ChatEntryBubble extends StatelessWidget {
   final String? profileAvatarPath;
 
   @override
+  State<_ChatEntryBubble> createState() => _ChatEntryBubbleState();
+}
+
+class _ChatEntryBubbleState extends State<_ChatEntryBubble> {
+  String? _embeddedImageContent;
+  Set<String> _embeddedImagePaths = const {};
+
+  Set<String> _imagesEmbeddedIn(String content) {
+    if (_embeddedImageContent != content) {
+      _embeddedImageContent = content;
+      _embeddedImagePaths = Set<String>.unmodifiable(
+        richTextImagePaths(content),
+      );
+    }
+    return _embeddedImagePaths;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final entry = widget.entry;
+    final onOpen = widget.onOpen;
+    final onOpenLocation = widget.onOpenLocation;
+    final onLongPress = widget.onLongPress;
+    final onAvatarTap = widget.onAvatarTap;
+    final showChatAvatar = widget.showChatAvatar;
+    final profileAvatarPath = widget.profileAvatarPath;
     final colors = DiaryThemeColors.of(context);
     if (entry.isStandaloneLocation) {
       return Padding(
@@ -882,8 +998,8 @@ class _ChatEntryBubble extends StatelessWidget {
     final content = entry.contentText.trim();
     final isRichText = entry.editorType == DiaryEditorType.richText;
     final embeddedImages = isRichText
-        ? richTextImagePaths(entry.content)
-        : <String>{};
+        ? _imagesEmbeddedIn(entry.content)
+        : const <String>{};
     final imageEntry = embeddedImages.isEmpty
         ? entry
         : entry.copyWith(

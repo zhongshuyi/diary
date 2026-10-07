@@ -40,9 +40,19 @@ class DiaryController extends ChangeNotifier {
     try {
       final all = await _repository.load(includeTrash: true);
       if (entryVersion != _entryVersion) return;
-      _entries = List.unmodifiable(all.where((entry) => !entry.isInTrash));
-      _trash = List.unmodifiable(all.where((entry) => entry.isInTrash));
-      _categories = _collectCategories(_entries);
+      final entries = List<DiaryEntry>.unmodifiable(
+        all.where((entry) => !entry.isInTrash),
+      );
+      final trash = List<DiaryEntry>.unmodifiable(
+        all.where((entry) => entry.isInTrash),
+      );
+      if (!listEquals(_entries, entries)) {
+        _entries = entries;
+        _categories = _collectCategories(entries);
+      }
+      if (!listEquals(_trash, trash)) {
+        _trash = trash;
+      }
     } catch (error) {
       if (entryVersion == _entryVersion) _error = error;
     } finally {

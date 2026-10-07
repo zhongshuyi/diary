@@ -10,8 +10,9 @@ class AttachmentSyncQueue {
 
   Future<List<Attachment>> uploadMissing(
     Iterable<Attachment> attachments,
-    Future<List<int>> Function(Attachment) readBytes,
-  ) async {
+    Future<List<int>> Function(Attachment) readBytes, {
+    Stream<List<int>> Function(Attachment)? openRead,
+  }) async {
     final result = <Attachment>[];
     for (final attachment in attachments) {
       if (await client.headAsset(attachment.sha256)) {
@@ -21,10 +22,12 @@ class AttachmentSyncQueue {
         continue;
       }
       try {
-        final bytes = await readBytes(attachment);
+        final bytes = openRead == null
+            ? Stream<List<int>>.value(await readBytes(attachment))
+            : openRead(attachment);
         await client.uploadAsset(
           attachment.copyWith(remoteState: AttachmentRemoteState.uploading),
-          Stream.value(bytes),
+          bytes,
         );
         result.add(
           attachment.copyWith(
@@ -49,8 +52,9 @@ class AttachmentSyncQueue {
     Future<void> Function(Attachment, List<int>) writeBytes,
   ) async {
     if (attachment.localPath != null &&
-        attachment.remoteState == AttachmentRemoteState.ready)
+        attachment.remoteState == AttachmentRemoteState.ready) {
       return attachment;
+    }
     try {
       final bytes = await client.downloadAsset(attachment.sha256);
       await writeBytes(attachment, bytes);

@@ -34,6 +34,7 @@ void main() {
 
     expect(result.status.name, 'synced');
     expect(result.pendingCount, 0);
+    expect(result.localDataChanged, isTrue);
     expect((await repository.getSyncState()).cursor, '4');
     expect(
       (await repository.load()).any((entry) => entry.id == 'remote-1'),

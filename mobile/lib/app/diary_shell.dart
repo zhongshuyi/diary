@@ -23,6 +23,7 @@ import 'package:diary/domain/diary_settings.dart';
 import 'package:diary/domain/sync_state.dart';
 import 'package:diary/sync/sync_client.dart';
 import 'package:diary/sync/sync_engine.dart';
+import 'package:diary/sync/deferred_sync_queue.dart';
 import 'package:diary/pages/entry/entry_detail_page.dart';
 import 'package:diary/pages/entry/entry_editor_page.dart';
 import 'package:diary/pages/conflicts/conflicts_page.dart';
@@ -155,7 +156,7 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
   bool _handlingIncomingShare = false;
   bool _handlingShortcut = false;
   SyncEngine? _syncEngine;
-  Timer? _chatSyncTimer;
+  late DeferredSyncQueue _syncQueue;
   Timer? _trashFeedbackTimer;
   OverlayEntry? _trashFeedbackEntry;
   _SyncConnection? _syncConnection;
@@ -170,6 +171,7 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    _syncQueue = DeferredSyncQueue(synchronize: _runQueuedSync);
     WidgetsBinding.instance.addObserver(this);
     _controller = DiaryController(repository: widget.repository)
       ..addListener(_onControllerChanged);
@@ -195,9 +197,9 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
       ..dispose();
     widget.settingsController.removeListener(_onSettingsChanged);
     WidgetsBinding.instance.removeObserver(this);
-    _chatSyncTimer?.cancel();
+    _syncQueue.dispose();
     _removeTrashFeedback();
-    _resetSyncEngine();
+    _syncEngine?.dispose();
     _incomingShareBridge.dispose();
     _shortcutRequest.removeListener(_onShortcutRequestChanged);
     _shortcutRequest.dispose();
@@ -310,13 +312,17 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
       repository: widget.repository,
       client: SyncClient(baseUrl: connection.endpoint, token: connection.token),
       onStateChanged: _onSyncStateChanged,
+      onAutoSyncRequested: _scheduleAutoSync,
+      mutationBatchSize: 20,
     )..start();
-    unawaited(_syncNow());
+    _scheduleAutoSync();
     if (mounted) setState(() {});
   }
 
   void _resetSyncEngine() {
-    _syncEngine?.stop();
+    _syncQueue.dispose();
+    _syncQueue = DeferredSyncQueue(synchronize: _runQueuedSync);
+    _syncEngine?.dispose();
     _syncEngine = null;
     _syncConnection = null;
   }
@@ -358,13 +364,12 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
           saveEntry: _saveEntryAndSync,
           beginExternalActivity: widget.lockCoordinator.beginExternalActivity,
           endExternalActivity: widget.lockCoordinator.endExternalActivity,
-          replaceEntries: (entries) => _controller.replaceAll(entries),
+          replaceEntries: _replaceEntriesAndSync,
           restoreEntry: _restoreFromRecycle,
           deleteEntryPermanently: _deleteFromRecycle,
           clearTrash: _clearTrashAndSync,
           openConflicts: _openConflicts,
-          batchSetFavorite: (ids, value) =>
-              _controller.batchSetFavorite(ids, value),
+          batchSetFavorite: _batchSetFavoriteAndSync,
           batchMoveToTrash: _batchMoveToTrash,
         );
         if (desktop) {
@@ -412,33 +417,55 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
   void _onSyncStateChanged(SyncState state) {
     if (!mounted) return;
     setState(() => _syncState = state);
-    if (state.status == SyncStatus.synced ||
-        state.status == SyncStatus.conflict) {
-      _controller.refresh(notifyBeforeLoad: false);
-      _refreshConflicts();
-    }
   }
 
   Future<void> _syncNow() async {
-    await _syncEngine?.syncNow();
+    if (_syncEngine != null) await _syncQueue.flush();
   }
 
-  void _scheduleChatSync() {
-    _chatSyncTimer?.cancel();
-    _chatSyncTimer = Timer(
-      const Duration(milliseconds: 400),
-      () => unawaited(_syncNow()),
-    );
+  Future<bool> _runQueuedSync() async {
+    final engine = _syncEngine;
+    if (engine == null) return true;
+    final result = await engine.syncNow();
+    if (engine != _syncEngine) return false;
+    if (result.localDataChanged) {
+      await _controller.refresh(notifyBeforeLoad: false);
+      await _refreshConflicts();
+    }
+    if (result.error != null) throw result.error!;
+    return result.pendingCount == 0 && !result.hasMoreWork;
+  }
+
+  void _scheduleAutoSync() {
+    if (_syncEngine != null) _syncQueue.request();
+  }
+
+  @override
+  void didChangeMetrics() {
+    _syncQueue.deferForInteraction();
   }
 
   Future<void> _saveEntryAndSync(DiaryEntry entry) async {
     await _controller.save(entry);
-    unawaited(_syncNow());
+    _scheduleAutoSync();
+  }
+
+  Future<void> _replaceEntriesAndSync(List<DiaryEntry> entries) async {
+    await _controller.replaceAll(entries);
+    _scheduleAutoSync();
+  }
+
+  Future<void> _batchSetFavoriteAndSync(
+    Iterable<String> ids,
+    bool value,
+  ) async {
+    await _controller.batchSetFavorite(ids, value);
+    _scheduleAutoSync();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) unawaited(_syncNow());
+    if (state == AppLifecycleState.resumed) _scheduleAutoSync();
   }
 
   Future<void> _refreshConflicts() async {
@@ -455,6 +482,7 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
           conflicts: _conflicts,
           onResolve: (id, entry) async {
             await widget.repository.resolveConflict(id, entry);
+            _scheduleAutoSync();
             await _refreshConflicts();
             if (mounted) Navigator.pop(context);
           },
@@ -498,7 +526,7 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
         audioPaths: audioPaths,
       ),
     );
-    unawaited(_syncNow());
+    _scheduleAutoSync();
     if (!mounted) return;
     ScaffoldMessenger.of(
       context,
@@ -547,7 +575,7 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
         videoPaths: videoPaths,
       ),
     );
-    _scheduleChatSync();
+    _scheduleAutoSync();
   }
 
   Future<void> _saveChatLocation(DiaryPlace place) async {
@@ -570,7 +598,7 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
             : const [],
       ),
     );
-    _scheduleChatSync();
+    _scheduleAutoSync();
   }
 
   Future<void> _openEditorFromQuick(String content, List<String> imagePaths) =>
@@ -678,6 +706,7 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
 
   Future<void> _moveToTrash(DiaryEntry entry) async {
     await _controller.moveToTrash(entry);
+    _scheduleAutoSync();
     if (!mounted) return;
     _showTrashFeedback(1);
   }
@@ -686,6 +715,7 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
     final selectedIds = ids.toSet();
     if (selectedIds.isEmpty) return;
     await _controller.batchMoveToTrash(selectedIds);
+    _scheduleAutoSync();
     if (!mounted) return;
     _showTrashFeedback(selectedIds.length);
   }
@@ -713,12 +743,13 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
 
   Future<void> _restoreFromRecycle(DiaryEntry entry) async {
     await _controller.restore(entry);
+    _scheduleAutoSync();
     if (mounted) Navigator.pop(context);
   }
 
   Future<void> _deleteFromRecycle(DiaryEntry entry) async {
     await _controller.deletePermanently(entry);
-    unawaited(_syncNow());
+    _scheduleAutoSync();
     if (mounted) Navigator.pop(context);
   }
 
@@ -733,11 +764,12 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
 
   Future<void> _clearTrashAndSync() async {
     await _controller.clearTrash();
-    unawaited(_syncNow());
+    _scheduleAutoSync();
   }
 
   Future<void> _toggleFavorite(DiaryEntry entry) async {
     await _controller.toggleFavorite(entry);
+    _scheduleAutoSync();
   }
 
   Future<void> _openSettings() async {
@@ -835,12 +867,12 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
           onExternalActivityStart: widget.lockCoordinator.beginExternalActivity,
           onExternalActivityEnd: widget.lockCoordinator.endExternalActivity,
           onImport: (entries) async {
-            await _controller.replaceAll(entries);
+            await _replaceEntriesAndSync(entries);
           },
           onImportPackage: (package) async {
             final entries = await PortableBackupImporter().materialize(package);
             await _controller.addMissingEntries(entries, resyncMatching: true);
-            unawaited(_syncNow());
+            _scheduleAutoSync();
           },
         ),
       ),

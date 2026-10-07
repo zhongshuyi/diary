@@ -1588,6 +1588,7 @@ void main() {
   });
 
   testWidgets('opens the calendar tab', (tester) async {
+    final today = DateTime.now();
     await tester.pumpWidget(const MyApp());
     await tester.pumpAndSettle();
 
@@ -1595,7 +1596,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('我的日历'), findsOneWidget);
-    expect(find.text('2026年 9月'), findsOneWidget);
+    expect(find.text('${today.year}年 ${today.month}月'), findsOneWidget);
   });
 
   testWidgets('opens the media library from profile tools', (tester) async {

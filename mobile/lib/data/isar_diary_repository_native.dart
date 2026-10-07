@@ -55,11 +55,53 @@ class IsarDiaryRepository extends DiaryRepository {
   final Isar _isar;
 
   @override
+  Future<List<DiaryEntry>> listAttachmentBackfillEntries({
+    String? afterId,
+    int limit = 10,
+  }) async {
+    if (limit <= 0) return const [];
+    // Apply the cursor, ordering and limit in the database. Only this page is
+    // materialized as Dart records, even with a large diary history.
+    final records = await _isar.diaryRecords
+        .filter()
+        .uuidGreaterThan(afterId ?? '')
+        .sortByUuid()
+        .limit(limit)
+        .findAll();
+    return records.map((record) => record.toEntity()).toList(growable: false);
+  }
+
+  @override
+  Future<bool> mergeAttachmentIds(
+    DiaryEntry source,
+    List<String> attachmentIds,
+  ) => _isar.writeTxn(() async {
+    final record = await _isar.diaryRecords.getByUuid(source.id);
+    if (record == null) return false;
+    final current = record.toEntity();
+    if (!diaryAttachmentBackfillSourceMatches(current, source) ||
+        !attachmentIds.any((id) => !current.attachmentIds.contains(id))) {
+      return false;
+    }
+    final next = current.copyWith(
+      attachmentIds: {...current.attachmentIds, ...attachmentIds}.toList(),
+      updatedAt: DateTime.now(),
+      revision: current.revision + 1,
+    );
+    await _isar.diaryRecords.put(DiaryRecord.fromEntity(next)..id = record.id);
+    await _replaceOutboxEntry(next);
+    return true;
+  });
+
+  @override
   Future<List<DiaryEntry>> load({bool includeTrash = false}) async {
     final records = includeTrash
-        ? await _isar.diaryRecords.where().findAll()
-        : await _isar.diaryRecords.filter().isInTrashEqualTo(false).findAll();
-    records.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+        ? await _isar.diaryRecords.where().sortByUpdatedAtDesc().findAll()
+        : await _isar.diaryRecords
+              .filter()
+              .isInTrashEqualTo(false)
+              .sortByUpdatedAtDesc()
+              .findAll();
     return records.map((record) => record.toEntity()).toList(growable: false);
   }
 
@@ -281,6 +323,9 @@ class IsarDiaryRepository extends DiaryRepository {
   }
 
   @override
+  Future<int> countPendingMutations() => _isar.outboxRecords.count();
+
+  @override
   Future<void> applySyncResult(SyncResult result) async {
     await _isar.writeTxn(() async {
       for (final change in result.changes) {
@@ -407,7 +452,8 @@ class IsarDiaryRepository extends DiaryRepository {
     for (final item in existingOutbox) {
       await _isar.outboxRecords.delete(item.id);
     }
-    final mutationId = '${entry.deviceId}:${entry.id}:${entry.revision}';
+    final mutationId =
+        '${entry.deviceId.isEmpty ? 'mobile' : entry.deviceId}:${entry.id}:${entry.revision}';
     await _isar.outboxRecords.put(
       OutboxRecord.fromEntity(
         OutboxMutation(

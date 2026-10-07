@@ -100,6 +100,30 @@ class SyncResult {
 abstract class DiaryRepository {
   Future<List<DiaryEntry>> load({bool includeTrash = false});
 
+  /// Reads a small, stable page for background attachment repair.
+  Future<List<DiaryEntry>> listAttachmentBackfillEntries({
+    String? afterId,
+    int limit = 10,
+  }) async {
+    if (limit <= 0) return const [];
+    final entries =
+        (await load(includeTrash: true))
+            .where(
+              (entry) => afterId == null || entry.id.compareTo(afterId) > 0,
+            )
+            .toList()
+          ..sort((left, right) => left.id.compareTo(right.id));
+    return List.unmodifiable(entries.take(limit));
+  }
+
+  /// Adapters must atomically check the source before merging IDs. An adapter
+  /// without that capability safely declines to rewrite a potentially stale
+  /// snapshot; preparing outgoing mutations still handles their attachments.
+  Future<bool> mergeAttachmentIds(
+    DiaryEntry source,
+    List<String> attachmentIds,
+  ) async => false;
+
   Future<List<DiaryEntry>> listEntries({
     DiaryQuery query = const DiaryQuery(),
   }) async {
@@ -226,6 +250,8 @@ abstract class DiaryRepository {
   Future<void> clearDraft(String id) async {}
   Future<List<OutboxMutation>> listPendingMutations({int limit = 100}) async =>
       const [];
+  Future<int> countPendingMutations() async =>
+      (await listPendingMutations()).length;
   Future<void> applySyncResult(SyncResult result) async {
     for (final entry in result.changes)
       await save(entry, enqueueMutation: false);
@@ -259,6 +285,43 @@ class MemoryDiaryRepository extends DiaryRepository {
     : _entries = List<DiaryEntry>.of(initialEntries);
 
   List<DiaryEntry> _entries;
+
+  @override
+  Future<List<DiaryEntry>> listAttachmentBackfillEntries({
+    String? afterId,
+    int limit = 10,
+  }) async {
+    if (limit <= 0) return const [];
+    final entries =
+        _entries
+            .where(
+              (entry) => afterId == null || entry.id.compareTo(afterId) > 0,
+            )
+            .toList()
+          ..sort((left, right) => left.id.compareTo(right.id));
+    return List.unmodifiable(entries.take(limit));
+  }
+
+  @override
+  Future<bool> mergeAttachmentIds(
+    DiaryEntry source,
+    List<String> attachmentIds,
+  ) async {
+    final current = _findEntry(source.id);
+    if (current == null ||
+        !diaryAttachmentBackfillSourceMatches(current, source) ||
+        !attachmentIds.any((id) => !current.attachmentIds.contains(id))) {
+      return false;
+    }
+    final next = current.copyWith(
+      attachmentIds: {...current.attachmentIds, ...attachmentIds}.toList(),
+      updatedAt: DateTime.now(),
+      revision: current.revision + 1,
+    );
+    _entries[_entries.indexWhere((entry) => entry.id == source.id)] = next;
+    _enqueue(next);
+    return true;
+  }
 
   @override
   Future<List<DiaryEntry>> load({bool includeTrash = false}) async {
@@ -469,6 +532,9 @@ class MemoryDiaryRepository extends DiaryRepository {
       List.unmodifiable(_outbox.take(limit));
 
   @override
+  Future<int> countPendingMutations() async => _outbox.length;
+
+  @override
   Future<void> applySyncResult(SyncResult result) async {
     for (final entry in result.changes) {
       if (entry.isDeleted) {
@@ -587,6 +653,29 @@ class MemoryDiaryRepository extends DiaryRepository {
 DateTime _latest(DateTime? left, DateTime right) =>
     left == null || right.isAfter(left) ? right : left;
 
+bool diaryAttachmentBackfillSourceMatches(
+  DiaryEntry current,
+  DiaryEntry source,
+) =>
+    !current.isDeleted &&
+    current.id == source.id &&
+    current.revision == source.revision &&
+    current.updatedAt.isAtSameMomentAs(source.updatedAt) &&
+    current.editorType == source.editorType &&
+    current.content == source.content &&
+    current.contentText == source.contentText &&
+    _sameAttachmentPaths(current.imagePaths, source.imagePaths) &&
+    _sameAttachmentPaths(current.audioPaths, source.audioPaths) &&
+    _sameAttachmentPaths(current.videoPaths, source.videoPaths);
+
+bool _sameAttachmentPaths(List<String> left, List<String> right) {
+  if (left.length != right.length) return false;
+  for (var index = 0; index < left.length; index++) {
+    if (left[index] != right[index]) return false;
+  }
+  return true;
+}
+
 Map<String, dynamic> _outboxToJson(OutboxMutation item) => {
   'mutationId': item.mutationId,
   'entityType': item.entityType,
@@ -645,17 +734,27 @@ class SharedPreferencesDiaryRepository extends DiaryRepository {
 
   final List<DiaryEntry> initialEntries;
   Future<SharedPreferences>? _preferences;
+  Future<void> _entryWrites = Future<void>.value();
+
+  Future<T> _withEntryWrite<T>(Future<T> Function() operation) {
+    final result = _entryWrites.then((_) => operation());
+    _entryWrites = result.then<void>((_) {}, onError: (Object error) {});
+    return result;
+  }
 
   Future<SharedPreferences> get _prefs async {
     return _preferences ??= SharedPreferences.getInstance();
   }
 
   @override
-  Future<List<DiaryEntry>> load({bool includeTrash = false}) async {
+  Future<List<DiaryEntry>> load({bool includeTrash = false}) =>
+      _withEntryWrite(() => _loadStored(includeTrash: includeTrash));
+
+  Future<List<DiaryEntry>> _loadStored({bool includeTrash = false}) async {
     final preferences = await _prefs;
     final raw = preferences.getString(_storageKey);
     if (raw == null || raw.isEmpty) {
-      if (initialEntries.isNotEmpty) await replaceAll(initialEntries);
+      if (initialEntries.isNotEmpty) await _replaceAllStored(initialEntries);
       return List<DiaryEntry>.unmodifiable(
         initialEntries.where((entry) => includeTrash || !entry.isInTrash),
       );
@@ -678,6 +777,30 @@ class SharedPreferencesDiaryRepository extends DiaryRepository {
       return const [];
     }
   }
+
+  @override
+  Future<bool> mergeAttachmentIds(
+    DiaryEntry source,
+    List<String> attachmentIds,
+  ) => _withEntryWrite(() async {
+    final entries = List<DiaryEntry>.of(await _loadStored(includeTrash: true));
+    final index = entries.indexWhere((entry) => entry.id == source.id);
+    if (index < 0) return false;
+    final current = entries[index];
+    if (!diaryAttachmentBackfillSourceMatches(current, source) ||
+        !attachmentIds.any((id) => !current.attachmentIds.contains(id))) {
+      return false;
+    }
+    final next = current.copyWith(
+      attachmentIds: {...current.attachmentIds, ...attachmentIds}.toList(),
+      updatedAt: DateTime.now(),
+      revision: current.revision + 1,
+    );
+    entries[index] = next;
+    await _replaceAllStored(entries);
+    await _enqueue(next);
+    return true;
+  });
 
   @override
   Future<List<DiaryEntry>> search(
@@ -707,8 +830,15 @@ class SharedPreferencesDiaryRepository extends DiaryRepository {
   Future<DiaryEntry> _saveStored(
     DiaryEntry entry, {
     required bool enqueueMutation,
+  }) => _withEntryWrite(
+    () => _saveStoredUnlocked(entry, enqueueMutation: enqueueMutation),
+  );
+
+  Future<DiaryEntry> _saveStoredUnlocked(
+    DiaryEntry entry, {
+    required bool enqueueMutation,
   }) async {
-    final entries = List<DiaryEntry>.of(await load(includeTrash: true));
+    final entries = List<DiaryEntry>.of(await _loadStored(includeTrash: true));
     final index = entries.indexWhere((item) => item.id == entry.id);
     final previous = index == -1 ? null : entries[index];
     final next = entry.copyWith(
@@ -722,7 +852,7 @@ class SharedPreferencesDiaryRepository extends DiaryRepository {
     } else {
       entries[index] = next;
     }
-    await replaceAll(entries);
+    await _replaceAllStored(entries);
     if (enqueueMutation) {
       final preferences = await _prefs;
       final pending = _decodeOutbox(preferences.getString(_outboxKey));
@@ -747,38 +877,41 @@ class SharedPreferencesDiaryRepository extends DiaryRepository {
   }
 
   @override
-  Future<void> moveToTrash(String id) async {
-    final entries = List<DiaryEntry>.of(await load(includeTrash: true));
+  Future<void> moveToTrash(String id) => _withEntryWrite(() async {
+    final entries = List<DiaryEntry>.of(await _loadStored(includeTrash: true));
     await _replaceMatching(
       entries,
       id,
       (entry) => entry.copyWith(isInTrash: true),
     );
-  }
+  });
 
   @override
-  Future<void> restore(String id) async {
-    final entries = List<DiaryEntry>.of(await load(includeTrash: true));
+  Future<void> restore(String id) => _withEntryWrite(() async {
+    final entries = List<DiaryEntry>.of(await _loadStored(includeTrash: true));
     await _replaceMatching(
       entries,
       id,
       (entry) => entry.copyWith(isInTrash: false),
     );
-  }
+  });
 
   @override
-  Future<void> deletePermanently(String id) async {
-    final entries = List<DiaryEntry>.of(await load(includeTrash: true));
+  Future<void> deletePermanently(String id) => _withEntryWrite(() async {
+    final entries = List<DiaryEntry>.of(await _loadStored(includeTrash: true));
     final index = entries.indexWhere((entry) => entry.id == id);
     if (index == -1) return;
     final tombstone = DiaryEntry.tombstone(entries[index]);
     entries.removeAt(index);
-    await replaceAll(entries);
+    await _replaceAllStored(entries);
     await _enqueue(tombstone);
-  }
+  });
 
   @override
-  Future<void> replaceAll(List<DiaryEntry> entries) async {
+  Future<void> replaceAll(List<DiaryEntry> entries) =>
+      _withEntryWrite(() => _replaceAllStored(entries));
+
+  Future<void> _replaceAllStored(List<DiaryEntry> entries) async {
     final preferences = await _prefs;
     await preferences.setString(
       _storageKey,
@@ -795,8 +928,24 @@ class SharedPreferencesDiaryRepository extends DiaryRepository {
   }
 
   @override
-  Future<void> applySyncResult(SyncResult result) async {
-    final entries = List<DiaryEntry>.of(await load(includeTrash: true));
+  Future<int> countPendingMutations() async {
+    final preferences = await _prefs;
+    final raw = preferences.getString(_outboxKey);
+    if (raw == null) return 0;
+    try {
+      final decoded = jsonDecode(raw);
+      return decoded is List ? decoded.whereType<Map>().length : 0;
+    } on FormatException {
+      return 0;
+    }
+  }
+
+  @override
+  Future<void> applySyncResult(SyncResult result) =>
+      _withEntryWrite(() => _applySyncResultStored(result));
+
+  Future<void> _applySyncResultStored(SyncResult result) async {
+    final entries = List<DiaryEntry>.of(await _loadStored(includeTrash: true));
     var changed = false;
     for (final entry in result.changes) {
       final index = entries.indexWhere((item) => item.id == entry.id);
@@ -814,7 +963,7 @@ class SharedPreferencesDiaryRepository extends DiaryRepository {
       }
       changed = true;
     }
-    if (changed) await replaceAll(entries);
+    if (changed) await _replaceAllStored(entries);
     final preferences = await _prefs;
     final pending = _decodeOutbox(preferences.getString(_outboxKey))
       ..removeWhere(
@@ -995,7 +1144,7 @@ class SharedPreferencesDiaryRepository extends DiaryRepository {
     final index = entries.indexWhere((entry) => entry.id == id);
     if (index == -1) return;
     entries[index] = update(entries[index]);
-    await replaceAll(entries);
+    await _replaceAllStored(entries);
   }
 
   final Map<String, Conflict> _conflicts = <String, Conflict>{};
