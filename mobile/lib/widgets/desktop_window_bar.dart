@@ -32,75 +32,94 @@ class DesktopWindowBar extends StatelessWidget {
     return SizedBox(
       key: const Key('desktop-window-bar'),
       height: 62,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onPanStart: (_) => _DesktopWindowCommands.beginDrag(),
-        onDoubleTap: _DesktopWindowCommands.toggleMaximize,
-        child: ColoredBox(
-          color: colors.surface,
-          child: Row(
-            children: [
-              const SizedBox(width: 14),
-              if (onBack != null)
-                IconButton(
-                  tooltip: '返回',
-                  onPressed: onBack,
-                  icon: const Icon(Icons.arrow_back_rounded),
-                ),
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: colors.hero,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(Icons.auto_awesome, size: 17, color: colors.onHero),
-              ),
-              const SizedBox(width: 10),
-              Text('此刻', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(width: 8),
-              Text(
-                '/ $title',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.copyWith(color: colors.mutedInk),
-              ),
-              const Spacer(),
-              ...actions,
-              if (onNewEntry != null) ...[
-                FilledButton.icon(
-                  onPressed: onNewEntry,
-                  icon: const Icon(Icons.add, size: 18),
-                  label: const Text('新建日记'),
-                ),
-                const SizedBox(width: 8),
-              ],
+      child: ColoredBox(
+        color: colors.surface,
+        child: Row(
+          children: [
+            const SizedBox(width: 14),
+            if (onBack != null)
               IconButton(
-                tooltip: isDark ? '切换到浅色模式' : '切换到深色模式',
-                onPressed: onToggleTheme,
-                icon: Icon(
-                  isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+                tooltip: '返回',
+                onPressed: onBack,
+                icon: const Icon(Icons.arrow_back_rounded),
+              ),
+            Expanded(
+              child: GestureDetector(
+                key: const Key('desktop-window-drag-area'),
+                behavior: HitTestBehavior.opaque,
+                onPanStart: (_) => _DesktopWindowCommands.beginDrag(),
+                onDoubleTap: _DesktopWindowCommands.toggleMaximize,
+                child: SizedBox.expand(
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: colors.hero,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          Icons.auto_awesome,
+                          size: 17,
+                          color: colors.onHero,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        '此刻',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '/ $title',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: colors.mutedInk),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              _WindowButton(
-                tooltip: '最小化',
-                icon: Icons.remove,
-                onPressed: _DesktopWindowCommands.minimize,
+            ),
+            const SizedBox(width: 8),
+            ...actions,
+            if (onNewEntry != null) ...[
+              FilledButton.icon(
+                onPressed: onNewEntry,
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('新建日记'),
               ),
-              _WindowButton(
-                tooltip: '最大化或还原',
-                icon: Icons.crop_square,
-                onPressed: _DesktopWindowCommands.toggleMaximize,
-              ),
-              _WindowButton(
-                tooltip: '关闭',
-                icon: Icons.close,
-                close: true,
-                onPressed: _DesktopWindowCommands.close,
-              ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 8),
             ],
-          ),
+            IconButton(
+              tooltip: isDark ? '切换到浅色模式' : '切换到深色模式',
+              onPressed: onToggleTheme,
+              icon: Icon(
+                isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+              ),
+            ),
+            _WindowButton(
+              tooltip: '最小化',
+              icon: Icons.remove,
+              onPressed: _DesktopWindowCommands.minimize,
+            ),
+            _WindowButton(
+              tooltip: '最大化或还原',
+              icon: Icons.crop_square,
+              onPressed: _DesktopWindowCommands.toggleMaximize,
+            ),
+            _WindowButton(
+              tooltip: '关闭',
+              icon: Icons.close,
+              close: true,
+              onPressed: _DesktopWindowCommands.close,
+            ),
+            const SizedBox(width: 6),
+          ],
         ),
       ),
     );
