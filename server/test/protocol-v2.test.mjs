@@ -29,3 +29,16 @@ test('v2 rejects invalid protocol and asset metadata', () => {
   assert.equal(result.valid, false);
   assert.deepEqual(result.details.map((item) => item.field), ['sha256', 'kind', 'byteSize']);
 });
+
+test('v2 preserves bounded transcripts aligned with their audio attachments', () => {
+  const entry = normalizeEntryV2({ audioPaths: ['a.m4a', 'b.m4a', 'c.m4a'], audioTranscripts: ['  晚霞  ', null, '饭还没吃', 'orphan'] });
+  assert.deepEqual(entry.audioTranscripts, ['晚霞', '', '饭还没吃']);
+  assert.deepEqual(normalizeEntryV2({ audioTranscripts: ['orphan'] }).audioTranscripts, []);
+  assert.deepEqual(normalizeEntryV2({ audioPaths: ['a'] }).audioTranscripts, []);
+});
+
+test('v2 transcript limits preserve unicode boundaries and attachment positions', () => {
+  const entry = normalizeEntryV2({ audioPaths: Array(40).fill('a.m4a'), audioTranscripts: Array(40).fill('a'.repeat(15999) + '😀') });
+  assert.equal(entry.audioTranscripts.length, 32);
+  assert.equal(entry.audioTranscripts[0].length, 15999);
+});

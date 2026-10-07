@@ -35,6 +35,13 @@ export function normalizeEntryV2(value = {}) {
     attachmentIds: normalizedStringList(entry.attachmentIds),
     imagePaths: Array.isArray(entry.imagePaths) ? entry.imagePaths : [],
     audioPaths: Array.isArray(entry.audioPaths) ? entry.audioPaths : [],
+    audioTranscripts: Array.isArray(entry.audioTranscripts)
+      ? entry.audioTranscripts.slice(0, Math.min(32, Array.isArray(entry.audioPaths) ? entry.audioPaths.length : 0)).map((text) => {
+        if (typeof text !== 'string') return '';
+        const bounded = text.trim().slice(0, 16000);
+        return /[\uD800-\uDBFF]$/.test(bounded) ? bounded.slice(0, -1) : bounded;
+      })
+      : [],
     videoPaths: Array.isArray(entry.videoPaths) ? entry.videoPaths : [],
     weather: normalizedStringList(entry.weather),
     positions: normalizedStringList(entry.positions),
