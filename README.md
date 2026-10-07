@@ -20,7 +20,7 @@
 
 | 平台 | 当前版本 | 安装包 |
 | --- | --- | --- |
-| Android 7.0 及以上 | [1.0.2+3 正式版](https://github.com/zhongshuyi/diary/releases/tag/mobile-v1.0.2) | [APK](https://github.com/zhongshuyi/diary/releases/download/mobile-v1.0.2/diary-android-1.0.2-build3.apk) |
+| Android 7.0 及以上 | [1.1.0+4 正式版](https://github.com/zhongshuyi/diary/releases/tag/mobile-v1.1.0) | [APK](https://github.com/zhongshuyi/diary/releases/download/mobile-v1.1.0/diary-android-1.1.0-build4.apk) |
 | Windows x64 | [0.1.1 公开预览](https://github.com/zhongshuyi/diary/releases/tag/desktop-v0.1.1) | [NSIS 安装包](https://github.com/zhongshuyi/diary/releases/download/desktop-v0.1.1/diary-desktop-0.1.1-win-x64-setup.exe) |
 
 每个 Release 附带 `SHA256SUMS` 和源码提交元数据。Android 正式版更新请覆盖安装，保留现有数据与原签名。Windows 预览包未进行代码签名，也尚未完成完整 GUI 验收。两端独立管理版本，详见[更新日志](CHANGELOG.md)与[发布指南](docs/releasing.md)。
@@ -31,9 +31,13 @@
 - **认真写作**：支持纯文本、Markdown 和 Quill 富文本，保存草稿，按分类、标签、心情和收藏组织记录。
 - **留下更多细节**：手机可拍照、录音并添加媒体；桌面可粘贴或拖入图片、视频，导入的媒体复制到应用目录。
 - **回看和整理**：时间线、搜索与筛选、日历、媒体库和本地统计；回收站支持恢复和永久删除。
+- **日记得到回应**：Android 可选择 MiniMax、DeepSeek、OpenAI 兼容 API 或本地模型，按语气、人设回应单条记录，不追问或引导连续聊天。
+- **录音也能搜索**：支持的 Android ARM64 手机可离线识别录音，保存后自动转写，也可手动重试；结果单独附在录音下方，不改写正文。
 - **自己掌握数据**：本地保存、ZIP 备份与恢复，可选同步正文和附件；同步冲突保留副本供处理。
 
-Android 还提供应用密码、可选生物识别解锁、本地提醒、位置记录、系统分享接收以及主题和聊天背景设置。Windows 提供命令面板、组合筛选、批量整理、托盘和每日滚动备份。两端的具体能力见各自的 README。
+[日记陪伴](docs/local-assistant.md)与[离线录音转写](docs/speech-transcription.md)包含在 Android 1.1.0 中。在线模型使用自己的 API Key，仅发送当前记录；图片需要单独开启并使用支持图片的模型。本地小模型可能误读事实或重复套话，优先推荐在线模式。录音识别需要首次下载约 240 MB 的模型，识别过程不上传音频。两项功能默认均不启用，Electron 桌面端尚未接入。
+
+Android 还提供应用密码、可选生物识别解锁、本地提醒、位置记录、系统分享接收以及主题、聊天布局、双方头像和背景设置；布局与背景配色分别管理。“我的”使用统一列表提供常用入口，设置支持分组跳转与关键词搜索。Windows 提供命令面板、组合筛选、批量整理、托盘和每日滚动备份。两端的具体能力见各自的 README。
 
 ## 平台与项目结构
 
@@ -51,6 +55,8 @@ Flutter 工程保留了 iOS、macOS、Linux、Web 和 Windows 平台目录，这
 无需账号或同步服务即可记录和阅读本地日记。Android 使用 Isar，Windows 使用应用数据目录中的 SQLite；媒体保存在各自设备的应用目录。
 
 启用同步后，客户端先保存本地记录和待同步队列，再通过 v2 协议批量上传、按游标拉取增量变更。附件按 SHA-256 单独传输，不放进同步 JSON。Android 自动同步会等待交互停顿后分批处理，手动同步可以立即执行。
+
+录音转写使用可选字段 `audioTranscripts`，跨设备保留该文字需要更新同步服务。旧服务的正文与附件同步仍可使用，手机会保留本机已有的转写，但旧服务不能将它们传给其他设备。日记陪伴直接连接所选模型服务，不要求重新部署同步服务；回应、人设与 API Key 不进入日记同步或备份。
 
 手机与电脑需要连接同一个服务，并填写匹配的访问令牌。手机连接开发机时，应使用开发机可达的局域网地址；`127.0.0.1` 只指向当前设备。公网服务的 HTTPS 和令牌配置见[服务器部署说明](docs/server-sync-service-deployment.md)。
 
@@ -71,7 +77,10 @@ cd diary
 
 准备 Flutter SDK（Dart 满足 `^3.11.0`）、Android SDK 和 JDK 17。当前 Gradle 配置需要先准备 `mobile/android/key.properties`；签名模板和构建说明见[手机端 README](mobile/README.md#android-签名配置)。
 
+首次克隆还需准备只含识别功能的原生语音运行库。Windows 主机安装 Python 3、Android SDK 的 NDK `28.2.13676358`（r28c）和 CMake `3.22.1`，先在仓库根目录运行下面的脚本，再构建 Flutter；Linux 构建方式与授权说明见[原生运行库说明](mobile/native/offline-speech/README.md)。
+
 ```powershell
+./tools/build-speech-runtime.ps1
 cd mobile
 flutter pub get
 flutter test -j 1
@@ -125,6 +134,8 @@ npm start
 | [同步服务说明](server/README.md) | 配置、接口、运行限制、更新分发 |
 | [应用架构](docs/architecture.md) | 模块边界、本地数据、同步与附件流程 |
 | [同步协议 v2](docs/sync-contract.md) | 记录格式、游标、冲突、删除与附件接口 |
+| [日记陪伴](docs/local-assistant.md) | 在线与本地模型、API Key、语气、人设和图片范围 |
+| [录音转文字](docs/speech-transcription.md) | 离线模型、自动转写、搜索、平台与同步要求 |
 | [开发机部署](docs/sync-service-deployment.md) | Windows 与手机局域网连接、排障 |
 | [服务器部署](docs/server-sync-service-deployment.md) | HTTPS、PM2、数据备份、更新与回退 |
 | [贡献指南](CONTRIBUTING.md) | 问题反馈、修改范围和验证命令 |

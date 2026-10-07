@@ -21,6 +21,8 @@
   "category": "生活",
   "tags": ["摘录"],
   "attachmentIds": ["asset-<sha256>"],
+  "audioPaths": ["asset://<sha256>.m4a"],
+  "audioTranscripts": ["录音识别得到的文字"],
   "isFavorite": false,
   "revision": 1,
   "deviceId": "desktop-uuid",
@@ -31,6 +33,16 @@
 ```
 
 客户端维护 `attachmentIds` 和本地附件实体；当前跨端传输还使用 `imagePaths`、`audioPaths`、`videoPaths` 以及正文中的 `asset://<sha256><扩展名>` 引用，由接收端还原为本机受管路径。不要发送仅在源设备可用的绝对路径。`deletedAt` 非空表示回收站状态；`isInTrash` 为兼容读取字段。永久删除使用 `isDeleted: true` 的 tombstone，服务端保留删除状态，防止同 ID 的普通记录被旧设备重新上传后复活。
+
+### 录音派生文字
+
+Android 1.1.0 增加可选 `audioTranscripts` 字段，按索引与 `audioPaths` 对应；空字符串表示该段录音没有识别结果。删除或重排录音时同步调整关联，跨设备重写附件路径时保留对应文字。它是可搜索的派生内容，不替换 `content` 或 `contentText`，不改变日记发生时间。
+
+服务端最多接收与 `audioPaths` 相同数量、且不超过 32 段的结果；非字符串转为空字符串，文字去除首尾空白并限制为每段 16,000 个 UTF-16 code units，不保留末尾单独的高代理项。缺少字段的旧记录按空列表读取，不改变 `protocolVersion: 2`。
+
+跨设备保留转写需要更新同步服务的 v2 normalization，旧版本会丢弃未知字段。手机客户端收到旧服务对同一录音的空结果时保留本机已有转写，但这不能替代服务端升级，也不能让旧客户端自动具备识别或展示能力。旧客户端与旧服务的正文、媒体同步仍按原协议使用。
+
+日记陪伴回应、人设、模型配置和 API Key 不属于同步记录，不增加对应协议字段。
 
 ## 2. 同步请求
 

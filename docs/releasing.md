@@ -8,7 +8,7 @@
 
 | 平台 | 版本来源 | tag 示例 | 当前发布渠道 |
 | --- | --- | --- | --- |
-| Android | `mobile/pubspec.yaml` 的 `version` | `mobile-v1.0.2`，对应 `1.0.2+3` | 正式 Release |
+| Android | `mobile/pubspec.yaml` 的 `version` | `mobile-v1.1.0`，对应 `1.1.0+4` | 正式 Release |
 | Windows x64 | `desktop/package.json` 的 `version` | `desktop-v0.1.1`，对应 `0.1.1` | GitHub prerelease，公开预览 |
 
 Windows 预览版的包内版本为 `0.1.1`，预览状态通过 GitHub Release 的 prerelease 标记表达。两种 tag 可以指向同一提交，不要求两端版本号相同。未配置发布入口的平台不附带安装包，也不声明为已发布平台。
@@ -20,14 +20,14 @@ Windows 预览版的包内版本为 `0.1.1`，预览状态通过 GitHub Release 
 ```powershell
 node scripts/release.mjs versions
 node scripts/release.mjs check all
-node scripts/release.mjs check mobile mobile-v1.0.2
+node scripts/release.mjs check mobile mobile-v1.1.0
 node scripts/release.mjs check desktop desktop-v0.1.1
 ```
 
 准备下一版本时，例如：
 
 ```powershell
-node scripts/release.mjs bump mobile 1.0.3 4
+node scripts/release.mjs bump mobile 1.1.1 5
 node scripts/release.mjs bump desktop 0.1.2
 ```
 
@@ -43,13 +43,12 @@ git diff --check
 node scripts/release.mjs check all
 ```
 
-检查待提交内容，不包括 `.local/`、真实 `.env`、`key.properties`、keystore、个人数据库和附件。提交版本、发布说明及相关代码后，创建对应平台的 annotated tag，例如本次两端均发布时：
+检查待提交内容，不包括 `.local/`、真实 `.env`、`key.properties`、keystore、个人数据库和附件。提交版本、发布说明及相关代码后，创建对应平台的 annotated tag，例如本次只发布 Android：
 
 ```powershell
-git tag -a mobile-v1.0.2 -m "Android 1.0.2 build 3"
-git tag -a desktop-v0.1.1 -m "Windows 0.1.1 preview"
+git tag -a mobile-v1.1.0 -m "Android 1.1.0 build 4"
 git push origin main
-git push origin mobile-v1.0.2 desktop-v0.1.1
+git push origin mobile-v1.1.0
 ```
 
 后续发布替换为新 tag；已有 tag 时先核对其目标提交，不重复创建。构建时使用该 tag 对应源码，工作区不包含未提交的产品修改。`release.json` 的 `sourceCommit` 应与 tag 指向的提交相同。
@@ -60,9 +59,12 @@ git push origin mobile-v1.0.2 desktop-v0.1.1
 
 准备 Flutter、Android SDK、JDK 17 和原正式版签名。当前 Gradle 在配置阶段读取 `mobile/android/key.properties`，即使 debug 构建也需要此文件；模板见[手机端签名说明](../mobile/README.md#android-签名配置)。私有签名配置留在本机，并复用现有正式签名以保留覆盖更新能力。
 
+首次克隆需要先生成 ASR 原生运行库；它没有提交到 Git，普通 Flutter 依赖下载不能代替这一步。Windows 主机准备 Python 3、Android SDK 中的 NDK `28.2.13676358`（r28c）与 CMake `3.22.1`，在根目录执行 `./tools/build-speech-runtime.ps1`。Linux 使用 CMake、C++ 编译工具和相同 NDK，执行 `python3 tools/prepare-speech-runtime.py --platform android --ndk "$ANDROID_NDK_HOME"`。详细构建与校验要求见[语音原生运行库](../mobile/native/offline-speech/README.md)。始终使用关闭 TTS 的库，不用包含 eSpeak 或 Piper 的上游默认二进制替代。
+
 从仓库根目录构建，不传入真实同步地址、访问令牌或私有更新地址的 `--dart-define`：
 
 ```powershell
+./tools/build-speech-runtime.ps1
 cd mobile
 flutter pub get
 flutter build apk --release
@@ -124,7 +126,7 @@ artifacts/releases/<tag>/
 Android 正式包：
 
 ```powershell
-gh release create mobile-v1.0.2 --repo zhongshuyi/diary --verify-tag --draft --latest=false --title "此刻 Android 1.0.2" --notes-file releases/mobile-v1.0.2.md
+gh release create mobile-v1.1.0 --repo zhongshuyi/diary --verify-tag --draft --latest=false --title "此刻 Android 1.1.0" --notes-file releases/mobile-v1.1.0.md
 ```
 
 Windows 公开预览：
@@ -140,7 +142,7 @@ Release 已存在时先查看其 draft 状态与附件，避免重复创建。�
 选择已准备的平台 tag，确认目录内只有一个对应安装包：
 
 ```powershell
-$releaseTag = 'mobile-v1.0.2'
+$releaseTag = 'mobile-v1.1.0'
 $releaseDirectory = Join-Path 'artifacts/releases' $releaseTag
 $installers = @(Get-ChildItem -LiteralPath $releaseDirectory -File | Where-Object { $_.Extension -in '.apk', '.exe' })
 if ($installers.Count -ne 1) { throw '发布目录必须包含一个对应平台的安装包' }
@@ -168,7 +170,7 @@ if ($localHash -ne $downloadHash) { throw '下载安装包与本机构建 SHA-25
 所有附件与说明核验完成后再执行对应命令：
 
 ```powershell
-gh release edit mobile-v1.0.2 --repo zhongshuyi/diary --draft=false --prerelease=false --latest=true
+gh release edit mobile-v1.1.0 --repo zhongshuyi/diary --draft=false --prerelease=false --latest=true
 gh release edit desktop-v0.1.1 --repo zhongshuyi/diary --draft=false --prerelease --latest=false
 ```
 
@@ -184,7 +186,7 @@ CI 检查版本规则及相关模块，不代替设备验证。Windows 打包工
 
 在 README、发布说明或更新服务中使用明确的平台 tag，例如：
 
-- [Android 1.0.2](https://github.com/zhongshuyi/diary/releases/tag/mobile-v1.0.2)
+- [Android 1.1.0](https://github.com/zhongshuyi/diary/releases/tag/mobile-v1.1.0)
 - [Windows 0.1.1 公开预览](https://github.com/zhongshuyi/diary/releases/tag/desktop-v0.1.1)
 
 直接下载地址采用 `https://github.com/zhongshuyi/diary/releases/download/<tag>/<安装包文件名>`。不要用 `releases/latest/download` 混合指向两端独立版本；示例版本发布后仍可下载，不随下一次发布变化。
