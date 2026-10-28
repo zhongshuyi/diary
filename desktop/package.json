@@ -33,7 +33,7 @@
     "@milkdown/theme-nord": "^7.22.3",
     "@milkdown/utils": "^7.22.3",
     "lucide-react": "^1.61.0",
-    "motion": "^13.3.0",
+    "motion": "^14.6.0",
     "quill": "^2.0.3",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
