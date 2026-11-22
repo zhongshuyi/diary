@@ -9,6 +9,8 @@ import 'package:path_provider/path_provider.dart';
 
 import 'speech_model_license.dart';
 
+typedef SpeechTranscriptionPreferences = ({bool? enabled, bool autoTranscribe});
+
 class SpeechModelFiles {
   const SpeechModelFiles({required this.modelPath, required this.tokensPath});
 
@@ -117,20 +119,28 @@ class SpeechModelStore {
     }
   }
 
-  Future<bool> readAutoTranscribe() async {
+  Future<SpeechTranscriptionPreferences> readPreferences() async {
     await _settingsWrites;
     final root = await _root();
     final file = File(p.join(root.path, 'settings.json'));
     try {
-      if (!await file.exists() || await file.length() > 4096) return false;
-      final value = jsonDecode(await file.readAsString());
-      return value is Map && value['autoTranscribe'] == true;
-    } catch (_) {
-      return false;
+      if (await file.exists() && await file.length() <= 4096) {
+        final value = jsonDecode(await file.readAsString());
+        if (value is Map) {
+          final enabled = value['enabled'];
+          return (
+            enabled: enabled is bool ? enabled : null,
+            autoTranscribe: value['autoTranscribe'] == true,
+          );
+        }
+      }
+    } on Object {
+      // The model is usable with default preferences if this file is damaged.
     }
+    return (enabled: null, autoTranscribe: false);
   }
 
-  Future<void> writeAutoTranscribe(bool enabled) {
+  Future<void> writePreferences(SpeechTranscriptionPreferences preferences) {
     final next = _settingsWrites.then((_) async {
       final root = await _root();
       await root.create(recursive: true);
@@ -138,7 +148,11 @@ class SpeechModelStore {
       final staging = File('${file.path}.part');
       try {
         await staging.writeAsString(
-          jsonEncode({'version': 1, 'autoTranscribe': enabled}),
+          jsonEncode({
+            'version': 2,
+            if (preferences.enabled != null) 'enabled': preferences.enabled,
+            'autoTranscribe': preferences.autoTranscribe,
+          }),
           flush: true,
         );
         await staging.rename(file.path);
@@ -326,7 +340,7 @@ class SpeechModelStore {
     final root = await _root();
     final directory = Directory(p.join(root.path, 'sensevoice-int8-2024'));
     await _deleteInstall(root, directory);
-    await writeAutoTranscribe(false);
+    await writePreferences((enabled: false, autoTranscribe: false));
   }
 
   Future<void> dispose() async {

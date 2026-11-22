@@ -3,6 +3,9 @@ abstract interface class QuickAudioRecorder {
   /// Returns false when microphone access is unavailable.
   Future<bool> start();
 
+  /// Live recording level from silence (0) to full scale (1).
+  Stream<double> get levels;
+
   /// Stops recording, moves the result into private attachment storage, and
   /// returns its permanent local path.
   Future<String?> stop();

@@ -724,7 +724,7 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
         )
         .toList(growable: false);
     final attachmentButton = SizedBox(
-      height: 52,
+      height: 60,
       child: OutlinedButton.icon(
         onPressed: _pickingAttachment || _recordingActive
             ? null
@@ -741,16 +741,13 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
         ),
       ),
     );
-    final recordButton = SizedBox(
-      height: 52,
-      child: HoldToRecordButton(
-        buttonKey: const Key('entry-hold-record'),
-        enabled: !_pickingAttachment && !_saving,
-        onActivityChanged: _setRecordingActivity,
-        onError: _showRecordingError,
-        onRecorded: _addRecordedAudio,
-        recorder: widget.audioRecorder,
-      ),
+    final recordButton = HoldToRecordButton(
+      buttonKey: const Key('entry-hold-record'),
+      enabled: !_pickingAttachment && !_saving,
+      onActivityChanged: _setRecordingActivity,
+      onError: _showRecordingError,
+      onRecorded: _addRecordedAudio,
+      recorder: widget.audioRecorder,
     );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

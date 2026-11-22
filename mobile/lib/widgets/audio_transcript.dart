@@ -49,11 +49,7 @@ class AudioTranscript extends StatelessWidget {
           ? text!
           : state?.text;
       final active = state?.active == true;
-      final ready =
-          controller.initialized &&
-          controller.hasModel &&
-          controller.supported &&
-          !controller.busy;
+      final ready = controller.ready;
       final status = switch (state?.stage) {
         AudioTranscriptionStage.queued => '等待转写',
         AudioTranscriptionStage.transcribing => '正在离线转写…',
@@ -113,7 +109,8 @@ class AudioTranscript extends StatelessWidget {
                 icon: const Icon(Icons.close_rounded, size: 17),
                 label: const Text('取消转写'),
               )
-            else if (!controller.hasModel && onOpenSettings != null)
+            else if ((!controller.hasModel || !controller.enabled) &&
+                onOpenSettings != null)
               TextButton.icon(
                 key: ValueKey('audio-transcript-setup-$entryId-$audioPath'),
                 style: buttonStyle,
@@ -123,7 +120,7 @@ class AudioTranscript extends StatelessWidget {
               )
             else
               Tooltip(
-                message: ready ? '录音在本机识别，不上传给服务商' : '先在设置中下载离线语音模型',
+                message: ready ? '录音在本机识别，不上传给服务商' : '请先启用转写并准备离线模型',
                 child: TextButton.icon(
                   key: ValueKey('audio-transcript-retry-$entryId-$audioPath'),
                   style: buttonStyle,

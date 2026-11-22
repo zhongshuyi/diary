@@ -190,11 +190,12 @@ class _StartupLoadingApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = DiaryThemeColors.darkFor(diaryDefaultThemePreset);
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: DiaryTheme.light,
+      theme: DiaryTheme.darkFor(diaryDefaultThemePreset),
       home: Scaffold(
-        backgroundColor: DiaryPalette.paper,
+        backgroundColor: colors.paper,
         body: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -203,23 +204,23 @@ class _StartupLoadingApp extends StatelessWidget {
                 width: 58,
                 height: 58,
                 decoration: BoxDecoration(
-                  color: DiaryPalette.ink,
+                  color: colors.terracottaSoft,
                   borderRadius: BorderRadius.circular(19),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.auto_stories_outlined,
-                  color: DiaryPalette.butter,
+                  color: colors.terracotta,
                   size: 29,
                 ),
               ),
               const SizedBox(height: 20),
               Text('正在打开你的日记本', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 14),
-              const SizedBox(
+              SizedBox(
                 width: 120,
                 child: LinearProgressIndicator(
-                  color: DiaryPalette.terracotta,
-                  backgroundColor: DiaryPalette.line,
+                  color: colors.terracotta,
+                  backgroundColor: colors.line,
                 ),
               ),
             ],
@@ -237,9 +238,8 @@ class _StartupErrorApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: DiaryTheme.light,
+      theme: DiaryTheme.darkFor(diaryDefaultThemePreset),
       home: Scaffold(
-        backgroundColor: DiaryPalette.paper,
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(28),

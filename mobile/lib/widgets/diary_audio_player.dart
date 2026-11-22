@@ -257,40 +257,54 @@ class _DiaryAudioPlayerState extends State<DiaryAudioPlayer> {
         : '播放';
 
     final chatForeground = widget.chatStyleHighContrast
-        ? colors.onHero
-        : colors.terracotta;
-    final chatInactiveWaveform = widget.chatStyleHighContrast
-        ? Color.lerp(colors.terracotta, colors.onHero, .55)!
-        : colors.terracotta;
+        ? (colors.terracotta.computeLuminance() < .179
+              ? Colors.white
+              : Colors.black)
+        : colors.ink;
+    final playIcon = _isLoading
+        ? const SizedBox.square(
+            dimension: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          )
+        : Icon(
+            _hasError
+                ? Icons.refresh_rounded
+                : _isPlaying
+                ? Icons.pause_rounded
+                : Icons.play_arrow_rounded,
+            size: widget.chatStyle ? 18 : null,
+          );
     final playButton = IconButton.filled(
-      tooltip: playTooltip,
+      tooltip: widget.chatStyle ? null : playTooltip,
       onPressed: _isLoading ? null : _togglePlayback,
       style: IconButton.styleFrom(
-        backgroundColor: colors.terracotta,
-        foregroundColor: colors.onHero,
-        minimumSize: const Size.square(40),
+        backgroundColor: widget.chatStyle
+            ? Colors.transparent
+            : colors.terracotta,
+        foregroundColor: widget.chatStyle ? chatForeground : colors.onHero,
+        minimumSize: Size.square(widget.chatStyle ? 48 : 40),
+        padding: widget.chatStyle ? EdgeInsets.zero : null,
       ),
-      icon: _isLoading
-          ? const SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2),
+      icon: widget.chatStyle
+          ? DecoratedBox(
+              decoration: BoxDecoration(
+                color: chatForeground.withValues(alpha: .15),
+                shape: BoxShape.circle,
+              ),
+              child: SizedBox.square(
+                dimension: 32,
+                child: Center(child: playIcon),
+              ),
             )
-          : Icon(
-              _hasError
-                  ? Icons.refresh_rounded
-                  : _isPlaying
-                  ? Icons.pause_rounded
-                  : Icons.play_arrow_rounded,
-            ),
+          : playIcon,
     );
     final waveform = _WaveformSeekBar(
       progress: progress,
       duration: _duration,
-      activeColor: widget.chatStyle
-          ? (widget.chatStyleHighContrast ? colors.onHero : colors.ink)
-          : colors.terracotta,
-      inactiveColor: widget.chatStyle ? chatInactiveWaveform : colors.line,
+      activeColor: widget.chatStyle ? chatForeground : colors.terracotta,
+      inactiveColor: widget.chatStyle
+          ? chatForeground.withValues(alpha: .58)
+          : colors.line,
       amplitudes: _waveform?.amplitudes,
       enabled: !_isLoading && !_hasError && _duration > Duration.zero,
       onPreview: _previewSeek,
@@ -298,57 +312,51 @@ class _DiaryAudioPlayerState extends State<DiaryAudioPlayer> {
     );
 
     if (widget.chatStyle) {
+      final timeLabel = _hasError
+          ? '重试'
+          : _duration > Duration.zero
+          ? _formatDuration(
+              _isPlaying || _dragPosition != null ? shownPosition : _duration,
+            )
+          : null;
       return LayoutBuilder(
         builder: (context, constraints) {
           final width = math.min(constraints.maxWidth, 260.0);
           return Semantics(
             container: true,
-            label:
-                '语音，${_formatDuration(shownPosition)} / ${_formatDuration(_duration)}',
+            label: _duration > Duration.zero
+                ? '语音，${_formatDuration(shownPosition)} / ${_formatDuration(_duration)}'
+                : '语音',
             child: SizedBox(
               width: width,
               child: Row(
                 children: [
-                  IconButton.filled(
-                    tooltip: playTooltip,
-                    onPressed: _isLoading ? null : _togglePlayback,
-                    style: IconButton.styleFrom(
-                      backgroundColor: widget.chatStyleHighContrast
-                          ? colors.onHero
-                          : colors.terracotta,
-                      foregroundColor: widget.chatStyleHighContrast
-                          ? colors.terracotta
-                          : colors.onHero,
-                      minimumSize: const Size.square(34),
-                      maximumSize: const Size.square(34),
-                      padding: EdgeInsets.zero,
-                    ),
-                    icon: _isLoading
-                        ? const SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : Icon(
-                            _hasError
-                                ? Icons.refresh_rounded
-                                : _isPlaying
-                                ? Icons.pause_rounded
-                                : Icons.play_arrow_rounded,
-                            size: 20,
-                          ),
+                  Tooltip(
+                    message: playTooltip,
+                    triggerMode: TooltipTriggerMode.manual,
+                    child: playButton,
                   ),
                   const SizedBox(width: 8),
                   Expanded(child: waveform),
-                  const SizedBox(width: 8),
-                  Text(
-                    _hasError
-                        ? '重试'
-                        : '${_formatDuration(shownPosition)} / ${_formatDuration(_duration)}',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.labelSmall?.copyWith(color: chatForeground),
-                  ),
+                  if (timeLabel != null) ...[
+                    const SizedBox(width: 8),
+                    ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: width * .35),
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          timeLabel,
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(
+                                color: chatForeground,
+                                fontFeatures: const [
+                                  FontFeature.tabularFigures(),
+                                ],
+                              ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

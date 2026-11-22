@@ -79,6 +79,20 @@ class DiaryThemeColors extends ThemeExtension<DiaryThemeColors> {
 
   static DiaryThemeColors lightFor(DiaryThemePreset preset) {
     return switch (preset) {
+      DiaryThemePreset.teal => const DiaryThemeColors(
+        paper: Color(0xFFF2F6F4),
+        surface: Color(0xFFFCFEFD),
+        ink: Color(0xFF1B2B25),
+        hero: Color(0xFF10231D),
+        onHero: Color(0xFFFCFEFD),
+        mutedInk: Color(0xFF526B61),
+        line: Color(0xFFCFDDD6),
+        terracotta: Color(0xFF126C58),
+        terracottaSoft: Color(0xFFCBE9DE),
+        sage: Color(0xFFDBE8D9),
+        butter: Color(0xFFF1E9CD),
+        lavender: Color(0xFFE3E4EE),
+      ),
       DiaryThemePreset.warmPaper => light,
       DiaryThemePreset.carbon => const DiaryThemeColors(
         paper: Color(0xFFF5F5F3),
@@ -183,6 +197,20 @@ class DiaryThemeColors extends ThemeExtension<DiaryThemeColors> {
 
   static DiaryThemeColors darkFor(DiaryThemePreset preset) {
     return switch (preset) {
+      DiaryThemePreset.teal => const DiaryThemeColors(
+        paper: Color(0xFF151919),
+        surface: Color(0xFF202626),
+        ink: Color(0xFFEDF5F1),
+        hero: Color(0xFF101C18),
+        onHero: Color(0xFFEDF5F1),
+        mutedInk: Color(0xFFABBEB7),
+        line: Color(0xFF374440),
+        terracotta: Color(0xFF65D1B5),
+        terracottaSoft: Color(0xFF254B41),
+        sage: Color(0xFF344A3D),
+        butter: Color(0xFF514821),
+        lavender: Color(0xFF3E434F),
+      ),
       DiaryThemePreset.warmPaper => dark,
       DiaryThemePreset.carbon => const DiaryThemeColors(
         paper: Color(0xFF181818),

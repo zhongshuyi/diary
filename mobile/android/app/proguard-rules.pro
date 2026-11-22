@@ -7,3 +7,6 @@
 -keep class com.loc.** { *; }
 -keep class com.autonavi.aps.amapapi.model.** { *; }
 -keep class com.amap.api.services.** { *; }
+
+# shortcut: AMap Mini skips the optional RTK locator, recheck when upgrading the SDK.
+-dontwarn com.amap.ams.gnss.GnssSoftLocator

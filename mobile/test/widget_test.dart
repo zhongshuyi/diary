@@ -29,6 +29,7 @@ import 'package:diary/widgets/diary_audio_player.dart';
 import 'package:diary/widgets/diary_image_viewer.dart';
 import 'package:diary/widgets/diary_navigation.dart';
 import 'package:diary/widgets/entry_card.dart';
+import 'package:diary/widgets/hold_to_record_button.dart';
 
 Future<void> _runAsWindows(Future<void> Function() body) async {
   debugDefaultTargetPlatformOverride = TargetPlatform.windows;
@@ -186,7 +187,10 @@ void main() {
 
     final toast = find.byKey(const Key('trash-feedback-toast'));
     expect(toast, findsOneWidget);
-    expect(tester.widget<Material>(toast).color, DiaryThemeColors.dark.surface);
+    expect(
+      tester.widget<Material>(toast).color,
+      DiaryThemeColors.darkFor(diaryDefaultThemePreset).surface,
+    );
     final placement = tester.widget<Positioned>(
       find.ancestor(of: toast, matching: find.byType(Positioned)).first,
     );
@@ -205,6 +209,59 @@ void main() {
     expect(find.text('我的日记'), findsOneWidget);
     expect(find.byKey(const Key('mobile-quick-capture-fab')), findsNothing);
     expect(find.byType(DiaryBottomNavigation), findsNothing);
+  });
+
+  testWidgets('adjacent mobile tabs slide in both directions', (tester) async {
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+    final pages = tester.widget<PageView>(find.byType(PageView).first);
+    final timeline = tester.widget<HomePage>(find.byType(HomePage));
+
+    await tester.tap(find.text('对话'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 80));
+    expect(pages.controller!.page, inExclusiveRange(0, 1));
+    await tester.pumpAndSettle();
+    expect(pages.controller!.page, 1);
+
+    await tester.tap(find.byKey(const Key('chat-back-to-timeline')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 80));
+    expect(pages.controller!.page, inExclusiveRange(0, 1));
+    await tester.pumpAndSettle();
+    expect(pages.controller!.page, 0);
+    expect(tester.widget<HomePage>(find.byType(HomePage)), same(timeline));
+  });
+
+  testWidgets('switching across mobile tabs skips intermediate pages', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+    final pages = find.byType(PageView).first;
+    final controller = tester.widget<PageView>(pages).controller!;
+    final fade = find.ancestor(
+      of: pages,
+      matching: find.byType(FadeTransition),
+    );
+
+    await tester.tap(find.text('日历'));
+    await tester.pump();
+    expect(controller.page, 2);
+    expect(
+      tester.widget<FadeTransition>(fade.first).opacity.value,
+      lessThan(1),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('我的'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 120));
+    expect(controller.page, inExclusiveRange(2, 3));
+    await tester.tap(find.text('时间线'));
+    await tester.pumpAndSettle();
+    expect(controller.page, 0);
+    expect(tester.widget<FadeTransition>(fade.first).opacity.value, 1);
   });
 
   testWidgets('switching tabs keeps the unfinished chat message', (
@@ -418,15 +475,110 @@ void main() {
     );
     await tester.pump();
     expect(recorder.started, isTrue);
+    expect(find.text('正在录音'), findsOneWidget);
+    expect(find.text('00:00'), findsOneWidget);
+    expect(find.text('松开添加'), findsOneWidget);
 
     await gesture.up();
     await tester.pumpAndSettle();
+    expect(find.text('正在录音'), findsNothing);
     expect(find.text('录音 1'), findsOneWidget);
 
     await tester.tap(find.text('记下'));
     await tester.pumpAndSettle();
     expect(savedAudio, const ['stored-recording.m4a']);
   });
+
+  testWidgets('swiping up cancels a recording and sliding back keeps it', (
+    tester,
+  ) async {
+    final recorder = _FakeQuickAudioRecorder();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: QuickCaptureSheet(
+            onSave: (_, _) async {},
+            onOpenEditor: (_, _) async {},
+            importPhotos: (paths) async => paths,
+            audioRecorder: recorder,
+          ),
+        ),
+      ),
+    );
+    final button = find.byKey(const Key('quick-capture-hold-record'));
+    final first = await tester.startGesture(tester.getCenter(button));
+    await tester.pump();
+    await first.moveBy(const Offset(0, -90));
+    await tester.pump();
+    expect(find.text('松开取消'), findsOneWidget);
+    await first.up();
+    await tester.pumpAndSettle();
+    expect(recorder.started, isFalse);
+    expect(recorder.stopCalls, 0);
+    expect(find.text('录音 1'), findsNothing);
+
+    final second = await tester.startGesture(tester.getCenter(button));
+    await tester.pump();
+    await second.moveBy(const Offset(0, -90));
+    await tester.pump();
+    await second.moveBy(const Offset(0, 90));
+    await tester.pump();
+    expect(find.text('松开添加'), findsOneWidget);
+    await second.up();
+    await tester.pumpAndSettle();
+    expect(recorder.stopCalls, 1);
+    expect(find.text('录音 1'), findsOneWidget);
+  });
+
+  testWidgets(
+    'recording overlay renders live levels and dismisses on interruption',
+    (tester) async {
+      final levels = StreamController<double>();
+      addTearDown(levels.close);
+      final recorder = _FakeQuickAudioRecorder(levels: levels.stream);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Align(
+              alignment: Alignment.bottomCenter,
+              child: HoldToRecordButton(
+                showRecordingOverlay: true,
+                onRecorded: (path) async {},
+                recorder: recorder,
+              ),
+            ),
+          ),
+        ),
+      );
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.text('按住录音')),
+      );
+      await tester.pump();
+      final overlay = find.byKey(const ValueKey('live-recording-overlay'));
+      expect(overlay, findsOneWidget);
+      expect(find.text('松开添加 · 上滑取消'), findsOneWidget);
+      levels.add(.75);
+      await tester.pump();
+      expect(
+        find.descendant(
+          of: overlay,
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is Container && widget.constraints?.maxHeight == 18.75,
+          ),
+        ),
+        findsOneWidget,
+      );
+      await gesture.moveBy(const Offset(0, -90));
+      await tester.pump();
+      expect(find.text('松开取消 · 滑回继续'), findsOneWidget);
+      await gesture.cancel();
+      await tester.pumpAndSettle();
+      expect(overlay, findsNothing);
+      expect(recorder.started, isFalse);
+      expect(recorder.stopCalls, 0);
+    },
+  );
 
   testWidgets('quick capture saves an imported photo without text', (
     tester,
@@ -1008,7 +1160,7 @@ void main() {
       expect(find.textContaining('TODAY /'), findsOneWidget);
       expect(find.text('一条就是一个瞬间'), findsOneWidget);
       expect(find.byKey(const Key('desktop-window-bar')), findsOneWidget);
-      expect(find.byTooltip('切换到深色模式'), findsOneWidget);
+      expect(find.byTooltip('切换到浅色模式'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });
@@ -1823,8 +1975,13 @@ class _TestSettingsStore implements DiarySettingsStore {
 }
 
 class _FakeQuickAudioRecorder implements QuickAudioRecorder {
+  _FakeQuickAudioRecorder({this.levels = const Stream.empty()});
+
   bool started = false;
   int stopCalls = 0;
+
+  @override
+  final Stream<double> levels;
 
   @override
   Future<void> cancel() async => started = false;

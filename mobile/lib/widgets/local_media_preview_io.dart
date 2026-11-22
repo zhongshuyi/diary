@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import 'package:diary/app/diary_motion.dart';
+
 import 'media_kind.dart';
 
 class LocalMediaPreview extends StatefulWidget {
@@ -28,21 +30,10 @@ class LocalMediaPreview extends StatefulWidget {
 
 class _LocalMediaPreviewState extends State<LocalMediaPreview> {
   int _reloadToken = 0;
-  late bool _fileExists = File(widget.path).existsSync();
 
-  @override
-  void didUpdateWidget(covariant LocalMediaPreview oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.path != widget.path) {
-      _fileExists = File(widget.path).existsSync();
-    }
-  }
-
-  void _reload() {
-    setState(() {
-      _reloadToken++;
-      _fileExists = File(widget.path).existsSync();
-    });
+  Future<void> _reload(ImageProvider provider) async {
+    await provider.evict();
+    if (mounted) setState(() => _reloadToken++);
   }
 
   @override
@@ -50,25 +41,39 @@ class _LocalMediaPreviewState extends State<LocalMediaPreview> {
     if (widget.kind != DiaryMediaKind.image) {
       return _MediaPlaceholder(kind: widget.kind);
     }
-    if (!_fileExists) {
-      return _MediaPlaceholder(
-        kind: widget.kind,
-        missing: true,
-        showRetry: widget.showRetry,
-        onRetry: _reload,
-      );
-    }
-    return Image.file(
-      File(widget.path),
+    final file = FileImage(File(widget.path));
+    final thumbnail = widget.cacheWidth != null || widget.cacheHeight != null;
+    final ImageProvider provider = thumbnail
+        ? ResizeImage(
+            file,
+            width: widget.cacheWidth,
+            height: widget.cacheHeight,
+            policy: ResizeImagePolicy.fit,
+          )
+        : file;
+    return Image(
+      image: provider,
       key: ValueKey(_reloadToken),
       fit: widget.fit,
-      cacheWidth: widget.cacheWidth,
-      cacheHeight: widget.cacheHeight,
+      frameBuilder: thumbnail
+          ? (context, child, frame, wasSynchronouslyLoaded) {
+              if (wasSynchronouslyLoaded) return child;
+              return ColoredBox(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                child: AnimatedOpacity(
+                  opacity: frame == null ? 0 : 1,
+                  duration: DiaryMotion.duration(context, DiaryMotion.standard),
+                  curve: Curves.easeOut,
+                  child: child,
+                ),
+              );
+            }
+          : null,
       errorBuilder: (context, error, stackTrace) => _MediaPlaceholder(
         kind: widget.kind,
         missing: true,
         showRetry: widget.showRetry,
-        onRetry: _reload,
+        onRetry: () => _reload(provider),
       ),
     );
   }

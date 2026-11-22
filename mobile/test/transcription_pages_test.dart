@@ -3,10 +3,105 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:diary/app/app_theme.dart';
 import 'package:diary/application/transcription_controller.dart';
+import 'package:diary/domain/diary_entry.dart';
+import 'package:diary/pages/chat/chat_page.dart';
 import 'package:diary/pages/settings/transcription_settings_page.dart';
 import 'package:diary/widgets/audio_transcript.dart';
+import 'package:diary/widgets/diary_audio_player.dart';
 
 void main() {
+  testWidgets(
+    'chat starts transcription only from the pressed recording menu',
+    (tester) async {
+      final controller = _Controller()..hasModel = true;
+      await _pumpVoiceChat(tester, controller);
+
+      expect(find.text('转为文字'), findsNothing);
+      expect(controller.retries, isEmpty);
+      await tester.longPress(find.byTooltip('播放').first);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('转为文字'));
+      await tester.pumpAndSettle();
+      expect(controller.retries, ['voice:/voice/a.m4a']);
+      expect(find.text('转为文字'), findsNothing);
+
+      controller.states['voice:/voice/a.m4a'] = const AudioTranscriptionState(
+        stage: AudioTranscriptionStage.transcribing,
+        progress: .4,
+      );
+      controller.notifyListeners();
+      await tester.pumpAndSettle();
+      expect(find.text('正在离线转写…'), findsOneWidget);
+      expect(find.text('取消转写'), findsNothing);
+
+      await tester.longPress(find.byTooltip('播放').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('取消转写'));
+      await tester.pumpAndSettle();
+      expect(controller.cancellations, ['voice:/voice/a.m4a']);
+    },
+  );
+
+  for (final hasModel in [false, true]) {
+    testWidgets(
+      'chat opens settings with ${hasModel ? 'the master off' : 'no model'}',
+      (tester) async {
+        final controller = _Controller()
+          ..hasModel = hasModel
+          ..enabledPreference = false;
+        var openedSettings = false;
+        await _pumpVoiceChat(
+          tester,
+          controller,
+          onOpenSettings: () => openedSettings = true,
+        );
+
+        expect(find.text('设置离线转写'), findsNothing);
+        await tester.longPress(find.byType(DiaryAudioPlayer).first);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('转为文字'));
+        await tester.pumpAndSettle();
+
+        expect(openedSettings, isTrue);
+        expect(controller.retries, isEmpty);
+      },
+    );
+  }
+
+  testWidgets(
+    'chat places transcription in a separate bubble under its audio',
+    (tester) async {
+      final controller = _Controller()..hasModel = true;
+      await _pumpVoiceChat(tester, controller);
+      controller.states['voice:/voice/a.m4a'] = const AudioTranscriptionState(
+        stage: AudioTranscriptionStage.completed,
+        text: '第一段录音的转写',
+      );
+      controller.notifyListeners();
+      await tester.pumpAndSettle();
+
+      final audio = find.byKey(const ValueKey('chat-audio-voice-0'));
+      final transcript = find.byKey(const ValueKey('chat-transcript-voice-0'));
+      final nextAudio = find.byKey(const ValueKey('chat-audio-voice-1'));
+      final text = find.byKey(const ValueKey('chat-bubble-text'));
+      expect(
+        find.descendant(of: transcript, matching: find.text('第一段录音的转写')),
+        findsOneWidget,
+      );
+      expect(find.text('重新转写'), findsNothing);
+      final audioRect = tester.getRect(audio);
+      final transcriptRect = tester.getRect(transcript);
+      expect(transcriptRect.top - audioRect.bottom, 4);
+      expect(transcriptRect.right, audioRect.right);
+      expect(tester.getRect(nextAudio).top, greaterThan(transcriptRect.bottom));
+      expect(
+        tester.getRect(text).top - tester.getRect(nextAudio).bottom,
+        greaterThan(4),
+      );
+    },
+  );
+
   testWidgets(
     'voice-bubble foreground applies to transcript, status, actions and progress',
     (tester) async {
@@ -121,6 +216,20 @@ void main() {
       await _openSettings(tester, controller);
       expect(controller.downloadCalls, 0);
       expect(controller.autoTranscribe, isFalse);
+      final master = find.byKey(const Key('transcription-enabled'));
+      expect(tester.widget<SwitchListTile>(master).value, isFalse);
+      expect(
+        tester.getTopLeft(master).dy,
+        lessThan(
+          tester
+              .getTopLeft(find.byKey(const Key('transcription-download-model')))
+              .dy,
+        ),
+      );
+      await tester.tap(master);
+      await tester.pumpAndSettle();
+      expect(tester.widget<SwitchListTile>(master).value, isTrue);
+      expect(controller.downloadCalls, 0);
       final switchTile = tester.widget<SwitchListTile>(
         find.byKey(const Key('transcription-auto-enabled')),
       );
@@ -394,6 +503,54 @@ Future<void> _openSettings(
   await tester.pump();
 }
 
+Future<void> _pumpVoiceChat(
+  WidgetTester tester,
+  _Controller controller, {
+  VoidCallback? onOpenSettings,
+}) async {
+  final timestamp = DateTime(2026, 11, 22, 9);
+  await tester.pumpWidget(
+    MaterialApp(
+      theme: DiaryTheme.light,
+      home: Scaffold(
+        body: ChatPage(
+          entries: [
+            DiaryEntry(
+              id: 'voice',
+              title: '录音',
+              content: '',
+              contentText: '',
+              category: '生活',
+              createdAt: timestamp,
+              updatedAt: timestamp,
+              audioPaths: const ['/voice/a.m4a', '/voice/b.m4a'],
+            ),
+            DiaryEntry(
+              id: 'text',
+              title: '普通消息',
+              content: '普通消息',
+              contentText: '普通消息',
+              category: '生活',
+              createdAt: timestamp.add(const Duration(minutes: 1)),
+              updatedAt: timestamp.add(const Duration(minutes: 1)),
+            ),
+          ],
+          onSend: (_, _, _, _, _, _) async {},
+          onOpenEntry: (_) {},
+          onEdit: (_) async {},
+          onDelete: (_) async {},
+          onOpenEditor: () {},
+          onImportAttachments: (_) async => [],
+          onNavigate: (_) {},
+          transcriptionController: controller,
+          onOpenTranscriptionSettings: onOpenSettings,
+        ),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
 class _Controller extends ChangeNotifier implements TranscriptionController {
   @override
   bool initialized = true;
@@ -401,6 +558,11 @@ class _Controller extends ChangeNotifier implements TranscriptionController {
   bool supported = true;
   @override
   bool hasModel = false;
+  bool? enabledPreference;
+  @override
+  bool get enabled => supported && (enabledPreference ?? hasModel);
+  @override
+  bool get ready => initialized && enabled && hasModel && !busy;
   @override
   bool autoTranscribe = false;
   @override
@@ -444,6 +606,12 @@ class _Controller extends ChangeNotifier implements TranscriptionController {
   }
 
   @override
+  Future<void> setEnabled(bool value) async {
+    enabledPreference = value;
+    notifyListeners();
+  }
+
+  @override
   Future<void> setAutoTranscribe(bool enabled) async {
     autoChanges.add(enabled);
     autoTranscribe = enabled;
@@ -454,6 +622,7 @@ class _Controller extends ChangeNotifier implements TranscriptionController {
   Future<void> removeModel() async {
     removeCalls++;
     hasModel = false;
+    enabledPreference = false;
     autoTranscribe = false;
     notifyListeners();
   }

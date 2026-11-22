@@ -22,6 +22,11 @@ class _MobileQuickAudioRecorder implements QuickAudioRecorder {
   String? _temporaryPath;
 
   @override
+  Stream<double> get levels => _recorder
+      .onAmplitudeChanged(const Duration(milliseconds: 90))
+      .map((amplitude) => ((amplitude.current + 60) / 60).clamp(0.0, 1.0));
+
+  @override
   Future<bool> start() async {
     if (!await _recorder.hasPermission()) return false;
     final directory = Directory(
@@ -64,8 +69,11 @@ class _MobileQuickAudioRecorder implements QuickAudioRecorder {
   Future<void> cancel() async {
     final temporaryPath = _temporaryPath;
     _temporaryPath = null;
-    await _recorder.cancel();
-    if (temporaryPath != null) await _deleteIfExists(temporaryPath);
+    try {
+      await _recorder.cancel();
+    } finally {
+      if (temporaryPath != null) await _deleteIfExists(temporaryPath);
+    }
   }
 
   @override

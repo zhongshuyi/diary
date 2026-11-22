@@ -199,7 +199,7 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
     _controller = DiaryController(repository: widget.repository)
       ..addListener(_onControllerChanged);
     widget.settingsController.addListener(_onSettingsChanged);
-    _controller.initialize();
+    final initialEntries = _controller.initialize();
     _incomingShareBridge.listen(
       onShareAvailable: () => unawaited(_consumeIncomingShares()),
       onShortcutAvailable: () => unawaited(_consumeShortcuts()),
@@ -212,12 +212,16 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
     _refreshConflicts();
     WidgetsBinding.instance.addPostFrameCallback((_) => _configureSync());
     if (!kIsWeb) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          unawaited(_getAssistantController());
-          unawaited(_getTranscriptionController());
-        }
-      });
+      unawaited(
+        initialEntries.then((_) {
+          if (!mounted) return;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            unawaited(_getAssistantController());
+            unawaited(_getTranscriptionController());
+          });
+        }),
+      );
     }
   }
 
@@ -606,7 +610,9 @@ class _DiaryShellState extends State<DiaryShell> with WidgetsBindingObserver {
 
   Future<void> _refreshConflicts() async {
     final conflicts = await widget.repository.listConflicts();
-    if (mounted) setState(() => _conflicts = conflicts);
+    if (mounted && !listEquals(_conflicts, conflicts)) {
+      setState(() => _conflicts = conflicts);
+    }
   }
 
   Future<void> _openConflicts() async {

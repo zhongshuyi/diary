@@ -104,6 +104,7 @@ class _MobileDiaryShellState extends State<MobileDiaryShell> {
   int _selectedIndex = _timelineIndex;
   bool _selectedByUser = false;
   Offset? _quickCapturePosition;
+  List<Widget>? _pages;
   late final ValueNotifier<List<DiaryEntry>> _favoritesEntries;
 
   @override
@@ -119,6 +120,7 @@ class _MobileDiaryShellState extends State<MobileDiaryShell> {
   @override
   void didUpdateWidget(covariant MobileDiaryShell oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _pages = null;
     if (!identical(widget.entries, oldWidget.entries)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
@@ -203,102 +205,103 @@ class _MobileDiaryShellState extends State<MobileDiaryShell> {
     );
   }
 
+  List<Widget> _buildPages() => [
+    HomePage(
+      desktopLayout: false,
+      entries: widget.entries,
+      onOpenEditor: () => unawaited(widget.actions.openEditor()),
+      onOpenEntry: (entry) => unawaited(widget.actions.openEntry(entry)),
+      onToggleFavorite: (entry) =>
+          unawaited(widget.actions.toggleFavorite(entry)),
+      onShare: (entry) => unawaited(widget.actions.openShare(entry)),
+      onDelete: (entry) => unawaited(widget.actions.moveToTrash(entry)),
+      onQuickCapture: widget.actions.saveQuickCapture,
+      onBatchFavorite: widget.actions.batchSetFavorite,
+      onBatchDelete: widget.actions.batchMoveToTrash,
+      syncState: widget.syncState,
+      onSyncNow: widget.onSyncNow,
+    ),
+    ChatPage(
+      entries: widget.entries,
+      entriesLoading: widget.entriesLoading,
+      title: widget.chatTitle,
+      chatBackground: widget.chatBackground,
+      chatStyle: widget.chatStyle,
+      companionAvatarPath: widget.companionAvatarPath,
+      companionName: widget.companionName,
+      onOpenChatAppearance: widget.actions.openChatAppearance == null
+          ? null
+          : () => unawaited(widget.actions.openChatAppearance!()),
+      showChatAvatar: widget.showChatAvatar,
+      profileAvatarPath: widget.profileAvatarPath,
+      onSend: widget.actions.saveChatMessage,
+      onSendLocation: widget.actions.saveChatLocation,
+      amapAndroidKey: widget.amapAndroidKey,
+      onLoadDraft: widget.actions.loadDraft,
+      onSaveDraft: widget.actions.saveDraft,
+      onClearDraft: widget.actions.clearDraft,
+      onOpenEntry: (entry) => unawaited(widget.actions.openEntry(entry)),
+      onEdit: (entry) => widget.actions.openEditor(entry),
+      onDelete: widget.actions.moveToTrash,
+      onOpenEditor: () => unawaited(widget.actions.openEditor()),
+      onImportAttachments: widget.actions.importQuickPhotos,
+      onExternalActivityStart: widget.actions.beginExternalActivity,
+      onExternalActivityEnd: widget.actions.endExternalActivity,
+      onNavigate: _navigateFromChat,
+      localAssistantController: widget.localAssistantController,
+      transcriptionController: widget.transcriptionController,
+      onOpenTranscriptionSettings: widget.actions.openTranscription == null
+          ? null
+          : () => unawaited(widget.actions.openTranscription!()),
+      onOpenLocalAssistant: widget.actions.openLocalAssistant == null
+          ? null
+          : () => unawaited(widget.actions.openLocalAssistant!()),
+    ),
+    CalendarPage(
+      entries: widget.entries,
+      onOpenEntry: (entry) => unawaited(widget.actions.openEntry(entry)),
+    ),
+    ProfilePage(
+      profileName: widget.chatTitle,
+      profileSignature: widget.profileSignature,
+      showProfileSignature: widget.showProfileSignature,
+      onSaveProfile: widget.onSaveProfile,
+      entryCount: widget.entries.length,
+      trashCount: widget.trash.length,
+      onOpenRecycle: widget.actions.openRecycle,
+      onOpenSettings: widget.actions.openSettings,
+      onOpenCategories: widget.actions.openCategories,
+      onOpenBackup: widget.actions.openBackup,
+      onOpenAbout: widget.actions.openAbout,
+      onOpenLocalAssistant: widget.actions.openLocalAssistant == null
+          ? null
+          : () => unawaited(widget.actions.openLocalAssistant!()),
+      onOpenTranscription: widget.actions.openTranscription == null
+          ? null
+          : () => unawaited(widget.actions.openTranscription!()),
+      onOpenChatAppearance: widget.actions.openChatAppearance == null
+          ? null
+          : () => unawaited(widget.actions.openChatAppearance!()),
+      conflictCount: widget.conflictCount,
+      onOpenConflicts: widget.actions.openConflicts,
+      syncState: widget.syncState,
+      onOpenSyncSettings: widget.onOpenSyncSettings == null
+          ? null
+          : () => unawaited(widget.onOpenSyncSettings!()),
+      profileAvatarPath: widget.profileAvatarPath,
+      onPickAvatar: widget.onPickAvatar,
+      onClearAvatar: widget.onClearAvatar,
+      onOpenMedia: () => unawaited(_openMedia()),
+      onOpenInsights: () => unawaited(_openInsights()),
+      favoriteCount: _favoriteCount,
+      onOpenFavorites: () => unawaited(_openFavorites()),
+    ),
+  ];
+
   @override
   Widget build(BuildContext context) {
     final colors = DiaryThemeColors.of(context);
-    final pages = [
-      HomePage(
-        desktopLayout: false,
-        entries: widget.entries,
-        onOpenEditor: () => unawaited(widget.actions.openEditor()),
-        onOpenEntry: (entry) => unawaited(widget.actions.openEntry(entry)),
-        onToggleFavorite: (entry) =>
-            unawaited(widget.actions.toggleFavorite(entry)),
-        onShare: (entry) => unawaited(widget.actions.openShare(entry)),
-        onDelete: (entry) => unawaited(widget.actions.moveToTrash(entry)),
-        onQuickCapture: widget.actions.saveQuickCapture,
-        onBatchFavorite: widget.actions.batchSetFavorite,
-        onBatchDelete: widget.actions.batchMoveToTrash,
-        syncState: widget.syncState,
-        onSyncNow: widget.onSyncNow,
-      ),
-      ChatPage(
-        entries: widget.entries,
-        entriesLoading: widget.entriesLoading,
-        title: widget.chatTitle,
-        chatBackground: widget.chatBackground,
-        chatStyle: widget.chatStyle,
-        companionAvatarPath: widget.companionAvatarPath,
-        companionName: widget.companionName,
-        onOpenChatAppearance: widget.actions.openChatAppearance == null
-            ? null
-            : () => unawaited(widget.actions.openChatAppearance!()),
-        showChatAvatar: widget.showChatAvatar,
-        profileAvatarPath: widget.profileAvatarPath,
-        onSend: widget.actions.saveChatMessage,
-        onSendLocation: widget.actions.saveChatLocation,
-        amapAndroidKey: widget.amapAndroidKey,
-        onLoadDraft: widget.actions.loadDraft,
-        onSaveDraft: widget.actions.saveDraft,
-        onClearDraft: widget.actions.clearDraft,
-        onOpenEntry: (entry) => unawaited(widget.actions.openEntry(entry)),
-        onEdit: (entry) => widget.actions.openEditor(entry),
-        onDelete: widget.actions.moveToTrash,
-        onOpenEditor: () => unawaited(widget.actions.openEditor()),
-        onImportAttachments: widget.actions.importQuickPhotos,
-        onExternalActivityStart: widget.actions.beginExternalActivity,
-        onExternalActivityEnd: widget.actions.endExternalActivity,
-        onNavigate: _navigateFromChat,
-        localAssistantController: widget.localAssistantController,
-        transcriptionController: widget.transcriptionController,
-        onOpenTranscriptionSettings: widget.actions.openTranscription == null
-            ? null
-            : () => unawaited(widget.actions.openTranscription!()),
-        onOpenLocalAssistant: widget.actions.openLocalAssistant == null
-            ? null
-            : () => unawaited(widget.actions.openLocalAssistant!()),
-      ),
-      CalendarPage(
-        entries: widget.entries,
-        onOpenEntry: (entry) => unawaited(widget.actions.openEntry(entry)),
-      ),
-      ProfilePage(
-        profileName: widget.chatTitle,
-        profileSignature: widget.profileSignature,
-        showProfileSignature: widget.showProfileSignature,
-        onSaveProfile: widget.onSaveProfile,
-        entryCount: widget.entries.length,
-        trashCount: widget.trash.length,
-        onOpenRecycle: widget.actions.openRecycle,
-        onOpenSettings: widget.actions.openSettings,
-        onOpenCategories: widget.actions.openCategories,
-        onOpenBackup: widget.actions.openBackup,
-        onOpenAbout: widget.actions.openAbout,
-        onOpenLocalAssistant: widget.actions.openLocalAssistant == null
-            ? null
-            : () => unawaited(widget.actions.openLocalAssistant!()),
-        onOpenTranscription: widget.actions.openTranscription == null
-            ? null
-            : () => unawaited(widget.actions.openTranscription!()),
-        onOpenChatAppearance: widget.actions.openChatAppearance == null
-            ? null
-            : () => unawaited(widget.actions.openChatAppearance!()),
-        conflictCount: widget.conflictCount,
-        onOpenConflicts: widget.actions.openConflicts,
-        syncState: widget.syncState,
-        onOpenSyncSettings: widget.onOpenSyncSettings == null
-            ? null
-            : () => unawaited(widget.onOpenSyncSettings!()),
-        profileAvatarPath: widget.profileAvatarPath,
-        onPickAvatar: widget.onPickAvatar,
-        onClearAvatar: widget.onClearAvatar,
-        onOpenMedia: () => unawaited(_openMedia()),
-        onOpenInsights: () => unawaited(_openInsights()),
-        favoriteCount: _favoriteCount,
-        onOpenFavorites: () => unawaited(_openFavorites()),
-      ),
-    ];
-
+    final pages = _pages ??= _buildPages();
     final dark = Theme.of(context).brightness == Brightness.dark;
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
@@ -438,7 +441,10 @@ class _AnimatedTabStack extends StatefulWidget {
 class _AnimatedTabStackState extends State<_AnimatedTabStack>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
+  late final Animation<double> _progress;
+  late final Animation<double> _opacity;
   late final PageController _pageController;
+  double _slideDirection = 1;
 
   @override
   void initState() {
@@ -447,6 +453,8 @@ class _AnimatedTabStackState extends State<_AnimatedTabStack>
       vsync: this,
       duration: DiaryMotion.standard,
     )..value = 1;
+    _progress = _controller.drive(CurveTween(curve: Curves.easeOutCubic));
+    _opacity = _progress.drive(Tween(begin: .82, end: 1.0));
     _pageController = PageController(initialPage: widget.index);
   }
 
@@ -459,8 +467,26 @@ class _AnimatedTabStackState extends State<_AnimatedTabStack>
   @override
   void didUpdateWidget(covariant _AnimatedTabStack oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.index != widget.index) {
-      _pageController.jumpToPage(widget.index);
+    if (oldWidget.index == widget.index) return;
+
+    final index = widget.index;
+    final duration = DiaryMotion.duration(context, DiaryMotion.emphasized);
+    final travel = index.toDouble() - (_pageController.page ?? oldWidget.index);
+    if (duration == Duration.zero) {
+      _controller.value = 1;
+      _pageController.jumpToPage(index);
+    } else if (travel.abs() <= 1) {
+      _controller.value = 1;
+      unawaited(
+        _pageController.animateToPage(
+          index,
+          duration: duration,
+          curve: Curves.easeInOutCubic,
+        ),
+      );
+    } else {
+      _slideDirection = travel.sign;
+      _pageController.jumpToPage(index);
       _controller.forward(from: 0);
     }
   }
@@ -474,36 +500,39 @@ class _AnimatedTabStackState extends State<_AnimatedTabStack>
 
   @override
   Widget build(BuildContext context) {
-    final animation = _controller.drive(
-      CurveTween(curve: DiaryMotion.curve(context, Curves.easeOutCubic)),
-    );
-    return AnimatedBuilder(
-      animation: animation,
-      child: RepaintBoundary(
-        child: PageView.builder(
-          controller: _pageController,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: widget.pages.length,
-          itemBuilder: (context, index) => _KeepAliveTabPage(
-            key: ValueKey('mobile-tab-$index'),
-            child: widget.pages[index],
+    return FadeTransition(
+      opacity: _opacity,
+      child: AnimatedBuilder(
+        animation: _progress,
+        child: RepaintBoundary(
+          child: PageView.builder(
+            controller: _pageController,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: widget.pages.length,
+            itemBuilder: (context, index) => _KeepAliveTabPage(
+              key: ValueKey('mobile-tab-$index'),
+              active: index == widget.index,
+              child: widget.pages[index],
+            ),
           ),
         ),
-      ),
-      builder: (context, child) {
-        final value = animation.value;
-        return Transform.translate(
-          offset: Offset(14 * (1 - value), 0),
+        builder: (context, child) => Transform.translate(
+          offset: Offset(12 * _slideDirection * (1 - _progress.value), 0),
           child: child,
-        );
-      },
+        ),
+      ),
     );
   }
 }
 
 class _KeepAliveTabPage extends StatefulWidget {
-  const _KeepAliveTabPage({required this.child, super.key});
+  const _KeepAliveTabPage({
+    required this.active,
+    required this.child,
+    super.key,
+  });
 
+  final bool active;
   final Widget child;
 
   @override
@@ -518,6 +547,12 @@ class _KeepAliveTabPageState extends State<_KeepAliveTabPage>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    return widget.child;
+    return TickerMode(
+      enabled: widget.active,
+      child: ExcludeFocus(
+        excluding: !widget.active,
+        child: IgnorePointer(ignoring: !widget.active, child: widget.child),
+      ),
+    );
   }
 }

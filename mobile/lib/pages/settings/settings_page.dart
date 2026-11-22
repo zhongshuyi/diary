@@ -12,9 +12,11 @@ import 'package:diary/data/amap_location_bridge.dart';
 import 'package:diary/domain/connection_settings_transfer.dart';
 import 'package:diary/domain/diary_entry.dart';
 import 'package:diary/domain/diary_settings.dart';
-import 'package:diary/widgets/diary_chat_background.dart';
 import 'package:diary/widgets/in_app_photo_picker.dart';
 import 'package:diary/widgets/app_lock_settings.dart';
+
+import 'chat_background_editor.dart';
+import 'settings_workspace.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({
@@ -64,38 +66,38 @@ class SettingsPage extends StatelessWidget {
           trailing: Icon(Icons.chevron_right, color: colors.mutedInk),
           onTap: onTap,
         );
-        final groups = <_SettingsGroup>[
-          _SettingsGroup(
+        final groups = <SettingsGroup>[
+          SettingsGroup(
             id: 'recording',
             title: '记录与陪伴',
             label: '记录',
             icon: Icons.edit_note_rounded,
             items: [
               if (onOpenLocalAssistant != null)
-                _SearchableSetting(
+                SearchableSetting(
                   keywords:
                       '日记陪伴 AI LLM 人工智能 助手 回复 安慰 鼓励 情绪 语气 人设 模型 API 密钥 本地 在线 MiniMax DeepSeek OpenAI 兼容 自定义 服务商',
                   child: tile(
                     key: const Key('settings-local-assistant'),
                     icon: Icons.auto_awesome_outlined,
                     title: '日记陪伴',
-                    status: '模型、回复语气与人设',
+                    status: '启用、模型与回复风格',
                     onTap: onOpenLocalAssistant!,
                   ),
                 ),
               if (onOpenTranscription != null)
-                _SearchableSetting(
+                SearchableSetting(
                   keywords: '录音转文字 语音 识别 转写 声音 离线 自动 转录 重试 搜索 模型 下载',
                   child: tile(
                     key: const Key('settings-transcription'),
                     icon: Icons.transcribe_outlined,
                     title: '录音转文字',
-                    status: '离线识别与自动转写',
+                    status: '启用、语音模型与自动转写',
                     onTap: onOpenTranscription!,
                   ),
                 ),
               if (onOpenChatAppearance != null)
-                _SearchableSetting(
+                SearchableSetting(
                   keywords:
                       '对话外观 聊天 样式 布局 气泡 头像 陪伴 ${settings.chatStyle.label}',
                   child: tile(
@@ -106,7 +108,7 @@ class SettingsPage extends StatelessWidget {
                     onTap: onOpenChatAppearance!,
                   ),
                 ),
-              _SearchableSetting(
+              SearchableSetting(
                 keywords:
                     '默认编辑方式 编辑器 输入 写日记 富文本 Markdown ${settings.defaultEditorType.label}',
                 child: tile(
@@ -117,7 +119,7 @@ class SettingsPage extends StatelessWidget {
                       _showEditorChoice(context, settings.defaultEditorType),
                 ),
               ),
-              _SearchableSetting(
+              SearchableSetting(
                 keywords: '默认首页 首页 启动 对话 时间线 ${settings.defaultHomeMode.label}',
                 child: tile(
                   key: const Key('settings-default-home'),
@@ -129,11 +131,10 @@ class SettingsPage extends StatelessWidget {
                   ),
                 ),
               ),
-              _SearchableSetting(
+              SearchableSetting(
                 keywords: '显示字数 字数 长度 统计 详情',
                 child: _SwitchTile(
                   key: const Key('settings-word-count'),
-                  flat: true,
                   title: '显示字数',
                   value: settings.showWordCount,
                   onChanged: (value) =>
@@ -141,11 +142,10 @@ class SettingsPage extends StatelessWidget {
                 ),
               ),
               if (onOpenChatAppearance == null)
-                _SearchableSetting(
+                SearchableSetting(
                   keywords: '对话显示头像 聊天 头像 陪伴',
                   child: _SwitchTile(
                     key: const Key('settings-show-chat-avatar'),
-                    flat: true,
                     title: '对话显示头像',
                     value: settings.showChatAvatar,
                     onChanged: (value) =>
@@ -154,13 +154,13 @@ class SettingsPage extends StatelessWidget {
                 ),
             ],
           ),
-          _SettingsGroup(
+          SettingsGroup(
             id: 'appearance',
             title: '外观与阅读',
             label: '外观',
             icon: Icons.palette_outlined,
             items: [
-              _SearchableSetting(
+              SearchableSetting(
                 keywords:
                     '主题模式 明亮 黑暗 深色 浅色 夜间 跟随系统 ${settings.themeMode.label}',
                 child: tile(
@@ -170,17 +170,19 @@ class SettingsPage extends StatelessWidget {
                   onTap: () => _showThemeChoice(context, settings.themeMode),
                 ),
               ),
-              _SearchableSetting(
-                keywords: '主题配色 预设 颜色 风格 ${settings.themePreset.label}',
+              SearchableSetting(
+                keywords: '主题配色 预设 颜色 风格 薄荷青 青色 ${settings.themePreset.label}',
                 child: tile(
                   key: const Key('settings-theme-preset'),
                   title: '主题配色',
-                  status: settings.themePreset.label,
+                  status: settings.customThemeColor == null
+                      ? settings.themePreset.label
+                      : '${settings.themePreset.label} · 自定义主色',
                   onTap: () =>
                       _showThemePresetChoice(context, settings.themePreset),
                 ),
               ),
-              _SearchableSetting(
+              SearchableSetting(
                 keywords: '自定义主题色 自定义主色 主色 颜色 配色',
                 child: _SettingsTile(
                   key: const Key('settings-custom-theme-color'),
@@ -204,7 +206,7 @@ class SettingsPage extends StatelessWidget {
                   ),
                 ),
               ),
-              _SearchableSetting(
+              SearchableSetting(
                 keywords:
                     '阅读字号 字体 大小 缩放 文字 ${(settings.fontScale * 100).round()}%',
                 child: tile(
@@ -216,7 +218,7 @@ class SettingsPage extends StatelessWidget {
                       _showFontScalePicker(context, settings.fontScale),
                 ),
               ),
-              _SearchableSetting(
+              SearchableSetting(
                 keywords:
                     '聊天背景 对话 壁纸 图片 裁剪 背景 ${settings.chatBackground.hasImage ? '已设置图片' : '默认'}',
                 child: tile(
@@ -232,17 +234,16 @@ class SettingsPage extends StatelessWidget {
               ),
             ],
           ),
-          _SettingsGroup(
+          SettingsGroup(
             id: 'security',
             title: '提醒与安全',
             label: '安全',
             icon: Icons.shield_outlined,
             items: [
-              _SearchableSetting(
+              SearchableSetting(
                 keywords: '每日提醒 每天 通知 记录提醒 ${settings.dailyReminderTime.label}',
                 child: _SwitchTile(
                   key: const Key('settings-daily-reminder'),
-                  flat: true,
                   title: '每日提醒',
                   subtitle: settings.dailyReminder
                       ? '每天 ${settings.dailyReminderTime.label}'
@@ -253,7 +254,7 @@ class SettingsPage extends StatelessWidget {
                 ),
               ),
               if (settings.dailyReminder)
-                _SearchableSetting(
+                SearchableSetting(
                   keywords:
                       '提醒时间 每日提醒 定时 每日 每天 通知 ${settings.dailyReminderTime.label}',
                   child: tile(
@@ -267,7 +268,7 @@ class SettingsPage extends StatelessWidget {
                     ),
                   ),
                 ),
-              _SearchableSetting(
+              SearchableSetting(
                 keywords: '应用锁 锁 密码 PIN 指纹 面容 生物识别 安全 隐私 保护',
                 child: AppLockSettings(controller: controller),
               ),
@@ -276,14 +277,14 @@ class SettingsPage extends StatelessWidget {
           if (showDataControls ||
               onOpenBackup != null ||
               onOpenCategories != null)
-            _SettingsGroup(
+            SettingsGroup(
               id: 'data',
               title: '数据与服务',
               label: '数据',
               icon: Icons.storage_outlined,
               items: [
                 if (showDataControls)
-                  _SearchableSetting(
+                  SearchableSetting(
                     keywords:
                         '同步 云端 服务器 连接 数据 服务 token ${settings.syncEndpoint.isEmpty ? '本地模式 尚未连接' : '已配置'}',
                     child: tile(
@@ -297,7 +298,7 @@ class SettingsPage extends StatelessWidget {
                     ),
                   ),
                 if (onOpenBackup != null)
-                  _SearchableSetting(
+                  SearchableSetting(
                     keywords: '备份与恢复 备份 恢复 导入 导出 迁移 JSON 数据',
                     child: tile(
                       key: const Key('settings-backup'),
@@ -307,7 +308,7 @@ class SettingsPage extends StatelessWidget {
                     ),
                   ),
                 if (onOpenCategories != null)
-                  _SearchableSetting(
+                  SearchableSetting(
                     keywords: '分类与标签 分类 标签 整理 主题 管理',
                     child: tile(
                       key: const Key('settings-categories'),
@@ -318,13 +319,13 @@ class SettingsPage extends StatelessWidget {
                   ),
               ],
             ),
-          _SettingsGroup(
+          SettingsGroup(
             id: 'location',
             title: '地图与位置',
             label: '地图',
             icon: Icons.location_on_outlined,
             items: [
-              _SearchableSetting(
+              SearchableSetting(
                 keywords:
                     '高德 Android Key 高德密钥 地图 地点 位置 定位 ${settings.amapAndroidKey.isEmpty ? '未配置' : '已配置'}',
                 child: tile(
@@ -338,7 +339,7 @@ class SettingsPage extends StatelessWidget {
                       _showAmapKeyEditor(context, settings.amapAndroidKey),
                 ),
               ),
-              _SearchableSetting(
+              SearchableSetting(
                 keywords: '高德地图隐私授权 地图 位置 同意 隐私 授权 撤回',
                 child: tile(
                   key: const Key('settings-amap-privacy'),
@@ -351,13 +352,13 @@ class SettingsPage extends StatelessWidget {
             ],
           ),
           if (onOpenAbout != null)
-            _SettingsGroup(
+            SettingsGroup(
               id: 'about',
               title: '关于',
               label: '关于',
               icon: Icons.info_outline_rounded,
               items: [
-                _SearchableSetting(
+                SearchableSetting(
                   keywords: '关于此刻 版本 更新 隐私说明 许可证 开源 帮助',
                   child: tile(
                     key: const Key('settings-about'),
@@ -378,7 +379,7 @@ class SettingsPage extends StatelessWidget {
             centerTitle: true,
             title: const Text('设置'),
           ),
-          body: _SettingsWorkspace(
+          body: SettingsWorkspace(
             groups: groups,
             keyboardVisible: MediaQuery.viewInsetsOf(context).bottom > 0,
           ),
@@ -393,29 +394,13 @@ class SettingsPage extends StatelessWidget {
   ) async {
     final value = await showModalBottomSheet<DiaryThemeMode>(
       context: context,
-      builder: (context) {
-        final colors = DiaryThemeColors.of(context);
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const ListTile(title: Text('主题模式')),
-              for (final mode in DiaryThemeMode.values)
-                _SettingsTile(
-                  leading: Icon(
-                    mode == current ? Icons.check : Icons.circle_outlined,
-                    color: mode == current
-                        ? colors.terracotta
-                        : colors.mutedInk,
-                  ),
-                  title: Text(mode.label),
-                  onTap: () => Navigator.pop(context, mode),
-                ),
-              const SizedBox(height: 8),
-            ],
-          ),
-        );
-      },
+      showDragHandle: true,
+      builder: (context) => _ChoiceSheet<DiaryThemeMode>(
+        title: '主题模式',
+        choices: DiaryThemeMode.values,
+        selected: current,
+        labelFor: (mode) => mode.label,
+      ),
     );
     if (value != null) unawaited(controller.setThemeMode(value));
   }
@@ -479,7 +464,7 @@ class SettingsPage extends StatelessWidget {
                 Text('主题配色', style: Theme.of(context).textTheme.titleLarge),
                 const SizedBox(height: 4),
                 Text(
-                  '每套配色都有明亮与黑暗模式，会同时应用到时间线、对话和编辑页面。',
+                  '选择一套配色后，会应用这套配色的主色。',
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
                 const SizedBox(height: 16),
@@ -580,7 +565,7 @@ class SettingsPage extends StatelessWidget {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         fullscreenDialog: true,
-        builder: (context) => _ChatBackgroundEditor(
+        builder: (context) => ChatBackgroundEditor(
           initial: initial,
           onPickPhoto:
               pickChatBackgroundPhoto ?? () => _pickBackgroundPhoto(context),
@@ -676,29 +661,13 @@ class SettingsPage extends StatelessWidget {
   ) async {
     final value = await showModalBottomSheet<DiaryEditorType>(
       context: context,
-      builder: (context) {
-        final colors = DiaryThemeColors.of(context);
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const ListTile(title: Text('默认编辑方式')),
-              for (final type in DiaryEditorType.values)
-                _SettingsTile(
-                  leading: Icon(
-                    type == current ? Icons.check : Icons.circle_outlined,
-                    color: type == current
-                        ? colors.terracotta
-                        : colors.mutedInk,
-                  ),
-                  title: Text(type.label),
-                  onTap: () => Navigator.pop(context, type),
-                ),
-              const SizedBox(height: 8),
-            ],
-          ),
-        );
-      },
+      showDragHandle: true,
+      builder: (context) => _ChoiceSheet<DiaryEditorType>(
+        title: '默认编辑方式',
+        choices: DiaryEditorType.values,
+        selected: current,
+        labelFor: (type) => type.label,
+      ),
     );
     if (value != null) unawaited(controller.setDefaultEditorType(value));
   }
@@ -753,14 +722,14 @@ class _ChoiceSheet<T> extends StatelessWidget {
     required this.choices,
     required this.selected,
     required this.labelFor,
-    required this.descriptionFor,
+    this.descriptionFor,
   });
 
   final String title;
   final List<T> choices;
   final T selected;
   final String Function(T value) labelFor;
-  final String Function(T value) descriptionFor;
+  final String Function(T value)? descriptionFor;
 
   @override
   Widget build(BuildContext context) {
@@ -785,7 +754,9 @@ class _ChoiceSheet<T> extends StatelessWidget {
                       : colors.mutedInk,
                 ),
                 title: Text(labelFor(value)),
-                subtitle: Text(descriptionFor(value)),
+                subtitle: descriptionFor == null
+                    ? null
+                    : Text(descriptionFor!(value)),
                 onTap: () => Navigator.pop(context, value),
               ),
           ],
@@ -1015,7 +986,7 @@ class _Section extends StatelessWidget {
   final List<Widget> children;
 
   @override
-  Widget build(BuildContext context) => _SettingsSection(
+  Widget build(BuildContext context) => SettingsSection(
     sectionId: 'connection-$title',
     title: title,
     flatRows: false,
@@ -1023,324 +994,28 @@ class _Section extends StatelessWidget {
   );
 }
 
-class _SearchableSetting {
-  const _SearchableSetting({required this.keywords, required this.child});
-
-  final String keywords;
-  final Widget child;
-}
-
-class _SettingsGroup {
-  const _SettingsGroup({
-    required this.id,
-    required this.title,
-    required this.label,
-    required this.icon,
-    required this.items,
-  });
-
-  final String id;
-  final String title;
-  final String label;
-  final IconData icon;
-  final List<_SearchableSetting> items;
-}
-
-class _SettingsWorkspace extends StatefulWidget {
-  const _SettingsWorkspace({
-    required this.groups,
-    required this.keyboardVisible,
-  });
-
-  final List<_SettingsGroup> groups;
-  final bool keyboardVisible;
-
-  @override
-  State<_SettingsWorkspace> createState() => _SettingsWorkspaceState();
-}
-
-class _SettingsWorkspaceState extends State<_SettingsWorkspace> {
-  final _search = TextEditingController();
-  final _scroll = ScrollController();
-  final _groupKeys = <String, GlobalKey>{};
-  String _query = '';
-  String? _selectedGroup;
-
-  @override
-  void dispose() {
-    _search.dispose();
-    _scroll.dispose();
-    super.dispose();
-  }
-
-  bool _matches(String text) {
-    final normalized = text.toLowerCase();
-    return _query
-        .toLowerCase()
-        .split(RegExp(r'\s+'))
-        .every(normalized.contains);
-  }
-
-  void _setQuery(String value) {
-    setState(() {
-      _query = value.trim();
-      _selectedGroup = null;
-    });
-    if (_scroll.hasClients) _scroll.jumpTo(0);
-  }
-
-  void _clearSearch() {
-    _search.clear();
-    _setQuery('');
-  }
-
-  void _jumpToGroup(_SettingsGroup group) {
-    FocusManager.instance.primaryFocus?.unfocus();
-    _search.clear();
-    setState(() {
-      _query = '';
-      _selectedGroup = group.id;
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final sectionContext = _groupKeys[group.id]?.currentContext;
-      if (sectionContext == null) return;
-      unawaited(
-        Scrollable.ensureVisible(
-          sectionContext,
-          alignment: 0,
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
-        ),
-      );
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = DiaryThemeColors.of(context);
-    final keyboardVisible = widget.keyboardVisible;
-    final sections = <Widget>[];
-    for (final group in widget.groups) {
-      final wholeGroup = _query.isEmpty || _matches(group.title);
-      final items = group.items
-          .where((item) => wholeGroup || _matches(item.keywords))
-          .toList(growable: false);
-      if (items.isEmpty) continue;
-      sections.add(
-        _SettingsSection(
-          key: _groupKeys.putIfAbsent(group.id, GlobalKey.new),
-          sectionId: group.id,
-          title: group.title,
-          children: [
-            for (final item in items)
-              KeyedSubtree(
-                key: ValueKey(item.keywords.split(' ').first),
-                child: item.child,
-              ),
-          ],
-        ),
-      );
-    }
-    return SafeArea(
-      top: false,
-      child: Align(
-        alignment: Alignment.topCenter,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 760),
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    TextField(
-                      key: const Key('settings-search'),
-                      controller: _search,
-                      onChanged: _setQuery,
-                      textInputAction: TextInputAction.search,
-                      onSubmitted: (_) =>
-                          FocusManager.instance.primaryFocus?.unfocus(),
-                      decoration: InputDecoration(
-                        hintText: '搜索设置，例如模型、字体、同步',
-                        hintStyle: Theme.of(context).textTheme.bodyMedium
-                            ?.copyWith(color: colors.mutedInk),
-                        prefixIcon: const Icon(Icons.search_rounded),
-                        suffixIcon: _query.isEmpty
-                            ? null
-                            : IconButton(
-                                key: const Key('settings-search-clear'),
-                                tooltip: '清除搜索',
-                                onPressed: _clearSearch,
-                                icon: const Icon(Icons.close_rounded),
-                              ),
-                        filled: true,
-                        fillColor: colors.surface,
-                        isDense: true,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                    ),
-                    if (!keyboardVisible) ...[
-                      const SizedBox(height: 10),
-                      LayoutBuilder(
-                        builder: (context, constraints) {
-                          final columns = constraints.maxWidth >= 600 ? 6 : 3;
-                          final chipWidth =
-                              (constraints.maxWidth - (columns - 1) * 6) /
-                              columns;
-                          return Wrap(
-                            spacing: 6,
-                            runSpacing: 0,
-                            children: [
-                              for (final group in widget.groups)
-                                SizedBox(
-                                  width: chipWidth,
-                                  child: InputChip(
-                                    key: ValueKey('settings-group-${group.id}'),
-                                    avatar: Icon(group.icon, size: 16),
-                                    label: Text(group.label),
-                                    tooltip: group.title,
-                                    selected: _selectedGroup == group.id,
-                                    showCheckmark: false,
-                                    visualDensity: const VisualDensity(
-                                      vertical: -1,
-                                    ),
-                                    materialTapTargetSize:
-                                        MaterialTapTargetSize.padded,
-                                    onPressed: () => _jumpToGroup(group),
-                                  ),
-                                ),
-                            ],
-                          );
-                        },
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              Expanded(
-                child: ListView(
-                  key: const Key('settings-list'),
-                  controller: _scroll,
-                  keyboardDismissBehavior:
-                      ScrollViewKeyboardDismissBehavior.onDrag,
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
-                  children: [
-                    if (sections.isEmpty)
-                      Padding(
-                        key: const Key('settings-search-empty'),
-                        padding: const EdgeInsets.symmetric(vertical: 36),
-                        child: Column(
-                          children: [
-                            Icon(
-                              Icons.search_off_rounded,
-                              color: colors.mutedInk,
-                              size: 32,
-                            ),
-                            const SizedBox(height: 12),
-                            const Text('没有找到相关设置'),
-                            const SizedBox(height: 10),
-                            TextButton(
-                              key: const Key('settings-search-clear-empty'),
-                              onPressed: _clearSearch,
-                              child: const Text('清除搜索'),
-                            ),
-                          ],
-                        ),
-                      )
-                    else
-                      Column(children: sections),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SettingsSection extends StatelessWidget {
-  const _SettingsSection({
-    required this.sectionId,
-    required this.title,
-    required this.children,
-    this.flatRows = true,
-    super.key,
-  });
-
-  final String sectionId;
-  final String title;
-  final List<Widget> children;
-  final bool flatRows;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = DiaryThemeColors.of(context);
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(8, 12, 8, 6),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Text(
-                title,
-                key: ValueKey('settings-section-$sectionId'),
-                style: Theme.of(
-                  context,
-                ).textTheme.labelLarge?.copyWith(color: colors.terracotta),
-              ),
-            ),
-            const SizedBox(height: 6),
-            for (var index = 0; index < children.length; index++) ...[
-              children[index],
-              if (flatRows && index < children.length - 1)
-                Divider(
-                  height: 1,
-                  indent: 12,
-                  endIndent: 12,
-                  color: colors.line.withValues(alpha: .6),
-                ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _SwitchTile extends StatelessWidget {
   const _SwitchTile({
     super.key,
     required this.title,
     this.subtitle,
-    this.flat = false,
     required this.value,
     required this.onChanged,
   });
 
   final String title;
   final String? subtitle;
-  final bool flat;
   final bool value;
   final ValueChanged<bool> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    return _SettingsTile(
-      flat: flat,
+    return SwitchListTile.adaptive(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
       title: Text(title),
       subtitle: subtitle == null ? null : Text(subtitle!),
-      onTap: () => onChanged(!value),
-      trailing: Switch.adaptive(value: value, onChanged: onChanged),
+      value: value,
+      onChanged: onChanged,
     );
   }
 }
@@ -1451,7 +1126,7 @@ class _ThemePresetTile extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    if (preset == DiaryThemePreset.warmPaper)
+                    if (preset == diaryDefaultThemePreset)
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 6,
@@ -1732,503 +1407,6 @@ class _ThemeColorPickerState extends State<_ThemeColorPicker> {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _ChatBackgroundEditor extends StatefulWidget {
-  const _ChatBackgroundEditor({
-    required this.initial,
-    required this.onPickPhoto,
-    required this.onApply,
-    this.onImportPhotos,
-  });
-
-  final DiaryChatBackground initial;
-  final Future<List<String>> Function() onPickPhoto;
-  final Future<List<String>> Function(List<String> paths)? onImportPhotos;
-  final Future<void> Function(DiaryChatBackground value) onApply;
-
-  @override
-  State<_ChatBackgroundEditor> createState() => _ChatBackgroundEditorState();
-}
-
-class _ChatBackgroundEditorState extends State<_ChatBackgroundEditor> {
-  late DiaryChatBackground _background;
-  bool _isPicking = false;
-  String? _error;
-  DiaryChatBackground? _cropStart;
-  Offset? _cropStartFocalPoint;
-
-  @override
-  void initState() {
-    super.initState();
-    _background = widget.initial.normalized();
-  }
-
-  Future<void> _pickPhoto() async {
-    setState(() {
-      _isPicking = true;
-      _error = null;
-    });
-    try {
-      final selected = await widget.onPickPhoto();
-      if (selected.isEmpty) return;
-      final imported = widget.onImportPhotos == null
-          ? selected
-          : await widget.onImportPhotos!(selected);
-      if (imported.isEmpty) return;
-      if (!mounted) return;
-      setState(
-        () => _background = DiaryChatBackground(
-          imagePath: imported.first,
-          scale: 1,
-          alignmentX: 0,
-          alignmentY: 0,
-          opacity: .22,
-        ),
-      );
-    } catch (_) {
-      if (mounted) setState(() => _error = '暂时无法读取这张图片，请换一张再试。');
-    } finally {
-      if (mounted) setState(() => _isPicking = false);
-    }
-  }
-
-  void _update(DiaryChatBackground next) {
-    setState(() => _background = next.normalized());
-  }
-
-  void _startCrop(ScaleStartDetails details) {
-    _cropStart = _background;
-    _cropStartFocalPoint = details.localFocalPoint;
-  }
-
-  void _updateCrop(ScaleUpdateDetails details, BoxConstraints constraints) {
-    final start = _cropStart;
-    final focalPoint = _cropStartFocalPoint;
-    if (start == null || focalPoint == null) return;
-    final width = constraints.maxWidth;
-    final height = constraints.maxHeight;
-    if (width <= 0 || height <= 0) return;
-    final horizontalDelta =
-        (details.localFocalPoint.dx - focalPoint.dx) / width;
-    final verticalDelta = (details.localFocalPoint.dy - focalPoint.dy) / height;
-    _update(
-      start.copyWith(
-        scale: start.scale * details.scale,
-        alignmentX: start.alignmentX - horizontalDelta * 2,
-        alignmentY: start.alignmentY - verticalDelta * 2,
-      ),
-    );
-  }
-
-  void _resetCrop() {
-    _update(_background.copyWith(scale: 1, alignmentX: 0, alignmentY: 0));
-  }
-
-  Future<void> _apply() async {
-    await widget.onApply(_background);
-    if (mounted) Navigator.pop(context);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = DiaryThemeColors.of(context);
-    return Scaffold(
-      backgroundColor: colors.paper,
-      appBar: AppBar(
-        backgroundColor: colors.paper,
-        surfaceTintColor: Colors.transparent,
-        centerTitle: true,
-        title: const Text('聊天背景'),
-        actions: [
-          TextButton(
-            key: const Key('chat-background-apply'),
-            onPressed: _apply,
-            child: Text(
-              _background.hasImage ? '应用' : '恢复默认',
-              style: TextStyle(color: colors.terracotta),
-            ),
-          ),
-          const SizedBox(width: 4),
-        ],
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            flex: 12,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-              child: _ChatBackgroundPreview(
-                background: _background,
-                onScaleStart: _background.hasImage ? _startCrop : null,
-                onScaleUpdate: _background.hasImage ? _updateCrop : null,
-                onDoubleTap: _background.hasImage ? _resetCrop : null,
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 10,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: colors.surface,
-                border: Border(top: BorderSide(color: colors.line)),
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(24),
-                ),
-              ),
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 18, 20, 30),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _background.hasImage ? '调整背景' : '选择一张背景图',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _background.hasImage
-                          ? '直接拖动预览调整位置，双指缩放；双击可恢复居中。'
-                          : '图片会只出现在聊天消息区域，顶部和输入框保持清晰。',
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodySmall?.copyWith(color: colors.mutedInk),
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        key: const Key('chat-background-select'),
-                        onPressed: _isPicking ? null : _pickPhoto,
-                        icon: _isPicking
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : Icon(
-                                _background.hasImage
-                                    ? Icons.photo_library_outlined
-                                    : Icons.add_photo_alternate_outlined,
-                              ),
-                        label: Text(_background.hasImage ? '更换图片' : '从相册选择图片'),
-                      ),
-                    ),
-                    if (_error != null) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        _error!,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colors.terracotta,
-                        ),
-                      ),
-                    ],
-                    if (_background.hasImage) ...[
-                      const SizedBox(height: 16),
-                      _BackgroundSlider(
-                        key: const Key('chat-background-opacity-slider'),
-                        label: '图片存在感',
-                        value: _background.opacity,
-                        min: .08,
-                        max: .5,
-                        divisions: 14,
-                        onChanged: (value) =>
-                            _update(_background.copyWith(opacity: value)),
-                      ),
-                      ExpansionTile(
-                        key: const Key('chat-background-fine-tune'),
-                        tilePadding: EdgeInsets.zero,
-                        childrenPadding: const EdgeInsets.only(bottom: 8),
-                        title: const Text('精细调整'),
-                        subtitle: Text(
-                          '缩放 ${(_background.scale * 100).round()}% · 可用滑杆微调取景',
-                        ),
-                        children: [
-                          _BackgroundSlider(
-                            key: const Key('chat-background-scale-slider'),
-                            label: '缩放',
-                            value: _background.scale,
-                            min: 1,
-                            max: 2.5,
-                            divisions: 15,
-                            onChanged: (value) =>
-                                _update(_background.copyWith(scale: value)),
-                          ),
-                          _BackgroundSlider(
-                            key: const Key('chat-background-horizontal-slider'),
-                            label: '左右位置',
-                            value: _background.alignmentX,
-                            min: -1,
-                            max: 1,
-                            divisions: 20,
-                            onChanged: (value) => _update(
-                              _background.copyWith(alignmentX: value),
-                            ),
-                          ),
-                          _BackgroundSlider(
-                            key: const Key('chat-background-vertical-slider'),
-                            label: '上下位置',
-                            value: _background.alignmentY,
-                            min: -1,
-                            max: 1,
-                            divisions: 20,
-                            onChanged: (value) => _update(
-                              _background.copyWith(alignmentY: value),
-                            ),
-                          ),
-                        ],
-                      ),
-                      TextButton.icon(
-                        key: const Key('chat-background-remove'),
-                        onPressed: () => _update(const DiaryChatBackground()),
-                        icon: const Icon(Icons.delete_outline),
-                        label: const Text('移除背景图片'),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ChatBackgroundPreview extends StatelessWidget {
-  const _ChatBackgroundPreview({
-    required this.background,
-    this.onScaleStart,
-    this.onScaleUpdate,
-    this.onDoubleTap,
-  });
-
-  final DiaryChatBackground background;
-  final ValueChanged<ScaleStartDetails>? onScaleStart;
-  final void Function(ScaleUpdateDetails details, BoxConstraints constraints)?
-  onScaleUpdate;
-  final VoidCallback? onDoubleTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = DiaryThemeColors.of(context);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: colors.line),
-        boxShadow: [
-          BoxShadow(color: colors.ink.withValues(alpha: .08), blurRadius: 14),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(23),
-        child: Column(
-          children: [
-            Container(
-              height: 50,
-              color: colors.surface,
-              alignment: Alignment.center,
-              child: Text(
-                '我的日记',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-              ),
-            ),
-            Expanded(
-              child: LayoutBuilder(
-                builder: (context, constraints) => GestureDetector(
-                  key: const Key('chat-background-crop-canvas'),
-                  behavior: HitTestBehavior.opaque,
-                  onScaleStart: onScaleStart,
-                  onScaleUpdate: onScaleUpdate == null
-                      ? null
-                      : (details) => onScaleUpdate!(details, constraints),
-                  onDoubleTap: onDoubleTap,
-                  child: DiaryChatBackgroundLayer(
-                    background: background,
-                    fallbackColor: colors.paper,
-                    imageKey: background.hasImage
-                        ? ValueKey(
-                            'chat-background-preview-${background.imagePath}',
-                          )
-                        : null,
-                    child: Stack(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-                          child: Column(
-                            children: [
-                              Text(
-                                '09/19 20:18',
-                                style: Theme.of(context).textTheme.labelSmall
-                                    ?.copyWith(color: colors.mutedInk),
-                              ),
-                              const SizedBox(height: 14),
-                              Align(
-                                alignment: Alignment.centerLeft,
-                                child: _PreviewMessageBubble(
-                                  color: colors.surface.withValues(alpha: .94),
-                                  textColor: colors.ink,
-                                  text: '今天的云很好看。',
-                                ),
-                              ),
-                              const Spacer(),
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: _PreviewMessageBubble(
-                                  color: colors.terracotta,
-                                  textColor: Colors.white,
-                                  text: '把这一刻记下来',
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (background.hasImage)
-                          Positioned(
-                            left: 0,
-                            right: 0,
-                            bottom: 8,
-                            child: Center(
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  color: colors.ink.withValues(alpha: .58),
-                                  borderRadius: BorderRadius.circular(999),
-                                ),
-                                child: const Padding(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 5,
-                                  ),
-                                  child: Text(
-                                    '拖动调整 · 双指缩放',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            Container(
-              height: 54,
-              color: colors.surface,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.mic_none_rounded,
-                    color: colors.mutedInk,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Container(
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: colors.paper,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: colors.line),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Icon(
-                    Icons.add_circle_outline,
-                    color: colors.mutedInk,
-                    size: 22,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PreviewMessageBubble extends StatelessWidget {
-  const _PreviewMessageBubble({
-    required this.color,
-    required this.textColor,
-    required this.text,
-  });
-
-  final Color color;
-  final Color textColor;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(15),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Text(
-          text,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: textColor,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _BackgroundSlider extends StatelessWidget {
-  const _BackgroundSlider({
-    required this.label,
-    required this.value,
-    required this.min,
-    required this.max,
-    required this.divisions,
-    required this.onChanged,
-    super.key,
-  });
-
-  final String label;
-  final double value;
-  final double min;
-  final double max;
-  final int divisions;
-  final ValueChanged<double> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = DiaryThemeColors.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: Theme.of(context).textTheme.labelLarge),
-        Slider(
-          value: value,
-          min: min,
-          max: max,
-          divisions: divisions,
-          activeColor: colors.terracotta,
-          inactiveColor: colors.line,
-          onChanged: onChanged,
-        ),
-      ],
     );
   }
 }

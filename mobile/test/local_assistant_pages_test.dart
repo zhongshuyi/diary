@@ -74,6 +74,14 @@ void main() {
       );
       await _openSettings(tester, controller);
       expect(controller.localSupported, isFalse);
+      expect(
+        tester.getTopLeft(find.byKey(const Key('assistant-enabled'))).dy,
+        lessThan(
+          tester
+              .getTopLeft(find.byKey(const Key('assistant-source-online')))
+              .dy,
+        ),
+      );
       await tester.tap(find.byKey(const Key('assistant-source-online')));
       await tester.pumpAndSettle();
       expect(controller.sourceChanges, [AssistantReplySource.online]);
@@ -413,6 +421,7 @@ void main() {
         await _openSettings(tester, controller, dark: dark, textScale: 1.8);
         expect(tester.takeException(), isNull);
         for (final key in [
+          'assistant-enabled',
           'assistant-provider-compatible',
           'assistant-online-base-url',
           'assistant-online-model',
@@ -420,7 +429,6 @@ void main() {
           'assistant-online-send-images',
           'assistant-online-save',
           'assistant-online-test',
-          'assistant-enabled',
           'assistant-persona',
         ]) {
           await _show(tester, Key(key));
@@ -466,9 +474,9 @@ void main() {
       expect(find.text('429.0 MB · 保存在这台设备上'), findsOneWidget);
       expect(find.text('已选择'), findsOneWidget);
       expect(
-        tester.getTopLeft(find.byKey(const Key('assistant-model-status'))).dy,
+        tester.getTopLeft(find.byKey(const Key('assistant-enabled'))).dy,
         lessThan(
-          tester.getTopLeft(find.byKey(const Key('assistant-enabled'))).dy,
+          tester.getTopLeft(find.byKey(const Key('assistant-model-status'))).dy,
         ),
       );
       expect(find.text('更换模型'), findsOneWidget);
@@ -667,7 +675,10 @@ void main() {
           .value,
       isNull,
     );
-    await tester.tap(find.byKey(const Key('assistant-cancel-install')));
+    final cancelInstall = find.byKey(const Key('assistant-cancel-install'));
+    await tester.ensureVisible(cancelInstall);
+    await tester.pump();
+    await tester.tap(cancelInstall);
     await tester.pumpAndSettle();
   });
 
@@ -1030,6 +1041,16 @@ void main() {
       expect(find.text('允许自己慢一点，今天已经很努力了。'), findsOneWidget);
       expect(find.byTooltip('模型文件无法读取'), findsOneWidget);
       expect(controller.downloadCalls, 0);
+
+      final previousReply = find.byKey(
+        const ValueKey('assistant-reply-bubble-entry-2'),
+      );
+      final previousBubble = tester.widget<Material>(previousReply);
+      controller.replies['entry-1'] = '这是一条新的陪伴回应。';
+      controller.notifyListeners();
+      await tester.pump();
+      expect(find.text('这是一条新的陪伴回应。'), findsOneWidget);
+      expect(tester.widget<Material>(previousReply), same(previousBubble));
     },
   );
 
@@ -1102,7 +1123,11 @@ Future<void> _show(WidgetTester tester, Key key) async {
   final scrollable = library.evaluate().isNotEmpty
       ? find.descendant(of: library, matching: find.byType(Scrollable)).first
       : find.byType(Scrollable).first;
-  await tester.scrollUntilVisible(find.byKey(key), 180, scrollable: scrollable);
+  await tester.scrollUntilVisible(
+    find.byKey(key),
+    key == const Key('assistant-enabled') ? -180 : 180,
+    scrollable: scrollable,
+  );
   await tester.pumpAndSettle();
 }
 

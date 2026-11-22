@@ -351,25 +351,32 @@ void main() {
   testWidgets('shows a missing media state with a retry affordance', (
     tester,
   ) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: MediaPage(
-            entries: [
-              _entry(
-                id: 'missing-media',
-                title: '找不到的照片',
-                category: '生活',
-                imagePaths: const ['missing-photo.jpg'],
-              ),
-            ],
-            onOpenEntry: (_) {},
+    await tester.runAsync(() async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MediaPage(
+              entries: [
+                _entry(
+                  id: 'missing-media',
+                  title: '找不到的照片',
+                  category: '生活',
+                  imagePaths: const ['missing-photo.jpg'],
+                ),
+              ],
+              onOpenEntry: (_) {},
+            ),
           ),
         ),
-      ),
-    );
+      );
+      final image = find.byType(Image);
+      await precacheImage(
+        tester.widget<Image>(image).image,
+        tester.element(image),
+        onError: (_, _) {},
+      );
+    });
     await tester.pumpAndSettle();
-    await tester.pump(const Duration(seconds: 1));
 
     expect(find.text('文件不可用'), findsOneWidget);
     expect(find.byTooltip('重新加载'), findsOneWidget);

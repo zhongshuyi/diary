@@ -10,7 +10,6 @@ import 'package:diary/app/app_theme.dart';
 import 'package:diary/app/diary_motion.dart';
 import 'package:diary/application/local_assistant_controller.dart';
 import 'package:diary/application/transcription_controller.dart';
-import 'package:diary/widgets/audio_transcript.dart';
 import 'package:diary/data/diary_repository.dart';
 import 'package:diary/domain/diary_entry.dart';
 import 'package:diary/domain/diary_place.dart';
@@ -28,6 +27,8 @@ import 'package:diary/widgets/local_assistant_reply.dart';
 import 'package:diary/widgets/selected_photo_strip.dart';
 import 'package:diary/widgets/rich_text_viewer.dart';
 
+import 'chat_transcript_bubble.dart';
+
 typedef ChatMessageSender =
     Future<void> Function(
       String content,
@@ -38,10 +39,8 @@ typedef ChatMessageSender =
       String? moodLabel,
     );
 
-const _chatMessageEntranceDuration = Duration(milliseconds: 300);
 const _chatActionTransitionDuration = Duration(milliseconds: 160);
 const _chatActionFeedbackDuration = Duration(milliseconds: 120);
-const _chatMessageEntranceOffset = 18.0;
 final _chatSelectionControls = _CompactChatSelectionControls();
 
 class _CompactChatSelectionControls extends MaterialTextSelectionControls {
@@ -244,20 +243,25 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   void didUpdateWidget(covariant ChatPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (identical(oldWidget.entries, widget.entries)) return;
-    final previousIds = oldWidget.entries.map((entry) => entry.id).toSet();
-    final currentIds = widget.entries.map((entry) => entry.id).toSet();
-    final addedIds = currentIds.difference(previousIds);
-    final staleIds = _enteringMessageIds.difference(currentIds);
-    _enteringMessageIds.removeAll(staleIds);
-    if (!oldWidget.entriesLoading && addedIds.length == 1) {
-      _enteringMessageIds.addAll(addedIds);
+    final previousIndex = _messageIndexCache;
+    final entries = _sortedEntries();
+    _enteringMessageIds.removeWhere(
+      (id) => !_messageIndexCache.containsKey(ValueKey('chat-entry-$id')),
+    );
+    if (entries.length <= oldWidget.entries.length) return;
+    final latest = entries.last;
+    if (previousIndex.containsKey(ValueKey('chat-entry-${latest.id}'))) return;
+
+    if (_scrollController.hasClients &&
+        !_composerFocusNode.hasFocus &&
+        _scrollController.position.pixels >= 120) {
+      return;
     }
-    if (widget.entries.length > oldWidget.entries.length &&
-        (!_scrollController.hasClients ||
-            _composerFocusNode.hasFocus ||
-            _scrollController.position.pixels < 120)) {
-      _scheduleScrollToLatest();
+    if (!oldWidget.entriesLoading &&
+        entries.length == oldWidget.entries.length + 1) {
+      _enteringMessageIds.add(latest.id);
     }
+    _scheduleScrollToLatest();
   }
 
   void _onScroll() {
@@ -330,16 +334,47 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     return index != null && index < _visibleMessageCount ? index : null;
   }
 
-  Future<void> _showEntryActions(DiaryEntry entry) async {
+  Future<void> _showEntryActions(DiaryEntry entry, {String? audioPath}) async {
     // Clear the scope's previous focus before the route takes focus so closing
     // the action sheet or confirmation cannot reopen the composer keyboard.
     _composerFocusNode.unfocus();
+    final controller = widget.transcriptionController;
+    final audioState = audioPath == null
+        ? null
+        : controller?.stateFor(entry.id, audioPath);
+    final isTranscribing = audioState?.active == true;
     final action = await showModalBottomSheet<_ChatEntryAction>(
       context: context,
       builder: (context) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (audioPath != null &&
+                (controller != null ||
+                    widget.onOpenTranscriptionSettings != null))
+              ListTile(
+                leading: Icon(
+                  isTranscribing
+                      ? Icons.close_rounded
+                      : Icons.transcribe_outlined,
+                ),
+                title: Text(switch (audioState?.stage) {
+                  _ when isTranscribing => '取消转写',
+                  AudioTranscriptionStage.failed => '重试转写',
+                  _
+                      when (audioState?.text ??
+                              entry.transcriptForAudioPath(audioPath)) !=
+                          null =>
+                    '重新转写',
+                  _ => '转为文字',
+                }),
+                onTap: () => Navigator.pop(
+                  context,
+                  isTranscribing
+                      ? _ChatEntryAction.cancelTranscription
+                      : _ChatEntryAction.transcribe,
+                ),
+              ),
             ListTile(
               leading: const Icon(Icons.edit_outlined),
               title: const Text('编辑这条日记'),
@@ -360,6 +395,19 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     if (!mounted || action == null) return;
     if (action == _ChatEntryAction.edit) {
       await widget.onEdit(entry);
+      return;
+    }
+    if (action == _ChatEntryAction.cancelTranscription) {
+      await widget.transcriptionController?.cancel(entry.id, audioPath!);
+      return;
+    }
+    if (action == _ChatEntryAction.transcribe) {
+      final controller = widget.transcriptionController;
+      if (controller != null && controller.ready) {
+        await controller.retry(entry.id, audioPath!);
+      } else {
+        widget.onOpenTranscriptionSettings?.call();
+      }
       return;
     }
     final confirmed = await showDialog<bool>(
@@ -415,7 +463,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                     )
                   : null,
               child: entries.isEmpty
-                  ? const _EmptyChat()
+                  ? _EmptyChat(loading: widget.entriesLoading)
                   : ListView.builder(
                       key: const Key('chat-message-list'),
                       controller: _scrollController,
@@ -444,8 +492,6 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                               widget.localAssistantController,
                           transcriptionController:
                               widget.transcriptionController,
-                          onOpenTranscriptionSettings:
-                              widget.onOpenTranscriptionSettings,
                           chatStyle: widget.chatStyle,
                           companionAvatarPath: widget.companionAvatarPath,
                           companionName: widget.companionName,
@@ -498,8 +544,36 @@ class _ChatHeader extends StatelessWidget {
     final buttonOrigin = button.localToGlobal(Offset.zero);
     final buttonRect = buttonOrigin & button.size;
     final screenWidth = MediaQuery.sizeOf(context).width;
-    final destination = await showGeneralDialog<ChatPageDestination>(
-      context: context,
+    final actions = [
+      (Icons.palette_outlined, '对话外观', onOpenChatAppearance),
+      (Icons.auto_awesome_outlined, '日记陪伴', onOpenLocalAssistant),
+      (
+        Icons.view_agenda_outlined,
+        '时间线',
+        () => onNavigate(ChatPageDestination.timeline),
+      ),
+      (
+        Icons.calendar_month_outlined,
+        '日历',
+        () => onNavigate(ChatPageDestination.calendar),
+      ),
+      (
+        Icons.collections_outlined,
+        '媒体库',
+        () => onNavigate(ChatPageDestination.media),
+      ),
+      (
+        Icons.auto_graph_outlined,
+        '洞察',
+        () => onNavigate(ChatPageDestination.insights),
+      ),
+      (
+        Icons.person_outline,
+        '我的',
+        () => onNavigate(ChatPageDestination.profile),
+      ),
+    ];
+    final route = RawDialogRoute<VoidCallback>(
       barrierDismissible: true,
       barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
       barrierColor: Colors.transparent,
@@ -528,64 +602,13 @@ class _ChatHeader extends StatelessWidget {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        if (onOpenChatAppearance != null)
-                          _ChatMenuItem(
-                            icon: Icons.palette_outlined,
-                            label: '对话外观',
-                            onTap: () {
-                              Navigator.pop(menuContext);
-                              onOpenChatAppearance!();
-                            },
-                          ),
-                        if (onOpenLocalAssistant != null)
-                          _ChatMenuItem(
-                            icon: Icons.auto_awesome_outlined,
-                            label: '日记陪伴',
-                            onTap: () {
-                              Navigator.pop(menuContext);
-                              onOpenLocalAssistant!();
-                            },
-                          ),
-                        _ChatMenuItem(
-                          icon: Icons.view_agenda_outlined,
-                          label: '时间线',
-                          onTap: () => Navigator.pop(
-                            menuContext,
-                            ChatPageDestination.timeline,
-                          ),
-                        ),
-                        _ChatMenuItem(
-                          icon: Icons.calendar_month_outlined,
-                          label: '日历',
-                          onTap: () => Navigator.pop(
-                            menuContext,
-                            ChatPageDestination.calendar,
-                          ),
-                        ),
-                        _ChatMenuItem(
-                          icon: Icons.collections_outlined,
-                          label: '媒体库',
-                          onTap: () => Navigator.pop(
-                            menuContext,
-                            ChatPageDestination.media,
-                          ),
-                        ),
-                        _ChatMenuItem(
-                          icon: Icons.auto_graph_outlined,
-                          label: '洞察',
-                          onTap: () => Navigator.pop(
-                            menuContext,
-                            ChatPageDestination.insights,
-                          ),
-                        ),
-                        _ChatMenuItem(
-                          icon: Icons.person_outline,
-                          label: '我的',
-                          onTap: () => Navigator.pop(
-                            menuContext,
-                            ChatPageDestination.profile,
-                          ),
-                        ),
+                        for (final (icon, label, action) in actions)
+                          if (action != null)
+                            _ChatMenuItem(
+                              icon: icon,
+                              label: label,
+                              onTap: () => Navigator.pop(menuContext, action),
+                            ),
                       ],
                     ),
                   ),
@@ -596,10 +619,7 @@ class _ChatHeader extends StatelessWidget {
         );
       },
       transitionBuilder: (_, animation, _, child) {
-        final motion = CurvedAnimation(
-          parent: animation,
-          curve: Curves.easeOut,
-        );
+        final motion = animation.drive(CurveTween(curve: Curves.easeOut));
         return FadeTransition(
           opacity: motion,
           child: SlideTransition(
@@ -612,7 +632,10 @@ class _ChatHeader extends StatelessWidget {
         );
       },
     );
-    if (destination != null) onNavigate(destination);
+    final action = await Navigator.of(context, rootNavigator: true).push(route);
+    if (action == null) return;
+    await route.completed;
+    if (context.mounted) action();
   }
 
   @override
@@ -706,7 +729,9 @@ class _ChatMenuItem extends StatelessWidget {
 }
 
 class _EmptyChat extends StatelessWidget {
-  const _EmptyChat();
+  const _EmptyChat({required this.loading});
+
+  final bool loading;
 
   @override
   Widget build(BuildContext context) {
@@ -717,9 +742,16 @@ class _EmptyChat extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.forum_outlined, size: 42, color: colors.terracotta),
+            Icon(
+              loading ? Icons.history_rounded : Icons.forum_outlined,
+              size: 42,
+              color: colors.terracotta,
+            ),
             const SizedBox(height: 14),
-            Text('从一句话开始', style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              loading ? '正在读取对话…' : '从一句话开始',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
           ],
         ),
       ),
@@ -740,7 +772,6 @@ class _ChatEntryItem extends StatelessWidget {
     required this.profileAvatarPath,
     this.localAssistantController,
     this.transcriptionController,
-    this.onOpenTranscriptionSettings,
     required this.chatStyle,
     required this.companionAvatarPath,
     required this.companionName,
@@ -753,13 +784,13 @@ class _ChatEntryItem extends StatelessWidget {
   final ValueChanged<String> onMessageEntranceFinished;
   final ValueChanged<DiaryEntry> onOpenEntry;
   final ValueChanged<DiaryEntry> onOpenLocation;
-  final Future<void> Function(DiaryEntry entry) onLongPress;
+  final Future<void> Function(DiaryEntry entry, {String? audioPath})
+  onLongPress;
   final VoidCallback onAvatarTap;
   final bool showChatAvatar;
   final String? profileAvatarPath;
   final LocalAssistantController? localAssistantController;
   final TranscriptionController? transcriptionController;
-  final VoidCallback? onOpenTranscriptionSettings;
   final DiaryChatStyle chatStyle;
   final String? companionAvatarPath;
   final String companionName;
@@ -767,45 +798,46 @@ class _ChatEntryItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _ChatMessageEntrance(
-      animate: enteringMessageIds.contains(entry.id),
-      onEnd: () => onMessageEntranceFinished(entry.id),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 13, bottom: 8),
-            child: Text(
-              _chatTimestampLabel(entry.effectiveOccurredAt),
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: DiaryThemeColors.of(context).mutedInk,
-              ),
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 13, bottom: 8),
+          child: Text(
+            _chatTimestampLabel(entry.effectiveOccurredAt),
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: DiaryThemeColors.of(context).mutedInk,
             ),
           ),
-          _ChatEntryBubble(
+        ),
+        _ChatMessageEntrance(
+          animate: enteringMessageIds.contains(entry.id),
+          onEnd: () => onMessageEntranceFinished(entry.id),
+          child: _ChatEntryBubble(
             entry: entry,
             transcriptionController: transcriptionController,
-            onOpenTranscriptionSettings: onOpenTranscriptionSettings,
             onOpen: () => onOpenEntry(entry),
             onOpenLocation: () => onOpenLocation(entry),
             onLongPress: () => unawaited(onLongPress(entry)),
+            onAudioLongPress: (path) =>
+                unawaited(onLongPress(entry, audioPath: path)),
             onAvatarTap: onAvatarTap,
             showChatAvatar: showChatAvatar,
             profileAvatarPath: profileAvatarPath,
             chatStyle: chatStyle,
           ),
-          if (localAssistantController != null)
-            LocalAssistantReply(
-              entryId: entry.id,
-              controller: localAssistantController!,
-              chatStyle: chatStyle,
-              showAvatar: showChatAvatar,
-              companionAvatarPath: companionAvatarPath,
-              companionName: companionName,
-              onAvatarTap: onCompanionAvatarTap,
-            ),
-        ],
-      ),
+        ),
+        if (localAssistantController != null)
+          LocalAssistantReply(
+            entryId: entry.id,
+            controller: localAssistantController!,
+            chatStyle: chatStyle,
+            showAvatar: showChatAvatar,
+            companionAvatarPath: companionAvatarPath,
+            companionName: companionName,
+            onAvatarTap: onCompanionAvatarTap,
+          ),
+      ],
     );
   }
 }
@@ -828,39 +860,28 @@ class _ChatMessageEntrance extends StatefulWidget {
 class _ChatMessageEntranceState extends State<_ChatMessageEntrance>
     with SingleTickerProviderStateMixin {
   late final bool _animateOnMount = widget.animate;
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: _chatMessageEntranceDuration,
-    value: _animateOnMount ? 0 : 1,
-  );
-  late final CurvedAnimation _progress = CurvedAnimation(
-    parent: _controller,
-    curve: Curves.easeOutCubic,
-  );
-  late final Animation<double> _opacity = Tween(
-    begin: .4,
-    end: 1.0,
-  ).animate(_progress);
-  bool _started = false;
+  AnimationController? _controller;
+  late final Animation<double> _progress;
+  late final Animation<double> _opacity;
   bool _finished = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller.addStatusListener(_onStatusChanged);
-  }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final reduceMotion = MediaQuery.disableAnimationsOf(context);
-    if (_started && !reduceMotion) return;
-    _started = true;
-    if (!_animateOnMount || reduceMotion) {
-      _controller.value = 1;
-    } else {
-      _controller.forward();
+    if (!_animateOnMount || _finished) return;
+    final duration = DiaryMotion.duration(context, DiaryMotion.emphasized);
+    if (duration == Duration.zero) {
+      _controller?.value = 1;
+      _finish();
+      return;
     }
+    if (_controller != null) return;
+    final controller = AnimationController(vsync: this, duration: duration);
+    _controller = controller;
+    _progress = controller.drive(CurveTween(curve: Curves.easeOutCubic));
+    _opacity = _progress.drive(Tween(begin: .4, end: 1.0));
+    controller.addStatusListener(_onStatusChanged);
+    controller.forward();
   }
 
   void _onStatusChanged(AnimationStatus status) {
@@ -877,14 +898,13 @@ class _ChatMessageEntranceState extends State<_ChatMessageEntrance>
   void dispose() {
     // An entrance removed from the sliver cache must not replay on return.
     _finish();
-    _controller.removeStatusListener(_onStatusChanged);
-    _progress.dispose();
-    _controller.dispose();
+    _controller?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_controller == null) return widget.child;
     // Keep the child at the same element slot after the entrance completes.
     // Dropping an animation wrapper would recreate rich text/media state.
     return FadeTransition(
@@ -892,10 +912,13 @@ class _ChatMessageEntranceState extends State<_ChatMessageEntrance>
       child: AnimatedBuilder(
         animation: _progress,
         child: RepaintBoundary(child: widget.child),
-        builder: (context, child) => Transform.translate(
-          offset: Offset(0, (1 - _progress.value) * _chatMessageEntranceOffset),
-          child: child,
-        ),
+        builder: (context, child) {
+          final remaining = 1 - _progress.value;
+          return Transform.translate(
+            offset: Offset(5 * remaining, 14 * remaining),
+            child: child,
+          );
+        },
       ),
     );
   }
@@ -907,24 +930,24 @@ class _ChatEntryBubble extends StatefulWidget {
     required this.onOpen,
     required this.onOpenLocation,
     required this.onLongPress,
+    required this.onAudioLongPress,
     required this.onAvatarTap,
     required this.showChatAvatar,
     required this.profileAvatarPath,
     required this.chatStyle,
     this.transcriptionController,
-    this.onOpenTranscriptionSettings,
   });
 
   final DiaryEntry entry;
   final VoidCallback onOpen;
   final VoidCallback onOpenLocation;
   final VoidCallback onLongPress;
+  final ValueChanged<String> onAudioLongPress;
   final VoidCallback onAvatarTap;
   final bool showChatAvatar;
   final String? profileAvatarPath;
   final DiaryChatStyle chatStyle;
   final TranscriptionController? transcriptionController;
-  final VoidCallback? onOpenTranscriptionSettings;
 
   @override
   State<_ChatEntryBubble> createState() => _ChatEntryBubbleState();
@@ -1118,17 +1141,8 @@ class _ChatEntryBubbleState extends State<_ChatEntryBubble> {
         entry.imagePaths.isNotEmpty &&
         entry.audioPaths.isEmpty &&
         entry.videoPaths.isEmpty;
-    final isVoiceOnly =
-        !hasText &&
-        mood == null &&
-        entry.imagePaths.isEmpty &&
-        entry.videoPaths.isEmpty &&
-        entry.audioPaths.isNotEmpty;
     final hasBubbleContent =
-        hasText ||
-        mood != null ||
-        entry.imagePaths.isNotEmpty ||
-        entry.audioPaths.isNotEmpty;
+        hasText || mood != null || imageEntry.imagePaths.isNotEmpty;
     if (isMoodOnly) {
       return _ChatMoodEvent(
         entryId: entry.id,
@@ -1155,7 +1169,8 @@ class _ChatEntryBubbleState extends State<_ChatEntryBubble> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
-        crossAxisAlignment: chatStyle == DiaryChatStyle.diary
+        crossAxisAlignment:
+            chatStyle == DiaryChatStyle.diary && entry.audioPaths.isEmpty
             ? CrossAxisAlignment.end
             : CrossAxisAlignment.start,
         children: [
@@ -1166,17 +1181,14 @@ class _ChatEntryBubbleState extends State<_ChatEntryBubble> {
                 constraints: const BoxConstraints(maxWidth: 520),
                 child: _ChatMessageWidth(
                   style: chatStyle,
-                  fraction: isVoiceOnly ? .62 : .86,
-                  forceWidth: isVoiceOnly,
+                  fraction: .86,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       if (hasBubbleContent)
                         Material(
                           key: Key('chat-bubble-${entry.id}'),
-                          color: isVoiceOnly
-                              ? appearance.outgoingVoiceColor
-                              : appearance.outgoingColor,
+                          color: appearance.outgoingColor,
                           shape: appearance.bubbleShape(outgoing: true),
                           child: InkWell(
                             customBorder: appearance.bubbleShape(
@@ -1194,8 +1206,7 @@ class _ChatEntryBubbleState extends State<_ChatEntryBubble> {
                                   if (mood != null) ...[
                                     _ChatMoodBadge(mood: mood),
                                     if (hasText ||
-                                        imageEntry.imagePaths.isNotEmpty ||
-                                        entry.audioPaths.isNotEmpty)
+                                        imageEntry.imagePaths.isNotEmpty)
                                       const SizedBox(height: 8),
                                   ],
                                   if (hasText && isRichText)
@@ -1217,71 +1228,65 @@ class _ChatEntryBubbleState extends State<_ChatEntryBubble> {
                                           ),
                                     ),
                                   if (hasText &&
-                                      (imageEntry.imagePaths.isNotEmpty ||
-                                          entry.audioPaths.isNotEmpty))
+                                      imageEntry.imagePaths.isNotEmpty)
                                     const SizedBox(height: 10),
                                   if (imageEntry.imagePaths.isNotEmpty)
                                     _ChatImageGrid(entry: imageEntry),
-                                  if (imageEntry.imagePaths.isNotEmpty &&
-                                      entry.audioPaths.isNotEmpty)
-                                    const SizedBox(height: 8),
-                                  for (
-                                    var index = 0;
-                                    index < entry.audioPaths.length;
-                                    index++
-                                  ) ...[
-                                    DiaryAudioPlayer(
-                                      path: entry.audioPaths[index],
-                                      compact: true,
-                                      chatStyle: true,
-                                      chatStyleHighContrast: isVoiceOnly,
-                                      loadMetadata: false,
-                                      loadWaveform: false,
-                                    ),
-                                    if (widget.transcriptionController != null)
-                                      AudioTranscript(
-                                        entryId: entry.id,
-                                        audioPath: entry.audioPaths[index],
-                                        text: entry.transcriptForAudioPath(
-                                          entry.audioPaths[index],
-                                        ),
-                                        controller:
-                                            widget.transcriptionController!,
-                                        foreground: isVoiceOnly
-                                            ? appearance.outgoingVoiceColor
-                                                          .computeLuminance() <
-                                                      .179
-                                                  ? Colors.white
-                                                  : Colors.black
-                                            : appearance.outgoingTextColor,
-                                        mutedColor: isVoiceOnly
-                                            ? appearance.outgoingVoiceColor
-                                                          .computeLuminance() <
-                                                      .179
-                                                  ? Colors.white
-                                                  : Colors.black
-                                            : appearance.outgoingTextColor,
-                                        onOpenSettings:
-                                            widget.onOpenTranscriptionSettings,
-                                      )
-                                    else if (entry.transcriptForAudioPath(
-                                          entry.audioPaths[index],
-                                        ) !=
-                                        null)
-                                      SelectableText(
-                                        entry.transcriptForAudioPath(
-                                          entry.audioPaths[index],
-                                        )!,
-                                      ),
-                                    if (index < entry.audioPaths.length - 1)
-                                      const SizedBox(height: 8),
-                                  ],
                                 ],
                               ),
                             ),
                           ),
                         ),
-                      if (hasBubbleContent && entry.videoPaths.isNotEmpty)
+                      for (
+                        var index = 0;
+                        index < entry.audioPaths.length;
+                        index++
+                      ) ...[
+                        if (hasBubbleContent || index > 0)
+                          const SizedBox(height: 12),
+                        Material(
+                          key: ValueKey('chat-audio-${entry.id}-$index'),
+                          color: appearance.outgoingVoiceColor,
+                          shape: appearance.bubbleShape(outgoing: true),
+                          child: InkWell(
+                            customBorder: appearance.bubbleShape(
+                              outgoing: true,
+                            ),
+                            onTap: onOpen,
+                            onLongPress: () => widget.onAudioLongPress(
+                              entry.audioPaths[index],
+                            ),
+                            onSecondaryTap: () => widget.onAudioLongPress(
+                              entry.audioPaths[index],
+                            ),
+                            child: SizedBox(
+                              width: 184,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                child: DiaryAudioPlayer(
+                                  key: ValueKey(entry.audioPaths[index]),
+                                  path: entry.audioPaths[index],
+                                  chatStyle: true,
+                                  chatStyleHighContrast: true,
+                                  loadMetadata: false,
+                                  loadWaveform: false,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        ChatTranscriptBubble(
+                          entry: entry,
+                          index: index,
+                          controller: widget.transcriptionController,
+                          appearance: appearance,
+                        ),
+                      ],
+                      if ((hasBubbleContent || entry.audioPaths.isNotEmpty) &&
+                          entry.videoPaths.isNotEmpty)
                         const SizedBox(height: 8),
                       for (
                         var index = 0;
@@ -1929,7 +1934,7 @@ class _ChatComposerState extends State<_ChatComposer>
                     Navigator.pop(context, _ChatAttachmentAction.videoCamera),
               ),
               ListTile(
-                leading: const Icon(Icons.mic_none_outlined),
+                leading: const Icon(Icons.mic_rounded, size: 20),
                 title: const Text('录音'),
                 onTap: () =>
                     Navigator.pop(context, _ChatAttachmentAction.audio),
@@ -2091,6 +2096,7 @@ class _ChatComposerState extends State<_ChatComposer>
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      enableDrag: false,
       builder: (sheetContext) => _VoiceRecordSheet(
         onRecorded: (path) async {
           if (!mounted) return;
@@ -2270,14 +2276,14 @@ class _ChatComposerState extends State<_ChatComposer>
                   key: const Key('chat-record-button'),
                   tooltip: '录音',
                   onPressed: _isSending ? null : _recordVoice,
-                  iconSize: 24,
+                  iconSize: 20,
                   padding: EdgeInsets.zero,
                   visualDensity: VisualDensity.compact,
                   constraints: const BoxConstraints.tightFor(
                     width: 44,
                     height: 44,
                   ),
-                  icon: const Icon(Icons.mic_none_rounded),
+                  icon: const Icon(Icons.mic_rounded),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -2343,13 +2349,9 @@ class _ChatComposerState extends State<_ChatComposer>
                       : Icon(_selectedMood!.icon, color: colors.terracotta),
                 ),
                 const SizedBox(width: 2),
-                AnimatedSize(
-                  duration: DiaryMotion.duration(
-                    context,
-                    _chatActionTransitionDuration,
-                  ),
-                  curve: Curves.easeInOutCubic,
-                  alignment: Alignment.centerRight,
+                // Keep the input from relaying out during the action transition.
+                SizedBox(
+                  width: 52,
                   child: AnimatedSwitcher(
                     duration: DiaryMotion.duration(
                       context,
@@ -2369,7 +2371,11 @@ class _ChatComposerState extends State<_ChatComposer>
                       clipBehavior: Clip.none,
                       children: [
                         for (final child in previousChildren)
-                          Positioned(right: 0, top: 0, child: child),
+                          Positioned(
+                            right: 0,
+                            top: 0,
+                            child: IgnorePointer(child: child),
+                          ),
                         ?currentChild,
                       ],
                     ),
@@ -2692,11 +2698,12 @@ class _VoiceRecordSheet extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('录一段语音', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 6),
             Text(
-              '按住开始，松开后加入待发送消息。',
+              '录完可以先试听，再发送。',
               style: Theme.of(
                 context,
               ).textTheme.bodySmall?.copyWith(color: colors.mutedInk),
@@ -2704,6 +2711,7 @@ class _VoiceRecordSheet extends StatelessWidget {
             const SizedBox(height: 18),
             HoldToRecordButton(
               buttonKey: const Key('chat-hold-to-record'),
+              showRecordingOverlay: true,
               onRecorded: onRecorded,
               onError: onError,
             ),
@@ -2720,7 +2728,7 @@ String _chatTimestampLabel(DateTime value) {
   return '$month/$day ${diaryTimeLabel(value)}';
 }
 
-enum _ChatEntryAction { edit, delete }
+enum _ChatEntryAction { edit, delete, transcribe, cancelTranscription }
 
 enum _ChatAttachmentAction {
   image,

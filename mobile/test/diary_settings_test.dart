@@ -511,6 +511,32 @@ void main() {
     },
   );
 
+  test(
+    'startup settings can open while the reminder is being restored',
+    () async {
+      final restore = Completer<void>();
+      final scheduler = _FakeDailyReminderScheduler(
+        waitForSchedule: restore.future,
+      );
+      final controller = SettingsController(
+        store: _MemorySettingsStore(const DiarySettings(dailyReminder: true)),
+        dailyReminderScheduler: scheduler,
+      );
+      final loading = controller.initialize();
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.isLoading, isFalse);
+
+      final disabling = controller.setDailyReminder(false);
+      await Future<void>.delayed(Duration.zero);
+      expect(scheduler.cancelCallCount, 0);
+
+      restore.complete();
+      await loading;
+      expect(await disabling, DailyReminderScheduleResult.cancelled);
+      expect(controller.settings.dailyReminder, isFalse);
+    },
+  );
+
   test('cancels the scheduled reminder before saving it as disabled', () async {
     final store = _MemorySettingsStore(
       const DiarySettings(dailyReminder: true),
@@ -630,10 +656,41 @@ void main() {
     },
   );
 
-  test('theme presets replace the old palette and keep warm paper default', () {
+  test(
+    'missing theme preferences use dark teal and saved choices survive',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final store = SharedPreferencesDiarySettingsStore();
+      final defaults = await store.load();
+      expect(defaults.themeMode, DiaryThemeMode.dark);
+      expect(defaults.themePreset.name, 'teal');
+      expect(defaults.customThemeColor, isNull);
+      final colors = DiaryThemeColors.darkFor(defaults.themePreset);
+      expect(colors.terracotta, const Color(0xFF65D1B5));
+      expect(
+        (colors.terracotta.computeLuminance() + .05) /
+            (colors.surface.computeLuminance() + .05),
+        greaterThan(4.5),
+      );
+      await store.save(
+        const DiarySettings(
+          themeMode: DiaryThemeMode.system,
+          themePreset: DiaryThemePreset.warmPaper,
+          customThemeColor: 0xFF3E7895,
+        ),
+      );
+      final saved = await store.load();
+      expect(saved.themeMode, DiaryThemeMode.system);
+      expect(saved.themePreset, DiaryThemePreset.warmPaper);
+      expect(saved.customThemeColor, 0xFF3E7895);
+    },
+  );
+
+  test('old palette identifiers keep their warm paper fallback', () {
     expect(
       DiaryThemePreset.values.map((preset) => preset.wireValue),
       equals([
+        'teal',
         'warmPaper',
         'carbon',
         'deepSea',
@@ -753,7 +810,9 @@ void main() {
   testWidgets(
     'theme picker presents the full visual theme grid and saves a choice',
     (tester) async {
-      final store = _MemorySettingsStore();
+      final store = _MemorySettingsStore(
+        const DiarySettings(customThemeColor: 0xFF6ED9B2),
+      );
       final controller = SettingsController(store: store);
       await controller.initialize();
       await tester.pumpWidget(
@@ -776,6 +835,10 @@ void main() {
         findsOneWidget,
       );
       expect(
+        find.byKey(const Key('settings-theme-preset-teal')),
+        findsOneWidget,
+      );
+      expect(
         find.byKey(const Key('settings-theme-preset-carbon')),
         findsOneWidget,
       );
@@ -788,6 +851,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(store.value.themePreset.wireValue, 'carbon');
+      expect(store.value.customThemeColor, isNull);
 
       await tester.tap(
         find.byKey(const Key('settings-theme-preset')).hitTestable(),
@@ -799,47 +863,18 @@ void main() {
         of: themeGrid,
         matching: find.byType(Scrollable),
       );
-      await tester.scrollUntilVisible(
-        find.byKey(const Key('settings-theme-preset-deepSea')),
-        240,
-        scrollable: themeScrollable,
-      );
-      expect(
-        find.byKey(const Key('settings-theme-preset-deepSea')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const Key('settings-theme-preset-pine')),
-        findsOneWidget,
-      );
-
-      await tester.scrollUntilVisible(
-        find.byKey(const Key('settings-theme-preset-dusk')),
-        240,
-        scrollable: themeScrollable,
-      );
-      expect(
-        find.byKey(const Key('settings-theme-preset-dusk')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const Key('settings-theme-preset-terracotta')),
-        findsOneWidget,
-      );
-
-      await tester.scrollUntilVisible(
-        find.byKey(const Key('settings-theme-preset-moonstone')),
-        240,
-        scrollable: themeScrollable,
-      );
-      expect(
-        find.byKey(const Key('settings-theme-preset-roseMist')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const Key('settings-theme-preset-moonstone')),
-        findsOneWidget,
-      );
+      for (final preset in [
+        'deepSea',
+        'pine',
+        'dusk',
+        'terracotta',
+        'roseMist',
+        'moonstone',
+      ]) {
+        final tile = find.byKey(Key('settings-theme-preset-$preset'));
+        await tester.scrollUntilVisible(tile, 160, scrollable: themeScrollable);
+        expect(tile, findsOneWidget);
+      }
     },
   );
 
@@ -1001,10 +1036,12 @@ class _FakeDailyReminderScheduler implements DailyReminderScheduler {
   _FakeDailyReminderScheduler({
     this.scheduleResult = DailyReminderScheduleResult.scheduled,
     this.cancelResult = DailyReminderScheduleResult.cancelled,
+    this.waitForSchedule,
   });
 
   final DailyReminderScheduleResult scheduleResult;
   final DailyReminderScheduleResult cancelResult;
+  final Future<void>? waitForSchedule;
   final List<DiaryReminderTime> scheduledTimes = [];
   final List<bool> requestPermissionValues = [];
   int cancelCallCount = 0;
@@ -1022,6 +1059,7 @@ class _FakeDailyReminderScheduler implements DailyReminderScheduler {
   }) async {
     scheduledTimes.add(time);
     requestPermissionValues.add(requestPermission);
+    await waitForSchedule;
     return scheduleResult;
   }
 }

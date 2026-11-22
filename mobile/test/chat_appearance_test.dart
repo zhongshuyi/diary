@@ -105,7 +105,7 @@ void main() {
       expect(_entryRendererState(tester, DiaryAudioPlayer), same(audio));
       expect(tester.widget<TextField>(field).controller!.text, '保留正在写的日记');
       expect(focus.hasFocus, isTrue);
-      expect(_entranceOpacity(tester), 1);
+      expect(_entrance(), findsNothing);
       expect(harness.currentState!.sent, isEmpty);
     }
 
@@ -314,6 +314,8 @@ void main() {
     await tester.tap(find.byKey(const Key('chat-more-menu')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('对话外观'));
+    await tester.pump();
+    expect(harness.currentState!.appearanceOpens, 0);
     await tester.pumpAndSettle();
     expect(harness.currentState!.appearanceOpens, 1);
     expect(tester.widget<TextField>(field).controller!.text, '还没写完');
@@ -497,17 +499,10 @@ List<Color?> _renderedChatColors(WidgetTester tester) {
   ];
 }
 
-double _entranceOpacity(WidgetTester tester) => tester
-    .widget<FadeTransition>(
-      find
-          .descendant(
-            of: find.byKey(const ValueKey('chat-entry-original')),
-            matching: find.byType(FadeTransition),
-          )
-          .first,
-    )
-    .opacity
-    .value;
+Finder _entrance() => find.descendant(
+  of: find.byKey(const ValueKey('chat-entry-original')),
+  matching: find.byType(FadeTransition),
+);
 
 DiaryEntry _entry({String text = '记录今天'}) => DiaryEntry(
   id: 'original',

@@ -18,6 +18,7 @@ class SettingsController extends ChangeNotifier {
   DiarySettings _settings = const DiarySettings();
   bool _isLoading = true;
   Future<void> _pendingSave = Future<void>.value();
+  Future<void>? _restoringReminder;
 
   DiarySettings get settings => _settings;
   bool get isLoading => _isLoading;
@@ -31,10 +32,7 @@ class SettingsController extends ChangeNotifier {
         companionName: normalizeDiaryCompanionName(loaded.companionName),
       );
       if (_settings.dailyReminder) {
-        await _dailyReminderScheduler.schedule(
-          _settings.dailyReminderTime,
-          requestPermission: false,
-        );
+        _restoringReminder = _restoreDailyReminder(_settings.dailyReminderTime);
       }
     } catch (_) {
       // Settings are a convenience layer. A storage failure must not block
@@ -43,13 +41,24 @@ class SettingsController extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+    await _restoringReminder;
+    _restoringReminder = null;
+  }
+
+  Future<void> _restoreDailyReminder(DiaryReminderTime time) async {
+    try {
+      await _dailyReminderScheduler.schedule(time, requestPermission: false);
+    } catch (_) {
+      // Retry the saved schedule on the next launch if the platform is unavailable.
+    }
   }
 
   Future<void> setThemeMode(DiaryThemeMode value) =>
       _update(_settings.copyWith(themeMode: value));
 
-  Future<void> setThemePreset(DiaryThemePreset value) =>
-      _update(_settings.copyWith(themePreset: value));
+  Future<void> setThemePreset(DiaryThemePreset value) => _update(
+    _settings.copyWith(themePreset: value, clearCustomThemeColor: true),
+  );
 
   Future<void> setCustomThemeColor(int value) =>
       _update(_settings.copyWith(customThemeColor: value));
@@ -122,6 +131,8 @@ class SettingsController extends ChangeNotifier {
   );
 
   Future<DailyReminderScheduleResult> setDailyReminder(bool value) async {
+    final restoring = _restoringReminder;
+    if (restoring != null) await restoring;
     final result = value
         ? await _dailyReminderScheduler.schedule(
             _settings.dailyReminderTime,
@@ -137,6 +148,8 @@ class SettingsController extends ChangeNotifier {
   Future<DailyReminderScheduleResult> setDailyReminderTime(
     DiaryReminderTime value,
   ) async {
+    final restoring = _restoringReminder;
+    if (restoring != null) await restoring;
     if (!_settings.dailyReminder) {
       await _update(_settings.copyWith(dailyReminderTime: value));
       return DailyReminderScheduleResult.scheduled;

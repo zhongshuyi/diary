@@ -77,7 +77,7 @@ void main() {
       var requests = 0;
       servePackage(onRequest: () => requests++);
       expect(await store.installed(), isNull);
-      expect(await store.readAutoTranscribe(), false);
+      expect((await store.readPreferences()).autoTranscribe, false);
       expect(requests, 0);
       expect(await temporary.list().toList(), isEmpty);
     },
@@ -248,26 +248,46 @@ void main() {
     );
   });
 
-  test('auto setting persists locally with ordered atomic writes', () async {
-    await Future.wait([
-      store.writeAutoTranscribe(true),
-      store.writeAutoTranscribe(false),
-      store.writeAutoTranscribe(true),
-    ]);
-    expect(await store.readAutoTranscribe(), true);
-    final restored = SpeechModelStore(
-      directoryProvider: () async => temporary,
-      package: fixturePackage(),
-    );
-    expect(await restored.readAutoTranscribe(), true);
-    await restored.dispose();
-    expect(
-      await File(
-        p.join(temporary.path, 'speech-models', 'settings.json.part'),
-      ).exists(),
-      false,
-    );
-  });
+  test(
+    'speech preferences preserve v1 and use ordered atomic writes',
+    () async {
+      final legacy = File(
+        p.join(temporary.path, 'speech-models', 'settings.json'),
+      );
+      await legacy.parent.create(recursive: true);
+      await legacy.writeAsString(
+        jsonEncode({'version': 1, 'autoTranscribe': true}),
+      );
+      expect(await store.readPreferences(), (
+        enabled: null,
+        autoTranscribe: true,
+      ));
+      await Future.wait([
+        store.writePreferences((enabled: true, autoTranscribe: true)),
+        store.writePreferences((enabled: true, autoTranscribe: false)),
+        store.writePreferences((enabled: false, autoTranscribe: true)),
+      ]);
+      expect(await store.readPreferences(), (
+        enabled: false,
+        autoTranscribe: true,
+      ));
+      final restored = SpeechModelStore(
+        directoryProvider: () async => temporary,
+        package: fixturePackage(),
+      );
+      expect(await restored.readPreferences(), (
+        enabled: false,
+        autoTranscribe: true,
+      ));
+      await restored.dispose();
+      expect(
+        await File(
+          p.join(temporary.path, 'speech-models', 'settings.json.part'),
+        ).exists(),
+        false,
+      );
+    },
+  );
 
   test(
     'remove deletes model and disables auto without touching recordings',
@@ -278,10 +298,13 @@ void main() {
       await originalAudio.writeAsBytes([10, 20, 30]);
       servePackage();
       await store.download();
-      await store.writeAutoTranscribe(true);
+      await store.writePreferences((enabled: true, autoTranscribe: true));
       await store.remove();
       expect(await store.installed(), isNull);
-      expect(await store.readAutoTranscribe(), false);
+      expect(await store.readPreferences(), (
+        enabled: false,
+        autoTranscribe: false,
+      ));
       expect(await originalAudio.readAsBytes(), [10, 20, 30]);
     },
   );

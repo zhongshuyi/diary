@@ -13,6 +13,50 @@ const _files = SpeechModelFiles(
 
 void main() {
   test(
+    'master switch stops both modes and retains saved text and auto preference',
+    () async {
+      final models = _Models(automatic: true);
+      final engine = _Engine();
+      final controller = TranscriptionController(
+        models: models,
+        engine: engine,
+        queueDelay: Duration.zero,
+      );
+      await controller.retry('entry', '/saved.m4a');
+      await _flush();
+      engine.complete('已保存的识别文字');
+      await _flush();
+      await controller.retry('entry', '/running.m4a');
+      await _flush();
+      await controller.enqueue('entry', '/queued.m4a');
+
+      await controller.setEnabled(false);
+      expect(controller.enabled, isFalse);
+      expect(controller.hasModel, isTrue);
+      expect(controller.autoTranscribe, isFalse);
+      expect(controller.queuedCount, 0);
+      expect(
+        controller.stateFor('entry', '/running.m4a')?.stage,
+        AudioTranscriptionStage.cancelled,
+      );
+      expect(controller.stateFor('entry', '/saved.m4a')?.text, '已保存的识别文字');
+      await controller.retry('entry', '/blocked.m4a');
+      expect(controller.stateFor('entry', '/blocked.m4a'), isNull);
+      await controller.close();
+
+      final reopened = TranscriptionController(
+        models: models,
+        engine: _Engine(),
+      );
+      await reopened.initialize();
+      expect(reopened.enabled, isFalse);
+      await reopened.setEnabled(true);
+      expect(reopened.autoTranscribe, isTrue);
+      await reopened.close();
+    },
+  );
+
+  test(
     'cancelling while native cleanup is pending never starts a model download',
     () async {
       final engine = _DelayedCancelEngine();
@@ -416,6 +460,7 @@ class _Models extends SpeechModelStore {
   _Models({this.model = _files, this.automatic = false});
   SpeechModelFiles? model;
   bool automatic;
+  bool? enabled;
   int downloadCalls = 0;
   int removes = 0;
   final settingsWrites = <bool>[];
@@ -423,11 +468,13 @@ class _Models extends SpeechModelStore {
   @override
   Future<SpeechModelFiles?> installed() async => model;
   @override
-  Future<bool> readAutoTranscribe() async => automatic;
+  Future<SpeechTranscriptionPreferences> readPreferences() async =>
+      (enabled: enabled, autoTranscribe: automatic);
   @override
-  Future<void> writeAutoTranscribe(bool value) async {
-    settingsWrites.add(value);
-    automatic = value;
+  Future<void> writePreferences(SpeechTranscriptionPreferences value) async {
+    settingsWrites.add(value.autoTranscribe);
+    enabled = value.enabled;
+    automatic = value.autoTranscribe;
   }
 
   @override
@@ -443,6 +490,7 @@ class _Models extends SpeechModelStore {
   Future<void> remove() async {
     removes++;
     model = null;
+    await writePreferences((enabled: false, autoTranscribe: false));
   }
 
   @override

@@ -102,9 +102,22 @@ class DiaryImageThumbnail extends StatelessWidget {
       tag: diaryImageHeroTag(entryId, index, scope: heroScope),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(borderRadius),
-        child: LocalMediaPreview(
-          path: imagePaths[index],
-          kind: DiaryMediaKind.image,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final size = constraints.biggest.longestSide;
+            final decodeSize = size.isFinite
+                ? (size * MediaQuery.devicePixelRatioOf(context)).ceil().clamp(
+                    1,
+                    1024,
+                  )
+                : null;
+            return LocalMediaPreview(
+              path: imagePaths[index],
+              kind: DiaryMediaKind.image,
+              cacheWidth: decodeSize,
+              cacheHeight: decodeSize,
+            );
+          },
         ),
       ),
     );

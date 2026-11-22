@@ -76,7 +76,10 @@ class TranscriptionController extends ChangeNotifier {
   SpeechModelFiles? _model;
   _AudioTask? _current;
   bool _initialized = false;
-  bool _autoTranscribe = false;
+  SpeechTranscriptionPreferences _preferences = (
+    enabled: null,
+    autoTranscribe: false,
+  );
   bool _downloading = false;
   bool _downloadCancelled = false;
   bool _changingSettings = false;
@@ -87,7 +90,10 @@ class TranscriptionController extends ChangeNotifier {
   bool get initialized => _initialized;
   bool get supported => _engine.supported;
   bool get hasModel => _model != null;
-  bool get autoTranscribe => _autoTranscribe;
+  // Before the master switch existed, installing the model enabled manual use.
+  bool get enabled => supported && (_preferences.enabled ?? hasModel);
+  bool get ready => initialized && enabled && hasModel && !busy;
+  bool get autoTranscribe => enabled && hasModel && _preferences.autoTranscribe;
   bool get downloading => _downloading;
   double? get downloadProgress => _downloadProgress;
   String? get error => _error;
@@ -105,13 +111,10 @@ class TranscriptionController extends ChangeNotifier {
       await _engine.checkSupported();
       if (_disposed) return;
       final model = await _models.installed();
-      final automatic = await _models.readAutoTranscribe();
+      final preferences = await _models.readPreferences();
       if (_disposed) return;
       _model = model;
-      _autoTranscribe = automatic && model != null && supported;
-      if (automatic && !_autoTranscribe) {
-        await _models.writeAutoTranscribe(false);
-      }
+      _preferences = preferences;
     } catch (_) {
       if (!_disposed) _error = '无法读取语音转写设置，请重新准备模型。';
     } finally {
@@ -170,6 +173,15 @@ class TranscriptionController extends ChangeNotifier {
     await _models.cancelDownload();
   }
 
+  Future<void> setEnabled(bool value) async {
+    await initialize();
+    if (_disposed || busy || !supported || value == enabled) return;
+    await _savePreferences((
+      enabled: value,
+      autoTranscribe: _preferences.autoTranscribe,
+    ), stopQueue: !value);
+  }
+
   Future<void> setAutoTranscribe(bool enabled) async {
     if (_disposed || busy) return;
     await initialize();
@@ -179,18 +191,30 @@ class TranscriptionController extends ChangeNotifier {
       _notify();
       return;
     }
+    if (enabled && !this.enabled) return;
+    await _savePreferences((
+      enabled: _preferences.enabled,
+      autoTranscribe: enabled,
+    ));
+  }
+
+  Future<void> _savePreferences(
+    SpeechTranscriptionPreferences next, {
+    bool stopQueue = false,
+  }) async {
     _changingSettings = true;
     _error = null;
     _notify();
     try {
-      if (!enabled) await stop();
-      await _models.writeAutoTranscribe(enabled);
-      if (!_disposed) _autoTranscribe = enabled;
+      if (stopQueue) await stop();
+      await _models.writePreferences(next);
+      if (!_disposed) _preferences = next;
     } catch (_) {
-      if (!_disposed) _error = '自动转写设置未保存，请重试。';
+      if (!_disposed) _error = '转写设置未保存，请重试。';
     } finally {
       _changingSettings = false;
       _notify();
+      _schedule();
     }
   }
 
@@ -203,9 +227,8 @@ class TranscriptionController extends ChangeNotifier {
     _notify();
     try {
       await stop();
-      await _models.writeAutoTranscribe(false);
-      _autoTranscribe = false;
       await _models.remove();
+      _preferences = (enabled: false, autoTranscribe: false);
       _model = null;
     } catch (_) {
       if (!_disposed) _error = '模型未移除，请稍后重试。';
@@ -232,7 +255,8 @@ class TranscriptionController extends ChangeNotifier {
         entryVersion != (_entryVersions[entryId] ?? 0) ||
         previousVersion != (_versions[id] ?? 0) ||
         busy ||
-        (!manual && !_autoTranscribe)) {
+        !enabled ||
+        (!manual && !autoTranscribe)) {
       return;
     }
     if (_states[id]?.active == true) return;
@@ -355,6 +379,7 @@ class TranscriptionController extends ChangeNotifier {
 
   void _schedule({Duration? delay}) {
     if (_disposed ||
+        !enabled ||
         _downloading ||
         _changingSettings ||
         _queue.isEmpty ||

@@ -65,7 +65,7 @@ void main() {
     final harness = GlobalKey<_LifecycleHarnessState>();
     await tester.pumpWidget(_LifecycleHarness(key: harness));
     await tester.pumpAndSettle();
-    expect(_entranceOpacity(tester, 'original'), 1);
+    expect(_entrance('original'), findsNothing);
 
     await _send(tester, 'first');
     final state = _rendererState(tester, 'sent-1');
@@ -164,17 +164,13 @@ State<StatefulWidget> _audioState(WidgetTester tester, String id) =>
       ),
     );
 
-double _entranceOpacity(WidgetTester tester, String id) => tester
-    .widget<FadeTransition>(
-      find
-          .descendant(
-            of: find.byKey(ValueKey('chat-entry-$id')),
-            matching: find.byType(FadeTransition),
-          )
-          .first,
-    )
-    .opacity
-    .value;
+Finder _entrance(String id) => find.descendant(
+  of: find.byKey(ValueKey('chat-entry-$id')),
+  matching: find.byType(FadeTransition),
+);
+
+double _entranceOpacity(WidgetTester tester, String id) =>
+    tester.widget<FadeTransition>(_entrance(id).first).opacity.value;
 
 Future<void> _send(WidgetTester tester, String text) async {
   await tester.enterText(find.byKey(const Key('chat-message-field')), text);

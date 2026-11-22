@@ -458,18 +458,24 @@ void main() {
     expect(tester.getTopLeft(record).dx, 8);
     expect(tester.getTopLeft(surface).dx - tester.getTopRight(record).dx, 8);
     expect(tester.getTopRight(add).dx, 312);
-    expect(tester.getTopLeft(add).dx - tester.getTopRight(mood).dx, 2);
-    final microphone = find.byIcon(Icons.mic_none_rounded);
     expect(
-      tester.getTopLeft(surface).dx - tester.getTopRight(microphone).dx,
-      tester.getTopLeft(microphone).dx,
+      tester.getTopLeft(add).dx - tester.getTopRight(mood).dx,
+      greaterThanOrEqualTo(2),
+    );
+    final recordIcon = find.descendant(
+      of: record,
+      matching: find.byIcon(Icons.mic_rounded),
+    );
+    expect(tester.getSize(recordIcon), const Size.square(20));
+    expect(
+      tester.getTopLeft(surface).dx - tester.getTopRight(recordIcon).dx,
+      tester.getTopLeft(recordIcon).dx,
     );
 
     await tester.enterText(field, '测试输入');
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 80));
-    expect(tester.getSize(field).width, lessThan(fieldWidth));
-    expect(tester.getSize(field).width, greaterThan(fieldWidth - 12));
+    expect(tester.getSize(field).width, fieldWidth);
     await tester.pumpAndSettle();
     expect(tester.getSize(surface).height, oneLineHeight);
     final editable = tester.state<EditableTextState>(find.byType(EditableText));
@@ -483,7 +489,7 @@ void main() {
     expect(tester.getSize(send), const Size(52, 40));
     expect(tester.getTopLeft(send).dy, tester.getTopLeft(mood).dy);
     expect(tester.getTopRight(send).dx, 312);
-    expect(tester.getSize(field).width, fieldWidth - 12);
+    expect(tester.getSize(field).width, fieldWidth);
     expect(find.text('发送'), findsOneWidget);
     expect(
       tester.widget<TextField>(field).selectionControls!.getHandleSize(20),
@@ -497,8 +503,7 @@ void main() {
     await tester.enterText(field, '');
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 80));
-    expect(tester.getSize(field).width, greaterThan(fieldWidth - 12));
-    expect(tester.getSize(field).width, lessThan(fieldWidth));
+    expect(tester.getSize(field).width, fieldWidth);
     await tester.pumpAndSettle();
     expect(tester.getSize(field).width, fieldWidth);
   });
@@ -720,6 +725,8 @@ void main() {
     expect(field.focusNode?.hasFocus, isTrue);
     await tester.pumpAndSettle();
     await tester.tap(find.text('日历'));
+    await tester.pump();
+    expect(destination, isNull);
     await tester.pumpAndSettle();
     expect(destination, ChatPageDestination.calendar);
   });
@@ -925,7 +932,7 @@ void main() {
       content: '',
       contentText: '',
       category: '生活',
-      imagePaths: const ['photo.jpg'],
+      imagePaths: const ['assets/brand/diary_logo.png'],
     );
     await tester.pumpWidget(
       _ChatHarness(
@@ -934,6 +941,24 @@ void main() {
         onNavigate: (value) => destination = value,
       ),
     );
+    final thumbnail = find.byKey(
+      const Key('diary-image-thumbnail-image-only-entry-0'),
+    );
+    final image = tester.widget<Image>(
+      find.descendant(of: thumbnail, matching: find.byType(Image)),
+    );
+    expect(image.image, isA<ResizeImage>());
+    final decode = image.image as ResizeImage;
+    expect(decode.policy, ResizeImagePolicy.fit);
+    expect(decode.width, lessThanOrEqualTo(1024));
+    expect(decode.height, decode.width);
+    final loadingPreview = image.frameBuilder!(
+      tester.element(thumbnail),
+      const SizedBox.expand(),
+      null,
+      false,
+    );
+    expect((loadingPreview as ColoredBox).child, isA<AnimatedOpacity>());
     await tester.pumpAndSettle();
 
     expect(
@@ -1099,6 +1124,8 @@ void main() {
         ),
       ),
     );
+    expect(find.text('正在读取对话…'), findsOneWidget);
+    expect(find.text('从一句话开始'), findsNothing);
     updateEntries(() {
       entries = [
         DiaryEntry(
@@ -1116,10 +1143,11 @@ void main() {
     await tester.pump();
 
     expect(find.text('历史消息'), findsWidgets);
+    expect(find.text('正在读取对话…'), findsNothing);
     expect(
       find.descendant(
         of: find.byKey(const ValueKey('chat-entry-loaded-entry')),
-        matching: find.byType(TweenAnimationBuilder<double>),
+        matching: find.byType(FadeTransition),
       ),
       findsNothing,
     );
@@ -1191,6 +1219,22 @@ void main() {
     );
     final position = tester.state<ScrollableState>(scrollable).position;
     expect(position.pixels, closeTo(0, 1));
+    position.jumpTo(60);
+    await tester.pumpAndSettle();
+    final olderTime = DateTime(2026, 9, 19, 7);
+    final syncedHistory = [
+      ...entries,
+      entries.first.copyWith(
+        id: 'older-synced-message',
+        createdAt: olderTime,
+        updatedAt: olderTime,
+        occurredAt: olderTime,
+      ),
+    ];
+    await tester.pumpWidget(_ChatHarness(entries: syncedHistory));
+    await tester.pumpAndSettle();
+    expect(position.pixels, closeTo(60, 1));
+
     await tester.drag(list, const Offset(0, 450));
     await tester.pumpAndSettle();
     final readingOffset = position.pixels;
@@ -1199,7 +1243,7 @@ void main() {
     await tester.pumpWidget(
       _ChatHarness(
         entries: [
-          ...entries,
+          ...syncedHistory,
           DiaryEntry(
             id: 'new-message',
             createdAt: DateTime(2026, 9, 19, 9),
@@ -1217,14 +1261,14 @@ void main() {
     expect(position.pixels, closeTo(readingOffset, 1));
   });
 
-  testWidgets('chat-style audio is an inline voice bar without a label', (
+  testWidgets('chat audio keeps a 48px target around a compact play icon', (
     tester,
   ) async {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(
           body: SizedBox(
-            width: 240,
+            width: 180,
             child: DiaryAudioPlayer(
               path: 'voice-note.m4a',
               chatStyle: true,
@@ -1239,7 +1283,25 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('语音'), findsNothing);
-    expect(find.byTooltip('播放'), findsOneWidget);
+    expect(find.textContaining('0:00'), findsNothing);
+    final play = find.byTooltip('播放');
+    expect(tester.getSize(play).width, greaterThanOrEqualTo(48));
+    expect(tester.getSize(play).height, greaterThanOrEqualTo(48));
+    final icon = find.descendant(
+      of: play,
+      matching: find.byIcon(Icons.play_arrow_rounded),
+    );
+    expect(tester.getSize(icon), const Size.square(18));
+    expect(
+      find.ancestor(
+        of: icon,
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is SizedBox && widget.width == 32 && widget.height == 32,
+        ),
+      ),
+      findsOneWidget,
+    );
   });
 }
 

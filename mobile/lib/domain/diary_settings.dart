@@ -3,6 +3,7 @@ import 'package:diary/domain/diary_entry.dart';
 enum DiaryThemeMode { system, light, dark }
 
 enum DiaryThemePreset {
+  teal,
   warmPaper,
   carbon,
   deepSea,
@@ -12,6 +13,9 @@ enum DiaryThemePreset {
   roseMist,
   moonstone,
 }
+
+const diaryDefaultThemeMode = DiaryThemeMode.dark;
+const diaryDefaultThemePreset = DiaryThemePreset.teal;
 
 enum QuickCaptureSide { left, right }
 
@@ -160,6 +164,7 @@ extension DiaryThemeModeCodec on DiaryThemeMode {
   }
 
   static DiaryThemeMode fromWireValue(String? value) {
+    if (value == null) return diaryDefaultThemeMode;
     return DiaryThemeMode.values.firstWhere(
       (mode) => mode.wireValue == value,
       orElse: () => DiaryThemeMode.system,
@@ -172,6 +177,8 @@ extension DiaryThemePresetCodec on DiaryThemePreset {
 
   String get label {
     switch (this) {
+      case DiaryThemePreset.teal:
+        return '薄荷青';
       case DiaryThemePreset.warmPaper:
         return '暖纸';
       case DiaryThemePreset.carbon:
@@ -193,6 +200,8 @@ extension DiaryThemePresetCodec on DiaryThemePreset {
 
   String get description {
     switch (this) {
+      case DiaryThemePreset.teal:
+        return '柔和青色与中性底色';
       case DiaryThemePreset.warmPaper:
         return '温柔、纸感的暖杏色';
       case DiaryThemePreset.carbon:
@@ -213,6 +222,7 @@ extension DiaryThemePresetCodec on DiaryThemePreset {
   }
 
   static DiaryThemePreset fromWireValue(String? value) {
+    if (value == null) return diaryDefaultThemePreset;
     return DiaryThemePreset.values.firstWhere(
       (preset) => preset.wireValue == value,
       orElse: () => DiaryThemePreset.warmPaper,
@@ -222,8 +232,8 @@ extension DiaryThemePresetCodec on DiaryThemePreset {
 
 class DiarySettings {
   const DiarySettings({
-    this.themeMode = DiaryThemeMode.system,
-    this.themePreset = DiaryThemePreset.warmPaper,
+    this.themeMode = diaryDefaultThemeMode,
+    this.themePreset = diaryDefaultThemePreset,
     this.customThemeColor,
     this.chatBackground = const DiaryChatBackground(),
     this.fontScale = 1,

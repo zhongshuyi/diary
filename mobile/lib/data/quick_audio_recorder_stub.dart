@@ -5,6 +5,9 @@ QuickAudioRecorder createQuickAudioRecorder() =>
 
 class _UnsupportedQuickAudioRecorder implements QuickAudioRecorder {
   @override
+  Stream<double> get levels => const Stream.empty();
+
+  @override
   Future<void> cancel() async {}
 
   @override

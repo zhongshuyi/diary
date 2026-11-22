@@ -4,10 +4,12 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import 'package:diary/app/app_theme.dart';
+import 'package:diary/app/diary_motion.dart';
 import 'package:diary/application/local_assistant_controller.dart';
 import 'package:diary/data/local_model_store.dart';
 import 'package:diary/domain/assistant_provider_settings.dart';
 import 'package:diary/domain/local_assistant_message.dart';
+import 'package:diary/pages/settings/settings_controls.dart';
 
 class LocalAssistantSettingsPage extends StatefulWidget {
   const LocalAssistantSettingsPage({
@@ -44,6 +46,7 @@ class _LocalAssistantSettingsPageState
   late final TextEditingController _onlineModel;
   late final TextEditingController _apiKey;
   final _onlineDrafts = <OnlineModelProvider, _OnlineDraft>{};
+  final _onlineConfigurationKey = GlobalKey();
   bool _sendImages = false;
   bool _showApiKey = false;
   bool _savingOnline = false;
@@ -160,6 +163,14 @@ class _LocalAssistantSettingsPageState
     if (value && !widget.controller.canUseSelectedModel) {
       if (widget.controller.source == AssistantReplySource.online) {
         _notice('先保存有效的 API 地址、模型 ID 和 API Key，再开启日记陪伴。');
+        final target = _onlineConfigurationKey.currentContext;
+        if (target != null) {
+          await Scrollable.ensureVisible(
+            target,
+            duration: DiaryMotion.duration(context, DiaryMotion.standard),
+            curve: Curves.easeOutCubic,
+          );
+        }
         return;
       }
       _notice('先选择一个模型，再开启日记陪伴。');
@@ -699,7 +710,7 @@ class _LocalAssistantSettingsPageState
       }
     }
 
-    return _SettingsCard(
+    return SettingsCard(
       child: InkWell(
         key: ValueKey('assistant-model-option-${descriptor.id}'),
         onTap: _canManageLocal ? choose : null,
@@ -769,6 +780,7 @@ class _LocalAssistantSettingsPageState
   @override
   Widget build(BuildContext context) {
     final colors = DiaryThemeColors.of(context);
+    final controller = widget.controller;
     return Scaffold(
       backgroundColor: colors.paper,
       appBar: AppBar(centerTitle: true, title: const Text('日记陪伴')),
@@ -778,68 +790,60 @@ class _LocalAssistantSettingsPageState
           key: const Key('assistant-settings-list'),
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
           children: [
+            SettingsFeatureSwitch(
+              switchKey: const Key('assistant-enabled'),
+              icon: Icons.auto_awesome_outlined,
+              title: '启用日记陪伴',
+              description: !controller.initialized
+                  ? '正在读取本机设置…'
+                  : !controller.supported
+                  ? '当前设备可配置线上模型。'
+                  : controller.canUseSelectedModel
+                  ? '保存日记后生成一条简短回应。'
+                  : controller.source == AssistantReplySource.online
+                  ? '保存线上模型配置后即可开启。'
+                  : '选好本地模型后即可开启。',
+              value: controller.enabled && controller.canUseSelectedModel,
+              onChanged: _canChange && controller.supported
+                  ? (value) => unawaited(_setEnabled(value))
+                  : null,
+            ),
+            const SizedBox(height: 12),
             _buildSelectionSummary(context),
-            const SizedBox(height: 20),
-            _buildSource(context),
             const SizedBox(height: 16),
-            if (widget.controller.source == AssistantReplySource.local)
+            _buildSource(context),
+            const SizedBox(height: 10),
+            Text(
+              controller.source == AssistantReplySource.local
+                  ? '本地小模型理解与表达较弱，可能误解或重复。优先回复质量时可选线上模型。'
+                  : '线上回应会向服务商发送当前日记的文字、语气和人设，服务商可能收费。',
+              key: controller.source == AssistantReplySource.local
+                  ? const Key('assistant-local-quality-notice')
+                  : const Key('assistant-online-privacy-notice'),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colors.mutedInk,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (controller.source == AssistantReplySource.local)
               _buildCurrentModel(context)
             else
               _buildOnlineConfiguration(context),
             const SizedBox(height: 16),
-            _SettingsCard(
-              child: SwitchListTile.adaptive(
-                key: const Key('assistant-enabled'),
-                title: const Text('启用日记陪伴'),
-                subtitle: Text(
-                  widget.controller.canUseSelectedModel
-                      ? widget.controller.source == AssistantReplySource.online
-                            ? '使用已保存的 ${widget.controller.onlineProvider.label} 配置回应'
-                            : '记录后，用选中的模型简短回应'
-                      : widget.controller.source == AssistantReplySource.online
-                      ? '先保存线上模型配置和 API Key'
-                      : '先准备模型，再开启陪伴',
-                ),
-                value:
-                    widget.controller.enabled &&
-                    widget.controller.canUseSelectedModel,
-                onChanged: _canChange && widget.controller.supported
-                    ? (value) => unawaited(_setEnabled(value))
-                    : null,
-              ),
-            ),
-            if (widget.controller.source == AssistantReplySource.local) ...[
-              const SizedBox(height: 12),
-              Text(
-                '本地小模型的理解与表达较弱，容易误解、重复或答非所问，仅建议用于离线简单陪伴。优先回复质量时，建议选择线上模型。',
-                key: const Key('assistant-local-quality-notice'),
-                style: TextStyle(color: colors.mutedInk, height: 1.6),
-              ),
-            ],
-            const SizedBox(height: 24),
-            Text('你喜欢的陪伴方式', style: Theme.of(context).textTheme.titleMedium),
+            Text('回复风格', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 10),
             _buildReplyStyle(context),
-            const SizedBox(height: 16),
-            Text(
-              widget.controller.source == AssistantReplySource.local
-                  ? '本地回应在设备上生成，不把日记文字发送给模型服务。回应保存在本机，不会加入日记正文、搜索或同步。'
-                  : '线上回应需要联网，服务商可能收费。会发送当前日记文字、回复语气和人设；开启图片后还会发送当前日记的图片。回应保存在本机，不会加入日记正文、搜索或同步。',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: colors.mutedInk,
-                height: 1.6,
-              ),
+            const SizedBox(height: 12),
+            SettingsHelp(
+              topics: [
+                if (controller.source == AssistantReplySource.local)
+                  (title: '本地模型', text: '下载模型需要联网和存储空间。回应在设备上生成，速度取决于手机。')
+                else
+                  (title: '线上模型', text: '启用发送图片后，才会发送当前日记的图片。历史日记和音频不参与回应。'),
+                (title: '回应的保存位置', text: '回应只保存在本机，独立于日记正文、搜索和同步。'),
+              ],
             ),
-            if (widget.controller.source == AssistantReplySource.local) ...[
-              const SizedBox(height: 10),
-              Text(
-                '下载需要联网。模型会占用存储和内存，回复速度取决于手机。',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colors.mutedInk,
-                  height: 1.6,
-                ),
-              ),
-            ],
             const SizedBox(height: 8),
             Align(
               alignment: Alignment.centerLeft,
@@ -873,7 +877,7 @@ class _LocalAssistantSettingsPageState
         : controller.enabled
         ? '已启用'
         : '未启用';
-    return _SettingsCard(
+    return SettingsCard(
       child: Padding(
         key: const Key('assistant-current-selection'),
         padding: const EdgeInsets.all(16),
@@ -971,7 +975,8 @@ class _LocalAssistantSettingsPageState
     final colors = DiaryThemeColors.of(context);
     final hasKey = controller.hasApiKeyFor(_provider);
     final dirty = _onlineDirty;
-    return _SettingsCard(
+    return SettingsCard(
+      key: _onlineConfigurationKey,
       child: Padding(
         padding: const EdgeInsets.all(18),
         child: Column(
@@ -1204,7 +1209,7 @@ class _LocalAssistantSettingsPageState
         controller.installing ||
         (controller.busy && controller.installProgress != null);
     final failure = _modelError ?? controller.error;
-    return _SettingsCard(
+    return SettingsCard(
       child: Padding(
         padding: const EdgeInsets.all(18),
         child: Column(
@@ -1342,7 +1347,7 @@ class _LocalAssistantSettingsPageState
 
   Widget _buildReplyStyle(BuildContext context) {
     final colors = DiaryThemeColors.of(context);
-    return _SettingsCard(
+    return SettingsCard(
       child: Padding(
         padding: const EdgeInsets.all(18),
         child: Column(
@@ -1622,24 +1627,6 @@ class _StatusBadge extends StatelessWidget {
           context,
         ).textTheme.labelSmall?.copyWith(color: colors.ink),
       ),
-    );
-  }
-}
-
-class _SettingsCard extends StatelessWidget {
-  const _SettingsCard({required this.child});
-  final Widget child;
-  @override
-  Widget build(BuildContext context) {
-    final colors = DiaryThemeColors.of(context);
-    return Material(
-      color: colors.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(color: colors.line),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: child,
     );
   }
 }

@@ -75,7 +75,9 @@ android {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
-    implementation("com.amap.api:3dmap-location-search:10.1.200_loc6.4.9_sea9.7.4")
+    implementation("com.amap.api:3dmap-location-search:11.3.100_loc11.3.101_sea9.8.1")
+    // AMap calls FastMath directly but omits Jafama from its Maven dependencies.
+    implementation("net.jafama:jafama:2.3.2")
 }
 
 flutter {

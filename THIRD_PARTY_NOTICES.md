@@ -14,7 +14,8 @@
 | Inter / Fontsource Inter 5.3.0 | SIL Open Font License 1.1；字体沿用 OFL | [本地声明](third_party/inter.OFL.txt)、[上游](https://github.com/rsms/inter/blob/master/LICENSE.txt) |
 | DOMPurify 3.4.15 | 上游提供 MPL-2.0 或 Apache-2.0；本项目分发采用 Apache-2.0 选项 | [上游声明](https://github.com/cure53/DOMPurify/blob/3.4.15/LICENSE) |
 | remark-math 6.0.0 | MIT；发布包 README 有授权说明，但缺少独立 LICENSE，补充保留上游全文 | [本地声明](third_party/remark-math.LICENSE.txt)、[上游](https://github.com/remarkjs/remark-math/blob/main/license) |
-| 高德 Android SDK | `com.amap.api:3dmap-location-search:10.1.200_loc6.4.9_sea9.7.4`，依高德 SDK 与服务条款使用；不属于项目 MIT 授权 | [服务协议](https://lbs.amap.com/pages/terms/)、[隐私政策](https://lbs.amap.com/pages/privacy/) |
+| 高德 Android SDK | `com.amap.api:3dmap-location-search:11.3.100_loc11.3.101_sea9.8.1`，依高德 SDK 与服务条款使用；不属于项目 MIT 授权 | [服务协议](https://lbs.amap.com/pages/terms/)、[隐私政策](https://lbs.amap.com/pages/privacy/) |
+| Jafama 2.3.2 | 高德定位依赖，Apache-2.0，保留 fdlibm 声明 | [安装包声明](mobile/android/app/src/main/assets/licenses/jafama.txt)、[上游](https://github.com/jeffhain/jafama) |
 
 ## 安装包中的声明
 
